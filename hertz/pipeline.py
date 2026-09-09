@@ -185,6 +185,7 @@ class RunResult:
     ok: bool = True
     error: str | None = None
     hedonic_fitted: bool = False
+    curves: dict = field(default_factory=dict)
 
 
 def collect(
@@ -333,6 +334,7 @@ def run(cfg: Config, dry_run: bool = False) -> RunResult:
             listings, polled_models, polled_entries = collect(session, cfg, store)
             listings.extend(carmax_listings)
             curves = market_curves(session, cfg, store)
+            result.curves = curves
             result.fetched = len(listings)
 
             # Silent-failure guard. An empty result after a healthy run means

@@ -11,7 +11,7 @@ import logging
 import sys
 from datetime import datetime, timedelta
 
-from . import board, config, notify, pipeline
+from . import artifact, board, config, notify, pipeline
 from .score import rank
 from .store import Store
 
@@ -98,10 +98,22 @@ def main(argv: list[str] | None = None) -> int:
     result = pipeline.run(cfg, dry_run=args.dry_run)
 
     board_html = board.render(result, cfg)
-    page = board.render(result, cfg, standalone=True)
-    out_path = cfg.out_dir / "board.html"
-    out_path.write_text(page, encoding="utf-8")
-    logger.info("Board written to %s", out_path)
+    (cfg.out_dir / "board.html").write_text(
+        board.render(result, cfg, standalone=True), encoding="utf-8")
+
+    # index.html is what GitHub Pages serves at the bare URL.
+    try:
+        rich = artifact.render(
+            result.all_scored, cfg,
+            comps=len(result.all_scored),
+            rmse=0.0,
+            curve=result.curves.get("mazda|cx-50 hybrid"),
+        )
+        (cfg.out_dir / "index.html").write_text(rich, encoding="utf-8")
+    except Exception as exc:
+        logger.warning("Rich board could not be rendered: %s", exc)
+
+    logger.info("Boards written to %s", cfg.out_dir)
 
     with Store(cfg.db_path) as store:
         store.export_json(cfg.out_dir / "inventory.json")
