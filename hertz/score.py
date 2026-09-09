@@ -425,12 +425,22 @@ def qualifies(scored: Scored, cfg: Config) -> tuple[bool, list[str]]:
             "CarMax: condition unverified here -- open the listing and read "
             "the AutoCheck CarMax publishes on it before travelling"
         ]
-    if scored.autocheck is None:
+    if scored.autocheck is None and scored.listing.certified:
+        # Franchise dealers' certified cars carry a manufacturer inspection
+        # and CPO warranty but no AutoCheck link on the page, so the history
+        # cannot be independently read. Certification is a stronger condition
+        # signal than a clean AutoCheck, so it passes -- labelled as such,
+        # never as a clean report we did not actually see.
+        reasons.append(
+            "Certified pre-owned by the franchise dealer (inspection + CPO warranty); "
+            "no AutoCheck link on the page, so history was not independently read"
+        )
+    elif scored.autocheck is None:
         return False, reasons + ["AutoCheck not yet retrieved"]
-    if not scored.autocheck.is_clean:
+    elif not scored.autocheck.is_clean:
         return False, reasons + [f"AutoCheck: {'; '.join(scored.autocheck.concerns)}"]
-
-    reasons.append("AutoCheck clean: no accidents, clean title, no odometer flags")
+    else:
+        reasons.append("AutoCheck clean: no accidents, clean title, no odometer flags")
 
     if scored.price_drop_30d:
         reasons.append(f"price cut ${scored.price_drop_30d:,} in the last 30 days")

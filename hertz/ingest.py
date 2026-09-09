@@ -339,10 +339,22 @@ def fetch_all(session: BrowserSession, params: dict, max_pages: int = MAX_PAGES,
             len(result), total, max_pages,
         )
     elif total and len(result) < total:
-        logger.warning(
-            "Collected %d of %d reported vehicles (pagination stopped early)",
-            len(result), total,
-        )
+        # Dealer.com pagination drops a row at a page boundary when prices
+        # tie, so a full ascending sweep can come up one short -- and locally
+        # the missing car was a candidate. One page from the other end of the
+        # sort closes the gap cheaply.
+        tail, _ = fetch_page(session, {**params, "sortBy": "internetPrice desc"}, source)
+        before = len(collected)
+        collected.update({l.vin: l for l in tail})
+        result = list(collected.values())
+        if len(collected) > before:
+            logger.info("Reverse pass recovered %d vehicle(s) missed at a page boundary",
+                        len(collected) - before)
+        if len(result) < total:
+            logger.warning(
+                "Collected %d of %d reported vehicles (pagination stopped early)",
+                len(result), total,
+            )
     return result
 
 

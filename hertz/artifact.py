@@ -230,10 +230,16 @@ PAGE = Template("""<title>Hertz CX-50 Hybrid Board</title>
           </tbody>
         </table>
       </div>
-      <div class="note flag">Both cars under 22,000 miles in a colour you asked for have
-        reported damage. The low-mileage Ingot Blue is the severe collision; the 21,146-mile
-        Gray was towed. On this inventory, low mileage and a clean history do not currently
-        come together in the colour you want.</div>
+      {% if taste_low %}
+      <div class="note {{ 'flag' if taste_low_damaged and not taste_low_clean else 'warn' }}">
+        Of the {{ taste_low|length }} car{{ '' if taste_low|length == 1 else 's' }} under
+        {{ '{:,}'.format(low_cutoff) }} mi in a colour you asked for:
+        <b>{{ taste_low_clean|length }} clean</b>, {{ taste_low_damaged|length }} with reported damage,
+        {{ taste_low_unchecked|length }} not yet checked.
+        {%- if taste_low_damaged and not taste_low_clean %} Low mileage and a clean history do not
+        currently come together in the colours you want.{% endif %}
+      </div>
+      {% endif %}
     </div>
   </section>
   {% endif %}
@@ -369,8 +375,21 @@ def render(scored_rows, cfg: Config, model_key: str = "cx-50 hybrid",
         key=lambda s: s.listing.odometer or 0,
     )
 
+    # Computed, never hard-coded: a sentence about the inventory that was
+    # true when written becomes false the moment a car sells.
+    low_cutoff = cfg.odometer_ideal + cfg.odometer_tolerance if cfg.odometer_ideal else 0
+    taste_low = [s for s in taste if low_cutoff and (s.listing.odometer or 0) <= low_cutoff]
+    taste_low_clean = [s for s in taste_low if s.autocheck is not None and s.autocheck.is_clean]
+    taste_low_damaged = [s for s in taste_low if s.autocheck is not None and not s.autocheck.is_clean]
+    taste_low_unchecked = [s for s in taste_low if s.autocheck is None]
+
     return PAGE.render(
         taste=taste,
+        taste_low=taste_low,
+        taste_low_clean=taste_low_clean,
+        taste_low_damaged=taste_low_damaged,
+        taste_low_unchecked=taste_low_unchecked,
+        low_cutoff=low_cutoff,
         carmax=carmax_rows,
         want_colors=", ".join(c.title() for c in cfg.pref_colors[:3]),
         odo_ideal=cfg.odometer_ideal,

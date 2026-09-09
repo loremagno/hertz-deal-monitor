@@ -115,12 +115,13 @@ jobs:
             git push
           fi
 
-      - name: Upload board
-        # The rendered boards are build output, not history: keep them as a
-        # run artifact for two weeks rather than committing 1 MB per run.
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: board
-          path: out/
-          retention-days: 14
+      - name: Report a dead run
+        # A run that dies before Python starts (browser install, checkout)
+        # never reaches the monitor's own failure alert, so three early
+        # deaths in a row went unheard. Say so from the workflow itself.
+        if: ${{ failure() || cancelled() }}
+        run: |
+          curl -fsS -X POST "https://ntfy.sh/${{ secrets.HERTZ_NTFY_TOPIC }}" \
+            -H "Title: Hertz monitor run died" -H "Priority: high" -H "Tags: warning" \
+            -d "Run ${{ github.run_id }} did not complete; inventory is stale until one does. ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            || true

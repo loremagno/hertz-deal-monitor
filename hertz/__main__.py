@@ -103,23 +103,21 @@ def main(argv: list[str] | None = None) -> int:
     (cfg.out_dir / "board.html").write_text(
         board.render(result, cfg, standalone=True), encoding="utf-8")
 
-    # index.html is what GitHub Pages serves at the bare URL.
+    # The rich board: what gets published as the dashboard.
     try:
         rich = artifact.render(
             result.all_scored, cfg,
-            comps=len(result.all_scored),
-            rmse=0.0,
+            comps=result.hedonic_n,
+            rmse=result.hedonic_rmse,
             curve=result.curves.get("mazda|cx-50 hybrid"),
         )
-        (cfg.out_dir / "index.html").write_text(rich, encoding="utf-8")
+        (cfg.out_dir / "board_artifact.html").write_text(rich, encoding="utf-8")
     except Exception as exc:
         logger.warning("Rich board could not be rendered: %s", exc)
 
     logger.info("Boards written to %s", cfg.out_dir)
 
     with Store(cfg.db_path) as store:
-        store.export_json(cfg.out_dir / "inventory.json")
-
         if not result.ok:
             logger.error("Run failed: %s", result.error)
             if not args.dry_run:

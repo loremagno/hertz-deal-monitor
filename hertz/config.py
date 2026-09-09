@@ -118,7 +118,6 @@ class Config:
     city_state: str = "COLUMBUS, OH, US"
     coordinates: str = "40.0464,-83.0680"
     alert_radius_miles: int = 300
-    national_target_scan: bool = True
     national_mention_min_saving: int = 1500
 
     # economics
@@ -139,8 +138,6 @@ class Config:
 
     # scoring
     min_comps: int = 12
-    odometer_band: int = 25000
-    year_band: int = 2
     min_abs_discount: int = 400
 
     # alerts
@@ -222,7 +219,6 @@ def load(path: Path = CONFIG_PATH) -> Config:
         city_state=str(loc.get("city_state", "COLUMBUS, OH, US")),
         coordinates=str(loc.get("coordinates", "40.0464,-83.0680")),
         alert_radius_miles=int(loc.get("alert_radius_miles", 300)),
-        national_target_scan=bool(loc.get("national_target_scan", True)),
         national_mention_min_saving=int(loc.get("national_mention_min_saving", 1500)),
         sales_tax_rate=float(econ.get("sales_tax_rate", 0.075)),
         title_reg_fees=int(econ.get("title_reg_fees", 100)),
@@ -236,8 +232,6 @@ def load(path: Path = CONFIG_PATH) -> Config:
         odometer_tolerance=int(prefs.get("odometer_tolerance", 0)),
         carmax_max_shipping=int(raw.get("carmax", {}).get("max_shipping", 499)),
         min_comps=int(scoring.get("min_comps", 12)),
-        odometer_band=int(scoring.get("odometer_band", 25000)),
-        year_band=int(scoring.get("year_band", 2)),
         min_abs_discount=int(scoring.get("min_abs_discount", 400)),
         enable_email=bool(alerts.get("enable_email", True)),
         enable_push=bool(alerts.get("enable_push", True)),

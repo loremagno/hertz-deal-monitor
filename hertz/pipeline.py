@@ -170,7 +170,10 @@ def _entry_due(store: Store, entry) -> bool:
         elapsed = datetime.now() - datetime.fromisoformat(last)
     except ValueError:
         return True
-    return elapsed >= timedelta(hours=entry.poll_hours)
+    # A 15-minute tolerance: the cron fires at a fixed minute and the window
+    # is stamped a few minutes into the run, so an exact comparison made every
+    # "2-hour" watch actually poll every 4 hours.
+    return elapsed >= timedelta(hours=entry.poll_hours) - timedelta(minutes=15)
 
 
 def _mark_entry_polled(store: Store, entry) -> None:
@@ -190,6 +193,8 @@ class RunResult:
     ok: bool = True
     error: str | None = None
     hedonic_fitted: bool = False
+    hedonic_n: int = 0
+    hedonic_rmse: float = 0.0
     curves: dict = field(default_factory=dict)
 
 
@@ -210,6 +215,7 @@ def collect(
     by_vin: dict[str, Listing] = {}
     per_model: dict[str, int] = {}
     polled: set[str] = set()
+    polled_sources: set[str] = set()
     # Entries whose poll window should be reset -- but only once the run has
     # actually stored what it fetched. A run that dies after collecting would
     # otherwise consume the window and skip the model until it reopens.
@@ -222,7 +228,14 @@ def collect(
             )
             continue
 
-        source = cfg.sources.get(entry.source) or ingest.HERTZ
+        # Entries on a non-Dealer.com source (CarMax) are swept by their own
+        # reader. Falling through to Hertz here issued a phantom Hertz query
+        # for the CarMax entry's model on every run, logged as carmax:XC60=0.
+        if entry.source not in cfg.sources:
+            polled_entries.append(entry)
+            continue
+        source = cfg.sources[entry.source]
+        polled_sources.add(entry.source)
 
         for model in entry.models:
             key = f"{entry.source}:{model}"
@@ -272,7 +285,7 @@ def collect(
         resolved, len(listings), len(discovered),
     )
 
-    return listings, polled, polled_entries
+    return listings, polled, polled_sources, polled_entries
 
 
 def enrich(session: ingest.BrowserSession, store: Store, candidates: list[Scored], cfg: Config) -> None:
@@ -338,8 +351,13 @@ def run(cfg: Config, dry_run: bool = False, force: bool = False) -> RunResult:
             city_state=cfg.city_state,
             coordinates=cfg.coordinates,
         ) as session:
-            listings, polled_models, polled_entries = collect(session, cfg, store)
+            listings, polled_models, polled_sources, polled_entries = collect(session, cfg, store)
             listings.extend(carmax_listings)
+            if carmax_listings:
+                # Only when the sweep actually returned cars: an empty CarMax
+                # result (Chrome missing, block) must not "sell" its rows.
+                polled_sources.add("carmax")
+                polled_models.update(c.model.lower() for c in carmax_listings)
             curves = market_curves(session, cfg, store)
             result.curves = curves
             result.fetched = len(listings)
@@ -367,7 +385,7 @@ def run(cfg: Config, dry_run: bool = False, force: bool = False) -> RunResult:
                 delta = change["price_delta"]
                 if delta and delta < 0:
                     result.price_drops.append((listing.vin, -delta))
-            store.mark_inactive(seen, polled_models)
+            store.mark_inactive(seen, polled_models, polled_sources)
 
             # Safe to reset the poll windows now that the rows are committed.
             for entry in polled_entries:
@@ -383,6 +401,8 @@ def run(cfg: Config, dry_run: bool = False, force: bool = False) -> RunResult:
 
             hedonic = score.fit_hedonic(known)
             result.hedonic_fitted = hedonic is not None
+            result.hedonic_n = hedonic.n_obs if hedonic else 0
+            result.hedonic_rmse = hedonic.rmse if hedonic else 0.0
 
             scored_all = [
                 score.score_listing(
@@ -448,9 +468,13 @@ def run(cfg: Config, dry_run: bool = False, force: bool = False) -> RunResult:
         # A nationwide car is worth mentioning only if it clearly beats the
         # best car you could drive to, after delivery.
         if result.best_drivable:
+            # Same model only. Comparing across models produced a digest box
+            # recommending a Honolulu XC40 Core against a Toledo CX-50 Hybrid.
+            target_model = result.best_drivable.listing.model.lower()
             far = [
                 s for s in result.watched
                 if (s.listing.geodist or 0) > cfg.alert_radius_miles
+                and s.listing.model.lower() == target_model
                 and result.best_drivable.landed_cost - s.landed_cost >= cfg.national_mention_min_saving
             ]
             result.national_pick = min(far, key=lambda s: s.landed_cost, default=None)
