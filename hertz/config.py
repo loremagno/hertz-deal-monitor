@@ -33,6 +33,16 @@ class WatchEntry:
     year_min: int = 0
     odometer_max: int = 10**9
     exclude_trims: list[str] = field(default_factory=list)
+    # Whitelist: the trim must contain one of these. Cleaner than blacklisting
+    # every trim you do not want, when you know which ones you do.
+    require_trims: list[str] = field(default_factory=list)
+    # Cars.com model slug, used to fit an external market curve for models
+    # too thin in our own data for the pooled hedonic to say anything.
+    market_slug: str = ""
+    market_make: str = ""
+    # CarMax make/model, when this entry should also sweep CarMax.
+    carmax_make: str = ""
+    carmax_model: str = ""
     # Hard colour requirements for this entry, matched as substrings.
     # Only Dealer.com sources carry interior colour: Cars.com result cards
     # show no colour at all and its detail pages are Cloudflare-blocked.
@@ -78,6 +88,10 @@ class WatchEntry:
         if listing.odometer is not None and listing.odometer > self.odometer_max:
             return False
         trim = (listing.trim or "").lower()
+        if self.require_trims and not any(
+            t.strip().lower() in trim for t in self.require_trims
+        ):
+            return False
         for bad in self.exclude_trims:
             if bad.strip() and trim.startswith(bad.strip().lower()):
                 return False
@@ -120,6 +134,8 @@ class Config:
     pref_trims: list[str] = field(default_factory=list)
     odometer_ideal: int = 0
     odometer_tolerance: int = 0
+
+    carmax_max_shipping: int = 499
 
     # scoring
     min_comps: int = 12
@@ -218,6 +234,7 @@ def load(path: Path = CONFIG_PATH) -> Config:
         pref_trims=list(prefs.get("trims", [])),
         odometer_ideal=int(prefs.get("odometer_ideal", 0)),
         odometer_tolerance=int(prefs.get("odometer_tolerance", 0)),
+        carmax_max_shipping=int(raw.get("carmax", {}).get("max_shipping", 499)),
         min_comps=int(scoring.get("min_comps", 12)),
         odometer_band=int(scoring.get("odometer_band", 25000)),
         year_band=int(scoring.get("year_band", 2)),
@@ -242,6 +259,11 @@ def load(path: Path = CONFIG_PATH) -> Config:
             year_min=int(w.get("year_min", 0)),
             odometer_max=int(w.get("odometer_max", 10**9)),
             exclude_trims=list(w.get("exclude_trims", [])),
+            require_trims=list(w.get("require_trims", [])),
+            market_slug=str(w.get("market_slug", "")),
+            market_make=str(w.get("market_make", "")),
+            carmax_make=str(w.get("carmax_make", "")),
+            carmax_model=str(w.get("carmax_model", "")),
             require_exterior=list(w.get("require_exterior", [])),
             require_interior=list(w.get("require_interior", [])),
             poll_hours=float(w.get("poll_hours", 24.0)),

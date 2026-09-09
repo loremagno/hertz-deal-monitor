@@ -53,7 +53,7 @@ class Source:
     def url(self, params: dict) -> str:
         merged = {**self.fixed_params, **params}
         clean = {k: v for k, v in merged.items() if v not in (None, "")}
-        return f"{self.base_url}{self.search_path}?{urlencode(clean)}"
+        return f"{self.base_url}{self.search_path}?{urlencode(clean, doseq=True)}"
 
 
 HERTZ = Source("hertz")
@@ -329,7 +329,7 @@ def fetch_all(session: BrowserSession, params: dict, max_pages: int = MAX_PAGES,
 
 def fetch_model_nationwide(
     session: BrowserSession, model: str, max_pages: int = MAX_PAGES,
-    source: Source = HERTZ
+    source: Source = HERTZ, years: list[int] | None = None,
 ) -> list[Listing]:
     """Every US unit of one model, with distance from the session's origin.
 
@@ -341,11 +341,17 @@ def fetch_model_nationwide(
     an order of magnitude fewer page loads, it guarantees the price model
     same-model comparables, and it still surfaces a bargain parked far away.
     """
-    logger.info("Fetching %r from %s", model, source.name)
-    listings = fetch_all(
-        session, {"model": model, "sortBy": "internetPrice asc"},
-        max_pages=max_pages, source=source,
-    )
+    params = {"model": model, "sortBy": "internetPrice asc"}
+    if years:
+        # Filter server-side, not after the fact. Sweeps are capped and sorted
+        # cheapest-first, so a year restriction applied locally would silently
+        # never see newer cars: they sit past the price cap. Hertz accepts a
+        # repeated `year` parameter.
+        params["year"] = years
+
+    logger.info("Fetching %r from %s%s", model, source.name,
+                f" (years {years})" if years else "")
+    listings = fetch_all(session, params, max_pages=max_pages, source=source)
 
     if not listings:
         logger.warning(

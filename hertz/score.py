@@ -309,6 +309,7 @@ def score_listing(
     hedonic: Hedonic | None,
     autocheck: AutoCheck | None = None,
     price_drop_30d: int | None = None,
+    market_curves: dict | None = None,
 ) -> Scored:
     delivery, tax, fees, total = landed_cost(listing, cfg)
     scored = Scored(
@@ -326,12 +327,36 @@ def score_listing(
         scored.tier = entry.tier.upper()
         scored.matched_label = entry.label
 
+    # Thin models get their benchmark from the open market instead.
+    #
+    # The pooled hedonic gives each model its own dummy, so a model with two
+    # observations has its level fitted almost exactly and its residual is
+    # arithmetic rather than evidence. That is not a corner case here: it is
+    # the XC60 and the CX-70, the two models most worth watching. For those,
+    # a curve fitted on Cars.com listings of the same model is a real
+    # benchmark built on real variation.
+    key = _normalize_model(listing)
+    internal_comps = hedonic.comps_for(listing) if hedonic else 0
+    curve = (market_curves or {}).get(key)
+
+    if curve is not None and internal_comps < cfg.min_comps and listing.price:
+        from .benchmark import market_gap
+        gap = market_gap(listing, curve)
+        if gap is not None:
+            scored.predicted_landed = float(listing.price) + gap[0]
+            scored.residual_pct = -gap[1]
+            scored.residual_sigma = (-gap[1] / 100.0) / curve.rmse if curve.rmse else None
+            scored.comp_n = curve.n
+            scored.benchmark = "market"
+            return scored
+
     if hedonic and listing.price:
         predicted = hedonic.predict(listing)
         if predicted:
             scored.predicted_landed = predicted
             scored.residual_pct = 100.0 * (listing.price - predicted) / predicted
             scored.comp_n = hedonic.comps_for(listing)
+            scored.benchmark = "hertz"
             # How unusual is this residual, in units of the fit's own spread?
             # A percentage alone is not interpretable: -3% against a 4%
             # residual SD is under one sigma, i.e. an ordinary car.
@@ -393,6 +418,13 @@ def qualifies(scored: Scored, cfg: Config) -> tuple[bool, list[str]]:
     if not passed:
         return False, reasons
 
+    if (scored.listing.source or "") == "carmax":
+        # CarMax exposes no history report we can read, so condition is
+        # genuinely unverified. Say so rather than implying it passed.
+        return False, reasons + [
+            "CarMax: condition unverified here -- open the listing and read "
+            "the AutoCheck CarMax publishes on it before travelling"
+        ]
     if scored.autocheck is None:
         return False, reasons + ["AutoCheck not yet retrieved"]
     if not scored.autocheck.is_clean:

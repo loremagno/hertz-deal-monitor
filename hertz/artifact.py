@@ -238,6 +238,35 @@ PAGE = Template("""<title>Hertz CX-50 Hybrid Board</title>
   </section>
   {% endif %}
 
+  {% if carmax %}
+  <section>
+    <h2>Best CarMax XC60s &mdash; landed, shipping included</h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Vehicle</th><th class="r">Miles</th><th class="r">Price</th>
+          <th class="r">Shipping</th><th class="r">Landed</th><th>Store</th></tr></thead>
+        <tbody>
+        {% for s in carmax %}
+        <tr>
+          <td class="veh"><a href="{{ s.listing.url }}">{{ s.listing.year }}
+            {{ s.listing.model }} {{ s.listing.trim }}</a></td>
+          <td class="r num">{{ '{:,}'.format(s.listing.odometer or 0) }}</td>
+          <td class="r num">{{ money(s.listing.price) }}</td>
+          <td class="r num">{{ money(s.delivery) }}</td>
+          <td class="r num" style="font-weight:600">{{ money(s.landed_cost) }}</td>
+          <td>{{ s.listing.lot }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="note warn">CarMax ships nationally for a flat banded fee, so distance
+      barely matters &mdash; the shipping column is the whole geographic cost. These are
+      not certified and carry no AutoCheck from CarMax, so condition is unverified here;
+      CarMax's own 30-day return is the protection.</div>
+  </section>
+  {% endif %}
+
   <section>
     <h2>Everything on the watchlist within {{ radius }} mi</h2>
     <div class="scroll">
@@ -326,6 +355,12 @@ def render(scored_rows, cfg: Config, model_key: str = "cx-50 hybrid",
     cleared = [s for s in nearby if s.reasons and s.autocheck and s.autocheck.is_clean]
     flagged = [s for s in watched if s.autocheck is not None and not s.autocheck.is_clean]
 
+    # The five cheapest CarMax cars, landed. Kept in their own section
+    # because CarMax prices shipping per car rather than per mile, so they do
+    # not belong in a table sorted by distance.
+    carmax_rows = rank([s for s in scored_rows
+                        if (s.listing.source or "") == "carmax" and s.listing.price])[:5]
+
     # Cars in a colour asked for, cheapest mileage first.
     taste = sorted(
         (s for s in focal_near if preference_fit(s.listing, cfg)[0] >= 1
@@ -336,6 +371,7 @@ def render(scored_rows, cfg: Config, model_key: str = "cx-50 hybrid",
 
     return PAGE.render(
         taste=taste,
+        carmax=carmax_rows,
         want_colors=", ".join(c.title() for c in cfg.pref_colors[:3]),
         odo_ideal=cfg.odometer_ideal,
         pref=lambda l: preference_fit(l, cfg),

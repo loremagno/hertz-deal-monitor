@@ -113,7 +113,7 @@ national = true
 year_min = 2025
 odometer_max = 35000
 # 61 cars nationally, three pages: cheap enough to re-poll every run.
-poll_hours = 1
+poll_hours = 0.25
 max_pages = 10
 # Tell me about every new one, not only the underpriced ones.
 alert_on_new = true
@@ -147,7 +147,7 @@ odometer_max = 35000
 # vehicles / 49 pages). This tier only fires on an exceptional discount and
 # results come back cheapest-first, so a daily, page-capped sweep of the
 # cheap end is the right trade. Truncation is always logged, never silent.
-poll_hours = 24
+poll_hours = 8
 max_pages = 5
 # New arrivals count here too, but only if priced at or under prediction.
 alert_on_new = true
@@ -160,6 +160,10 @@ tier = "A"
 label = "Byers certified XC60"
 source = "byers-volvo"
 models = ["XC60"]
+# Plus or Ultra only; Core is not the car.
+require_trims = ["Plus", "Ultra"]
+market_make = "volvo"
+market_slug = "volvo-xc60"
 # Byers is 15 minutes away and every car here is factory-certified with a
 # 5-year unlimited-mile warranty from original in-service date, which is a
 # different risk profile from an ex-rental. Worth knowing about on arrival
@@ -169,7 +173,7 @@ national = false
 year_min = 2024
 year_max = 2025
 odometer_max = 35000
-poll_hours = 6
+poll_hours = 2
 max_pages = 3
 alert_on_new = true
 new_max_residual_pct = 99.0   # any new certified XC60 in range is news
@@ -182,7 +186,7 @@ models = ["Palisade"]
 threshold_pct = -8.0
 year_min = 2026
 odometer_max = 35000
-poll_hours = 24
+poll_hours = 6
 max_pages = 5
 alert_on_new = true
 new_max_residual_pct = 0.0
@@ -198,12 +202,14 @@ tier = "A"
 label = "CX-70 gray/brown (Hertz)"
 source = "hertz"
 models = ["CX-70"]
+market_make = "mazda"
+market_slug = "mazda-cx_70"
 threshold_pct = -2.0
 year_min = 2024
 odometer_max = 35000
 require_exterior = ["gray", "grey", "machine", "polymetal", "titanium"]
 require_interior = ["brown", "tan", "terracotta", "russet", "mocha"]
-poll_hours = 6
+poll_hours = 2
 max_pages = 3
 alert_on_new = true
 new_max_residual_pct = 99.0
@@ -213,12 +219,31 @@ tier = "A"
 label = "CX-70 gray/brown (Byers Mazda)"
 source = "byers-mazda"
 models = ["CX-70"]
+market_make = "mazda"
+market_slug = "mazda-cx_70"
 threshold_pct = -2.0
 year_min = 2024
 odometer_max = 35000
 require_exterior = ["gray", "grey", "machine", "polymetal", "titanium"]
 require_interior = ["brown", "tan", "terracotta", "russet", "mocha"]
-poll_hours = 12
+poll_hours = 3
 max_pages = 3
+alert_on_new = true
+new_max_residual_pct = 99.0
+
+[[watch]]
+tier = "A"
+label = "CarMax XC60"
+source = "carmax"
+models = ["XC60"]
+require_trims = ["Plus", "Ultra"]
+carmax_make = "volvo"
+carmax_model = "xc60"
+market_make = "volvo"
+market_slug = "volvo-xc60"
+threshold_pct = -2.0
+year_min = 2024
+odometer_max = 35000
+poll_hours = 3
 alert_on_new = true
 new_max_residual_pct = 99.0

@@ -289,6 +289,7 @@ class Scored:
     residual_pct: float | None = None      # negative = cheaper than predicted
     residual_sigma: float | None = None    # residual in units of the fit's RMSE
     comp_n: int = 0
+    benchmark: str = ""                    # "hertz" (pooled hedonic) or "market" (Cars.com)
     tier: str = ""                          # "A", "B", or ""
     matched_label: str = ""
     price_drop_30d: int | None = None

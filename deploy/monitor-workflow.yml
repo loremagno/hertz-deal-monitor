@@ -2,9 +2,11 @@ name: Hertz deal monitor
 
 on:
   schedule:
-    # Hourly, at :17 past. Off-the-hour scheduling gets picked up sooner;
-    # GitHub delays cron jobs that fire on the busy top of the hour.
-    - cron: "17 * * * *"
+    # Every 15 minutes, offset off the quarter-hour. GitHub delays cron jobs
+    # that fire on busy round numbers, so :07/:22/:37/:52 gets picked up
+    # sooner than :00/:15/:30/:45. Each run only re-polls the watch entries
+    # whose own interval has elapsed, so a fast cron does not mean a heavy run.
+    - cron: "7,22,37,52 * * * *"
   workflow_dispatch:
     inputs:
       digest:
@@ -49,8 +51,9 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
 
-      - name: Install Chromium
-        run: python -m playwright install --with-deps chromium
+      - name: Install browsers
+        # Real Chrome as well as Chromium: CarMax rejects Chromium outright.
+        run: python -m playwright install --with-deps chromium chrome
 
       - name: Run the monitor
         env:

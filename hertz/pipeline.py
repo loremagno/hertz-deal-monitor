@@ -7,17 +7,118 @@ loads, so we spend that only on cars we might actually alert on.
 """
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
 from . import autocheck as autocheck_mod
+from . import benchmark as bm
+from . import carmax as carmax_mod
 from . import geo, ingest, score
 from .config import Config
 from .models import Listing, Scored
 from .store import Store
 
 logger = logging.getLogger(__name__)
+
+
+def market_curves(session, cfg: Config, store: Store, max_age_hours: float = 24.0) -> dict:
+    """Fit one Cars.com price curve per model that asks for it.
+
+    This is the benchmark for models where our own data is too thin for the
+    pooled hedonic to say anything: with two XC60s in inventory, the model's
+    own dummy fits its level almost exactly and the residual is arithmetic.
+    A curve fitted on the open market for the same model is real evidence.
+
+    Cached for a day. Cars.com blocks a second page request, so each model
+    costs exactly one page load.
+    """
+    wanted = {
+        (w.market_make, w.market_slug): _normalize_key(w)
+        for w in cfg.watch if w.market_slug and w.market_make
+    }
+    curves: dict = {}
+
+    for (make, slug), model_key in wanted.items():
+        cache_key = f"market_curve:{slug}"
+        cached = store.get_meta(cache_key)
+        if cached:
+            try:
+                payload = json.loads(cached)
+                fetched = datetime.fromisoformat(payload["fetched_at"])
+                if datetime.now() - fetched < timedelta(hours=max_age_hours):
+                    curves[model_key] = bm.MarketCurve(**payload["curve"])
+                    logger.info("Market curve for %s: cached (n=%d)",
+                                slug, payload["curve"]["n"])
+                    continue
+            except Exception:
+                pass
+
+        comps = bm.fetch_comps(session, make, slug, cfg.zip, "all")
+        curve = bm.fit_curve(comps)
+        if curve is None:
+            logger.warning("No market curve for %s (%d comps)", slug, len(comps))
+            continue
+        curves[model_key] = curve
+        store.set_meta(cache_key, json.dumps({
+            "fetched_at": datetime.now().isoformat(timespec="seconds"),
+            "curve": curve.__dict__,
+        }))
+
+    return curves
+
+
+def collect_carmax(cfg: Config, store: Store) -> list[Listing]:
+    """Sweep CarMax in its own browser, before the main session opens.
+
+    CarMax needs real Chrome, and Playwright's sync API refuses to start a
+    second browser while another is live on the same thread, so this cannot
+    be nested inside the main session -- it has to run as its own pass.
+    """
+    entries = [w for w in cfg.watch
+               if w.carmax_make and w.carmax_model and _entry_due(store, w)]
+    if not entries:
+        return []
+
+    out: list[Listing] = []
+    try:
+        with ingest.BrowserSession(
+            headless=True, channel="chrome", postal_code=cfg.zip,
+            city_state=cfg.city_state, coordinates=cfg.coordinates,
+        ) as session:
+            seen: set[str] = set()
+            for entry in entries:
+                if entry.carmax_model in seen:
+                    continue
+                seen.add(entry.carmax_model)
+                cars = carmax_mod.fetch(session, entry.carmax_make,
+                                        entry.carmax_model, cfg.zip)
+                # Apply the entry's own year, mileage and trim rules here.
+                # CarMax has no server-side filter we can use, so an
+                # unfiltered sweep would drop 2018 cars into the price model.
+                keep = [c for c in cars
+                        if (c.delivery_quote or 0) <= cfg.carmax_max_shipping
+                        and entry.matches(c)]
+                if len(keep) < len(cars):
+                    logger.info("CarMax: dropped %d over the $%d shipping cap",
+                                len(cars) - len(keep), cfg.carmax_max_shipping)
+                out.extend(keep)
+    except Exception as exc:
+        logger.warning(
+            "CarMax sweep skipped: %s. Real Chrome is required; install it "
+            "with: playwright install chrome", exc)
+        return []
+
+    logger.info("CarMax: %d listings within the shipping cap", len(out))
+    return out
+
+
+def _normalize_key(entry) -> str:
+    """Match `score._normalize_model`: "make|model", lowercased."""
+    model = (entry.models[0] if entry.models else "").strip().lower()
+    make = (entry.market_make or "").strip().lower()
+    return f"{make}|{model}"
 
 
 def _is_first_run(store: Store) -> bool:
@@ -88,7 +189,7 @@ class RunResult:
 
 def collect(
     session: ingest.BrowserSession, cfg: Config, store: Store
-) -> tuple[list[Listing], set[str]]:
+) -> tuple[list[Listing], set[str], list]:
     """One nationwide query per due watched model.
 
     Returns the listings, the set of model names actually polled (marking
@@ -121,7 +222,12 @@ def collect(
             key = f"{entry.source}:{model}"
             if key in per_model:
                 continue
-            listings = ingest.fetch_model_nationwide(session, model, entry.max_pages, source)
+            years = None
+            if entry.year_min:
+                top = min(entry.year_max, entry.year_min + 4)
+                years = list(range(entry.year_min, top + 1))
+            listings = ingest.fetch_model_nationwide(
+                session, model, entry.max_pages, source, years)
             per_model[key] = len(listings)
             polled.add(model.lower())
             for listing in listings:
@@ -172,6 +278,12 @@ def enrich(session: ingest.BrowserSession, store: Store, candidates: list[Scored
     for scored in candidates:
         listing = scored.listing
 
+        # CarMax detail pages refuse automation even from real Chrome, and
+        # cost a 90-180s cooldown each when tried. They also carry no
+        # AutoCheck we can read, so there is nothing to gain by opening them.
+        if (listing.source or "") == "carmax":
+            continue
+
         cached = store.get_autocheck(listing.vin)
         if cached is not None:
             scored.autocheck = cached
@@ -209,6 +321,9 @@ def run(cfg: Config, dry_run: bool = False) -> RunResult:
     run_id = store.start_run()
 
     try:
+        # CarMax runs first, in its own real-Chrome browser.
+        carmax_listings = collect_carmax(cfg, store)
+
         with ingest.BrowserSession(
             headless=True,
             postal_code=cfg.zip,
@@ -216,6 +331,8 @@ def run(cfg: Config, dry_run: bool = False) -> RunResult:
             coordinates=cfg.coordinates,
         ) as session:
             listings, polled_models, polled_entries = collect(session, cfg, store)
+            listings.extend(carmax_listings)
+            curves = market_curves(session, cfg, store)
             result.fetched = len(listings)
 
             # Silent-failure guard. An empty result after a healthy run means
@@ -260,7 +377,8 @@ def run(cfg: Config, dry_run: bool = False) -> RunResult:
 
             scored_all = [
                 score.score_listing(
-                    l, cfg, hedonic, price_drop_30d=store.price_drop_since(l.vin)
+                    l, cfg, hedonic, price_drop_30d=store.price_drop_since(l.vin),
+                    market_curves=curves,
                 )
                 for l in known
             ]
