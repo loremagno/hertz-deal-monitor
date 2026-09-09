@@ -196,7 +196,11 @@ def render(result, cfg: Config, standalone: bool = False) -> str:
     """Render the board. `standalone` wraps it as a full HTML document."""
     from .score import battery_warranty, rank
 
-    board = rank([s for s in result.watched if s.listing.price])
+    # Drivable cars only, capped. An email carrying every watched car in the
+    # country came to 630 KB; the digest is a glance, not an archive.
+    board = rank([s for s in result.watched
+                  if s.listing.price
+                  and (s.listing.geodist or 9e9) <= cfg.alert_radius_miles])[:40]
     body = TEMPLATE.render(
         generated=datetime.now().strftime("%a %d %b %Y, %H:%M"),
         fetched=result.fetched,

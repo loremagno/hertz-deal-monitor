@@ -2,11 +2,11 @@ name: Hertz deal monitor
 
 on:
   schedule:
-    # Every 15 minutes, offset off the quarter-hour. GitHub delays cron jobs
-    # that fire on busy round numbers, so :07/:22/:37/:52 gets picked up
-    # sooner than :00/:15/:30/:45. Each run only re-polls the watch entries
-    # whose own interval has elapsed, so a fast cron does not mean a heavy run.
-    - cron: "7,22,37,52 * * * *"
+    # Every 2 hours, off the round hour so GitHub schedules it promptly.
+    # A private repo has 2,000 free Actions minutes a month; this cadence
+    # uses roughly 1,200. A 15-minute cron would exhaust the allowance in
+    # about four days and then stop silently.
+    - cron: "11 */2 * * *"
   workflow_dispatch:
     inputs:
       digest:
@@ -52,8 +52,13 @@ jobs:
           key: playwright-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
 
       - name: Install Chromium
-        # Required: every Dealer.com source and Cars.com are read with this.
-        run: python -m playwright install --with-deps chromium chromium-headless-shell
+        # The runner image ships Google's Chrome apt repo pre-configured, and
+        # that repo intermittently serves a stale index which fails EVERY
+        # apt-get update with a hash-sum mismatch, even when the package being
+        # installed has nothing to do with Google. Drop it before touching apt.
+        run: |
+          sudo rm -f /etc/apt/sources.list.d/google*.list
+          python -m playwright install --with-deps chromium chromium-headless-shell
 
       - name: Install real Chrome (CarMax only)
         # CarMax rejects bundled Chromium, so it needs real Chrome. This pulls
@@ -87,7 +92,7 @@ jobs:
         run: |
           git config user.name  "hertz-monitor[bot]"
           git config user.email "hertz-monitor@users.noreply.github.com"
-          git add -A data out docs
+          git add -A data
           if git diff --staged --quiet; then
             echo "No inventory changes to record."
           else
@@ -97,6 +102,8 @@ jobs:
           fi
 
       - name: Upload board
+        # The rendered boards are build output, not history: keep them as a
+        # run artifact for two weeks rather than committing 1 MB per run.
         if: always()
         uses: actions/upload-artifact@v4
         with:
