@@ -110,6 +110,11 @@ def main(argv: list[str] | None = None) -> int:
             curve=result.curves.get("mazda|cx-50 hybrid"),
         )
         (cfg.out_dir / "index.html").write_text(rich, encoding="utf-8")
+        # GitHub Pages only serves the repo root or /docs, never an arbitrary
+        # folder, so the published copy lives in docs/.
+        docs = cfg.base_dir / "docs"
+        docs.mkdir(parents=True, exist_ok=True)
+        (docs / "index.html").write_text(rich, encoding="utf-8")
     except Exception as exc:
         logger.warning("Rich board could not be rendered: %s", exc)
 
