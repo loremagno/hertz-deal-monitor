@@ -86,11 +86,39 @@ without asking.**
 ## Pending / Next Steps
 - [x] Workflow installed; `gh` credential widened to `workflow` scope.
 - [x] Repo private; Pages deleted; cadence every 2 h; only the DB committed.
-- [ ] **Lorenzo to choose**: 2-hour refresh on a private repo, or 15-minute
-      refresh on a public one (or a VPS). He asked for fast; private forces slow.
-- [ ] Rotate the Gmail app password — it was pasted in chat, and is now stored
-      in GitHub Secrets where it belongs.
-- [ ] Consider switching alert thresholds from percent to σ units (see below).
+- [x] Review defects fixed (header stats, hard-coded board sentence,
+      pagination gap, certified-car gate, poll-window tolerance, source-scoped
+      inactivation, phantom CarMax→Hertz query, same-model digest pick,
+      dead-run ntfy ping) and residue removed. Verified offline; cloud run
+      after these changes: see "Last cloud run" below once recorded.
+- [ ] **Public dashboard, safely.** Lorenzo accepts a public board but it must
+      not touch his website. Plan: he creates a free GitHub **organization**
+      (a separate owner with no custom domain, so its project pages live at
+      `<org>.github.io/…` and cannot inherit `www.lorenzomagnolfi.com`); then
+      transfer the repo there, make it public, re-set the four secrets, write
+      the board to `docs/index.html`, enable Pages on `main`/`/docs`, add
+      client-side sort/filter. **Waiting on the org name.** Never enable Pages
+      on any repo owned by `LorenzoMagnolfi`.
+- [ ] CarMax shipping from the runner: the `KmxStore`/`KmxVisitor_0` cookies did
+      not fully pin the store (cloud kept 6 of 44 under the cap vs 44 locally).
+      Cloud CarMax shipping figures are not yet trustworthy.
+- [ ] Rotate the Gmail app password (pasted in chat; now in GitHub Secrets).
+- [ ] Group B improvements proposed and not yet approved: σ thresholds
+      (Toledo is −1.7%, t=−0.56 on its own model — an ordinary car), fit the
+      CX-50 Hybrid on its own sample, Tier B arrivals off, push priority by
+      fit with quiet hours, richer alert text. Board email-attachment on
+      change as the private dashboard fallback.
+
+## Last cloud run (after the A+D fixes)
+Run 34418038999, 2026-09-09 23:42 UTC, green. 530 vehicles across 12 queries
+(phantom carmax:XC60 query gone). Byers certified XC60: 4 (was 2). Five cars
+reached the condition gate for the first time (one Byers XC60, three CarMax
+XC60s) and were held back by the VALUE gate: "only 11 comparable listings
+(need 12)". The XC60 market curve has n=11 Cars.com comps against
+min_comps=12, so no XC60 can alert until that is resolved (proposed: a
+separate, lower floor for market-curve benchmarks). CarMax: 44 parsed, 5 kept
+under the $499 cap (44 locally) -- the store cookie is still not pinning
+shipping to Columbus.
 
 ## Open Questions
 - **Alert thresholds are weak as set.** Tier A fires at −3% against a residual
