@@ -57,7 +57,10 @@ jobs:
         # apt-get update with a hash-sum mismatch, even when the package being
         # installed has nothing to do with Google. Drop it before touching apt.
         run: |
-          sudo rm -f /etc/apt/sources.list.d/google*.list
+          # deb822 format on current images (google-chrome.sources), so match
+          # any extension, then sweep anything else still pointing at Google.
+          sudo rm -f /etc/apt/sources.list.d/google*
+          sudo grep -l "dl.google.com" /etc/apt/sources.list.d/* 2>/dev/null | xargs -r sudo rm -f
           python -m playwright install --with-deps chromium chromium-headless-shell
 
       - name: Install real Chrome (CarMax only)
@@ -67,7 +70,13 @@ jobs:
         # pipeline logs and skips the CarMax sweep when Chrome is absent, and
         # every other source still works.
         continue-on-error: true
-        run: python -m playwright install --with-deps chrome
+        run: |
+          # Fetch the .deb directly rather than through Google's apt index,
+          # which is what breaks. Playwright's channel="chrome" finds the
+          # system install at /opt/google/chrome on its own.
+          wget -q -O /tmp/chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo apt-get install -y /tmp/chrome.deb
+          google-chrome --version
 
       - name: Run the monitor
         env:
