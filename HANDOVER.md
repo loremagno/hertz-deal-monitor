@@ -163,8 +163,13 @@ score and render without sending anything.
 
 ## Known open issues
 
-- **Datacenter-IP behaviour is verified only once** (first green run,
-  2026-09-09). If Akamai starts refusing runners, the fallback is a small VPS.
+- **Hertz/Byers from a datacenter IP: verified working** (2026-09-09).
+- **CarMax from a datacenter IP serves a different page variant** than a
+  desktop browser; the parser now scans for the title line rather than
+  assuming it is first. Confirm on a scheduled run.
+- **Cars.com from a datacenter IP allows about one request** before
+  Cloudflare blocks. Market curves for thin models will fit intermittently
+  and rely on the 24 h cache. A residential IP (local run) fills them in.
 - **`out/board.html` (email render) and `out/board_artifact.html` (page) are
   separate renderers** sharing data, not markup. Changing one does not change
   the other.

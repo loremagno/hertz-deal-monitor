@@ -11,7 +11,19 @@ Read this first when resuming. Stable technical context is in `HANDOVER.md`.
 
 ## Current State
 
-Working end to end locally. Actions workflow installed; first green cloud run still pending (browser-install step flaky on the runner image).
+**Live on GitHub Actions since 2026-09-09 18:00 UTC**, every 2 hours. First
+green run (34385973008) collected 546 vehicles from Hertz + Byers, seeded the
+baseline, fetched AutoCheck for the one value-gate car, sent one push, one deal
+email and one digest, and committed the DB back. **Akamai does not block the
+runner IP** — the last untested assumption is now tested.
+
+Cloud-only caveats seen on that run:
+- CarMax served a different page variant to the runner: 44 tiles, none parsed
+  (22 parse locally). Parser now scans for the title line and logs a sample
+  of an unparsed tile; verify on the next scheduled run.
+- Cars.com allowed one request from the datacenter IP then Cloudflare-blocked
+  the second, so only the XC60 market curve fitted, not CX-70. Curves cache
+  24 h when they succeed; coverage from CI will be partial.
 
 **Sources live**: Hertz Car Sales (lot + Rent2Buy), Byers Volvo certified,
 Byers Mazda, CarMax (real Chrome), Cars.com (benchmark curves only).
@@ -20,7 +32,7 @@ Byers Mazda, CarMax (real Chrome), Cars.com (benchmark curves only).
 - Hertz has **61 CX-50 Hybrids nationally, all 2025** — zero 2026s, though it has
   739 2026 CX-50 *gas*. The hybrid has not reached the ex-rental channel yet.
 - Best drivable candidate: **2025 CX-50 Hybrid Premium Plus, Toledo OH,
-  $28,975, 33,446 mi, 115 mi away, landed $31,393, AutoCheck clean.** It is
+  $28,831 (down $144 on 2026-09-09), 33,446 mi, 115 mi away, AutoCheck clean.** It is
   Rent2Buy, so collect in person; price and mileage are Hertz estimates.
 - **Two of thirteen drivable CX-50 Hybrids have reported damage**, both scoring
   AutoCheck 95 with clean titles: Woodhaven MI (severe collision, airbag, towed,

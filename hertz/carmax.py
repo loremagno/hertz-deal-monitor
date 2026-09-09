@@ -53,7 +53,16 @@ def parse_tile(text: str, href: str | None) -> Listing | None:
     if not lines:
         return None
 
-    title = TITLE.match(lines[0])
+    # The title is usually the first line, but the page variant served to
+    # GitHub's runners prefixes tiles with badges ("Sponsored", price-drop
+    # labels), so scan the first few lines for a "YYYY Make Model" line
+    # rather than assuming position zero.
+    title = None
+    for line in lines[:5]:
+        title = TITLE.match(line)
+        if title and 1990 <= int(title.group(1)) <= 2100:
+            break
+        title = None
     if not title:
         return None
     year, make, model, trim = title.groups()
@@ -127,6 +136,11 @@ def fetch(session, make: str, model: str, zip_code: str, max_scrolls: int = 3) -
             listings.append(listing)
 
     if not listings and tiles:
-        logger.warning("CarMax returned %d tiles but none parsed", len(tiles))
+        # Make the failure diagnosable from the log alone: show what a tile
+        # actually looked like, since the runner sees a different page
+        # variant from a desktop browser.
+        sample = (tiles[0].get("text") or "").replace("\n", " | ")[:220]
+        logger.warning("CarMax returned %d tiles but none parsed; first tile: %r",
+                       len(tiles), sample)
     logger.info("CarMax: %d listings for %s %s", len(listings), make, model)
     return listings
