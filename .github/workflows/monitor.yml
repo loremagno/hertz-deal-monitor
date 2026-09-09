@@ -51,9 +51,18 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
 
-      - name: Install browsers
-        # Real Chrome as well as Chromium: CarMax rejects Chromium outright.
-        run: python -m playwright install --with-deps chromium chrome
+      - name: Install Chromium
+        # Required: every Dealer.com source and Cars.com are read with this.
+        run: python -m playwright install --with-deps chromium chromium-headless-shell
+
+      - name: Install real Chrome (CarMax only)
+        # CarMax rejects bundled Chromium, so it needs real Chrome. This pulls
+        # from Google's apt repo, which intermittently serves a stale index and
+        # fails on a hash-sum mismatch. That must not take the run down: the
+        # pipeline logs and skips the CarMax sweep when Chrome is absent, and
+        # every other source still works.
+        continue-on-error: true
+        run: python -m playwright install --with-deps chrome
 
       - name: Run the monitor
         env:
