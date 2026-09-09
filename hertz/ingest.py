@@ -105,6 +105,7 @@ class BrowserSession:
         cookie_domains: tuple[str, ...] = (
             ".hertzcarsales.com", ".byersvolvo.com", ".byersmazda.com",
         ),
+        carmax_store_id: str = "7176",
     ):
         self.headless = headless
         self.min_delay = min_delay
@@ -118,6 +119,7 @@ class BrowserSession:
         # channel has to be selectable.
         self.channel = channel
         self.cookie_domains = cookie_domains
+        self.carmax_store_id = carmax_store_id
         self._pw = None
         self._browser = None
         self._context = None
@@ -139,6 +141,23 @@ class BrowserSession:
                 {"name": "DDC.postalCode", "value": self.postal_code, **common},
                 {"name": "DDC.postalCityState", "value": self.city_state, **common},
                 {"name": "DDC.userCoordinates", "value": self.coordinates, **common},
+            ]
+
+        # CarMax ignores ?zip= and geolocates by IP. On a datacenter runner
+        # that prices every car's shipping to wherever Azure is, not to
+        # Columbus, which made all 44 XC60s look over the shipping cap. These
+        # two cookies are how carmax.com remembers "your store"; with them set
+        # the quotes come out the same as in a browser at home. 7176 is the
+        # Columbus store CarMax itself chose for this zip.
+        if self.carmax_store_id:
+            lat, _, lon = self.coordinates.partition(",")
+            visitor = (f"StoreId={self.carmax_store_id}&Zip={self.postal_code}"
+                       f"&Lat={lat.strip()}&Lon={lon.strip()}&ZipConfirmed=True")
+            cookies += [
+                {"name": "KmxStore", "value": f"StoreId={self.carmax_store_id}",
+                 "domain": ".carmax.com", "path": "/"},
+                {"name": "KmxVisitor_0", "value": visitor,
+                 "domain": ".carmax.com", "path": "/"},
             ]
         return cookies
 

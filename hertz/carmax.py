@@ -53,31 +53,62 @@ def parse_tile(text: str, href: str | None) -> Listing | None:
     if not lines:
         return None
 
-    # The title is usually the first line, but the page variant served to
-    # GitHub's runners prefixes tiles with badges ("Sponsored", price-drop
-    # labels), so scan the first few lines for a "YYYY Make Model" line
-    # rather than assuming position zero.
-    title = None
-    for line in lines[:5]:
-        title = TITLE.match(line)
-        if title and 1990 <= int(title.group(1)) <= 2100:
+    # Current tile layout (2026-09), one field per line:
+    #   Compare / 2023 Volvo XC60 / B5 Plus Bright Theme / · / 24K mi /
+    #   Test drive today·Columbus Easton  -or-  $149 shipping·Sep 12–15 from KY /
+    #   Est. $560/mo / · / $33,998
+    # So: the title line is not first, the trim is on the line AFTER the
+    # title, and the tile carries three dollar figures of which only the last
+    # is the price. Taking the first "$" silently returned the monthly
+    # payment as the price, which is how a $33,998 car scored as $560.
+    title_index = None
+    for i, line in enumerate(lines[:6]):
+        m = TITLE.match(line)
+        if m and 1990 <= int(m.group(1)) <= 2100:
+            title_index, title = i, m
             break
-        title = None
-    if not title:
+    if title_index is None:
         return None
     year, make, model, trim = title.groups()
+    trim = trim.strip()
+    if not trim and title_index + 1 < len(lines):
+        candidate = lines[title_index + 1]
+        if (candidate not in ("·", "|") and not MILEAGE.search(candidate)
+                and "$" not in candidate
+                and not candidate.lower().startswith(("compare", "test drive", "est."))):
+            trim = candidate
 
-    price = PRICE.search(text)
+    # Price: the largest dollar figure that is neither a monthly estimate
+    # nor a shipping fee.
+    amounts = []
+    for m in re.finditer(r"\$([\d,]+)", text):
+        tail = text[m.end(): m.end() + 14].lower()
+        if "/mo" in tail or "shipping" in tail:
+            continue
+        amounts.append(int(m.group(1).replace(",", "")))
     mileage = MILEAGE.search(text)
-    if not (price and mileage):
+    if not (amounts and mileage):
         return None
+    price_value = max(amounts)
 
     miles = float(mileage.group(1).replace(",", ""))
     if mileage.group(2).upper() == "K":
         miles *= 1000
 
     shipping = SHIPPING.search(text)
-    store = STORE.search(text)
+    local_store = re.search(r"Test drive today\s*[·|-]\s*(.+)", text, re.I)
+    ship_from = re.search(r"shipping[^\n]*?\bfrom\s+([A-Z]{2})\b", text, re.I)
+    store = STORE.search(text)   # older layout: "CarMax Florence, KY"
+
+    if local_store:
+        lot, city, state, ship_fee = f"CarMax {local_store.group(1).strip()}", local_store.group(1).strip(), "OH", 0
+    elif store:
+        lot, city, state = f"CarMax {store.group(1)}, {store.group(2)}", store.group(1), store.group(2)
+        ship_fee = int(shipping.group(1).replace(",", "")) if shipping else None
+    else:
+        state = ship_from.group(1).upper() if ship_from else ""
+        lot, city = (f"CarMax (ships from {state})" if state else "CarMax"), ""
+        ship_fee = int(shipping.group(1).replace(",", "")) if shipping else None
 
     # CarMax listing URLs are /car/<id>; the id is not a VIN, so synthesise a
     # stable key from it. Every other source is keyed on VIN, and mixing the
@@ -92,14 +123,14 @@ def parse_tile(text: str, href: str | None) -> Listing | None:
         make=make,
         model=model,
         trim=trim.strip(),
-        price=int(price.group(1).replace(",", "")),
+        price=price_value,
         no_haggle_price=None,
         odometer=int(miles),
         geodist=0.0,          # CarMax ships nationally; shipping is the cost
-        lot=f"CarMax {store.group(1)}, {store.group(2)}" if store else "CarMax",
-        city=store.group(1) if store else "",
-        state=store.group(2) if store else "",
-        delivery_quote=int(shipping.group(1).replace(",", "")) if shipping else None,
+        lot=lot,
+        city=city,
+        state=state,
+        delivery_quote=ship_fee,
         status="live",
         source="carmax",
         url=("https://www.carmax.com" + href) if href and href.startswith("/") else (href or ""),
