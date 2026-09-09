@@ -4,7 +4,7 @@ Stable technical context. Architecture and setup live in `README.md`; this file
 records the operational knowledge that was expensive to acquire and is not
 recoverable by reading the code.
 
-**Repo**: `github.com/LorenzoMagnolfi/hertz-deal-monitor` (public since 2026-09-09)
+**Repo**: `github.com/LorenzoMagnolfi/hertz-deal-monitor` (**private**)
 **Local**: `ClaudeCodeProjects/Hertz/` (the folder name predates the multi-source scope)
 **Purpose**: alert Lorenzo when a good car appears within driving range of 43220.
 Primary target a 2025+ Mazda CX-50 Hybrid; several secondary watches.
@@ -77,6 +77,17 @@ but they will re-emerge if the guards are removed.
    `%LOCALAPPDATA%\HertzMonitor\`; CI overrides `HERTZ_DB_PATH` into the repo.
 10. **Rate limiting is real** on Hertz (roughly 6–10 rapid requests → 403,
     clearing in ~75s) and on Cars.com (page 2 of any search → Cloudflare block).
+11. **GitHub Pages on this repo publishes to Lorenzo's professional website.**
+    His account has a user Pages site with the custom domain
+    `www.lorenzomagnolfi.com`, and every *project* Pages site inherits it. A
+    Pages site here went live at `www.lorenzomagnolfi.com/hertz-deal-monitor/`
+    on 2026-09-09 before being deleted. **Never enable Pages on this repo.**
+    The dashboard is the Claude artifact plus the email digest.
+12. **The Actions runner image ships Google's Chrome apt repo pre-configured**,
+    and it intermittently serves a stale index that fails *every*
+    `apt-get update` with a hash-sum mismatch, even for unrelated packages.
+    The workflow removes `/etc/apt/sources.list.d/google*.list` before
+    installing browsers; real Chrome (CarMax) is a separate, non-fatal step.
 
 ---
 
@@ -134,16 +145,26 @@ score and render without sending anything.
 
 ---
 
+## Hosting decisions (settled 2026-09-09)
+
+- **Repo is private.** It holds Lorenzo's home zip and car preferences. It was
+  public for a few hours to get free Pages; that was a mistake (trap 11).
+- **No GitHub Pages, ever, on this repo** (trap 11). Dashboard = the Claude
+  artifact, refreshed on request, plus the email digest.
+- **Cadence every 2 hours.** A private repo has 2,000 free Actions minutes a
+  month; this uses ~1,200. Faster refresh requires either a public repo
+  (unlimited minutes, but public zip/preferences) or a small VPS. Lorenzo has
+  asked for fast refreshes and has not yet chosen between these.
+- **Only `data/hertz.db` is committed by the workflow.** Rendered HTML and
+  JSON (~1.3 MB per run) go to a 14-day run artifact instead.
+- The workflow is installed at `.github/workflows/monitor.yml`; the `gh`
+  credential now carries `workflow` scope (`gh auth refresh -s workflow`).
+  `gh` lives at `C:\GitHubCLI\gh.exe`, off PATH.
+
 ## Known open issues
 
-- **The Actions workflow is not installed.** It sits at
-  `deploy/monitor-workflow.yml`; the stored GitHub credential has `repo` but not
-  `workflow` scope, so Git refuses to push into `.github/workflows/`. See
-  `deploy/README.md`.
-- **GitHub Pages is not enabled.** Repo is public, so it is free: Settings →
-  Pages → source `main`, folder `/out`.
-- **Never verified from a datacenter IP.** Akamai may treat GitHub runners
-  differently from a residential IP. The first Actions run is the test.
+- **Datacenter-IP behaviour is verified only once** (first green run,
+  2026-09-09). If Akamai starts refusing runners, the fallback is a small VPS.
 - **`out/board.html` (email render) and `out/board_artifact.html` (page) are
   separate renderers** sharing data, not markup. Changing one does not change
   the other.
