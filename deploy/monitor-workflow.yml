@@ -1,0 +1,93 @@
+name: Hertz deal monitor
+
+on:
+  schedule:
+    # Hourly, at :17 past. Off-the-hour scheduling gets picked up sooner;
+    # GitHub delays cron jobs that fire on the busy top of the hour.
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      digest:
+        description: "Force the digest email"
+        type: boolean
+        default: false
+      dry_run:
+        description: "Score and render but send nothing"
+        type: boolean
+        default: false
+
+# Never let two runs write the database at once.
+concurrency:
+  group: hertz-monitor
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+
+      - name: Install Chromium
+        run: python -m playwright install --with-deps chromium
+
+      - name: Run the monitor
+        env:
+          HERTZ_SMTP_USER: ${{ secrets.HERTZ_SMTP_USER }}
+          HERTZ_SMTP_PASSWORD: ${{ secrets.HERTZ_SMTP_PASSWORD }}
+          HERTZ_EMAIL_TO: ${{ secrets.HERTZ_EMAIL_TO }}
+          HERTZ_NTFY_TOPIC: ${{ secrets.HERTZ_NTFY_TOPIC }}
+          # In CI the database belongs inside the repo so price history is
+          # committed. Locally it defaults outside Dropbox, which corrupts
+          # SQLite by syncing the -wal/-shm sidecars independently.
+          HERTZ_DB_PATH: ${{ github.workspace }}/data/hertz.db
+          PYTHONUTF8: "1"
+        run: |
+          python -m hertz \
+            ${{ inputs.dry_run && '--dry-run' || '' }} \
+            ${{ inputs.digest && '--digest' || '' }} \
+            --quiet
+
+      - name: Persist database and board
+        # History is the product here: price drops and days-on-lot only exist
+        # because every run's observations are committed back.
+        run: |
+          git config user.name  "hertz-monitor[bot]"
+          git config user.email "hertz-monitor@users.noreply.github.com"
+          git add -A data out
+          if git diff --staged --quiet; then
+            echo "No inventory changes to record."
+          else
+            git commit -m "Record inventory snapshot $(date -u '+%Y-%m-%d %H:%M UTC') [skip ci]"
+            git pull --rebase --autostash origin "${GITHUB_REF_NAME}"
+            git push
+          fi
+
+      - name: Upload board
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: board
+          path: out/
+          retention-days: 14
