@@ -1,0 +1,165 @@
+# Hertz deal monitor — configuration.
+#
+# Secrets are NOT stored here. They come from environment variables so this
+# file is safe to commit:
+#   HERTZ_SMTP_USER, HERTZ_SMTP_PASSWORD, HERTZ_EMAIL_TO, HERTZ_NTFY_TOPIC
+#
+# Model matching is done LOCALLY against the full inventory pull, using
+# case-insensitive substring matching. That deliberately sidesteps Hertz's
+# exact-string trap, where "CX-50" and "CX-50 Hybrid" are distinct model
+# values and filtering on the wrong one silently returns nothing.
+
+[location]
+zip = "43220"                 # Upper Arlington / Columbus, OH
+# These pin the search origin via cookies. Without them Hertz has no location
+# for the session: every vehicle comes back with a null distance and the
+# radius filter is silently ignored. They also make results independent of
+# where the job runs, which matters on GitHub Actions runners.
+city_state = "COLUMBUS, OH, US"
+coordinates = "40.0464,-83.0680"
+alert_radius_miles = 300      # push alerts only for cars you could drive to
+national_target_scan = true   # also sweep the whole US for tier-A models
+# Mention a national car in the digest only if it beats the best drivable
+# car by at least this much, on landed cost. Set to 0 to always mention.
+national_mention_min_saving = 1500
+
+[economics]
+# Franklin County OH: 5.75% state + 1.25% county + 0.50% COTA LinkUS levy
+# (effective April 2025). Verified 2026-09-09 for the 43220 jurisdiction.
+sales_tax_rate = 0.080
+title_reg_fees = 100          # title + registration, approximate
+tax_applies_to_delivery = false
+# Ohio does not tax the dealer doc fee, so the taxable base is the
+# no-haggle price rather than the quoted Hertz Price.
+tax_excludes_doc_fee = true
+
+# Hertz quotes delivery on each vehicle page; these are the fallback when the
+# quote cannot be read. Calibrated 2026-09-08 from two live quotes:
+# Cincinnati 86 mi -> $316, Phoenix 1656 mi -> $3,464.
+[economics.delivery]
+base = 145.0
+per_mile = 2.00
+
+[preferences]
+# Soft preferences, not filters. A car that misses them still appears on the
+# board and can still alert; the board and the alert say how it differs.
+colors = ["blue", "slate", "gray", "grey", "graphite", "machine"]
+trims = ["Premium Plus"]
+odometer_ideal = 20000
+odometer_tolerance = 8000     # "ideally under 20k, but not much more"
+
+[scoring]
+# Comparable set for the hedonic. Wider bands mean more comps but noisier
+# matches; these are a starting point to tune once history accumulates.
+min_comps = 12
+odometer_band = 25000
+year_band = 2
+# A car must be at least this many dollars below prediction before the
+# percentage test is even considered, to avoid alerting on rounding noise.
+min_abs_discount = 400
+
+[alerts]
+enable_email = true
+enable_push = true
+digest_every_days = 3
+# Never re-alert the same VIN unless its price falls another N dollars.
+realert_price_drop = 500
+
+[email]
+smtp_server = "smtp.gmail.com"
+smtp_port = 587
+
+[push]
+# ntfy.sh — free, no account. Pick an unguessable topic name and subscribe
+# to it in the ntfy app. Set via HERTZ_NTFY_TOPIC.
+server = "https://ntfy.sh"
+
+# ---------------------------------------------------------------------------
+# Watchlist. Tier A is the real target and alerts on a modest discount.
+# Tier B is opportunistic: it only fires on an exceptional discount.
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Sources. Both run Dealer.com, so identical code reads them.
+# ---------------------------------------------------------------------------
+
+[[source]]
+name = "hertz"
+base_url = "https://www.hertzcarsales.com"
+search_path = "/all-inventory/index.htm"   # includes the Rent2Buy fleet
+
+[[source]]
+name = "byers-volvo"
+base_url = "https://www.byersvolvo.com"
+search_path = "/certified-inventory/index.htm"   # certified pre-owned only
+
+[[watch]]
+tier = "A"
+label = "Mazda CX-50 Hybrid"
+source = "hertz"
+models = ["CX-50 Hybrid"]
+threshold_pct = -3.0
+national = true
+year_min = 2025
+odometer_max = 45000
+# 61 cars nationally, three pages: cheap enough to re-poll every run.
+poll_hours = 1
+max_pages = 10
+# Tell me about every new one, not only the underpriced ones.
+alert_on_new = true
+new_max_residual_pct = 3.0
+
+[[watch]]
+tier = "B"
+label = "Opportunistic upgrades"
+source = "hertz"
+# Checked against live inventory on 2026-09-08. Counts were:
+#   Palisade 100, Atlas 66, GV80 29, CX-90 25, CX-70 2, Highlander Hybrid 1.
+# XC60 and GV70 are NOT in Hertz's fleet at all, and Volvo's entire national
+# inventory is four cars (S60, V60 Cross Country, XC40). The XC60 and GV70
+# entries are kept deliberately: a model query that matches nothing today
+# costs one page load and will catch the car the moment one arrives.
+models = [
+    "XC60", "V60 Cross Country",  # Volvo — XC60 not currently stocked
+    "Palisade",                   # Hyundai
+    "Atlas",                      # Volkswagen
+    "GV70", "GV80",               # Genesis — GV70 not currently stocked
+    "Highlander Hybrid",          # Toyota
+    "CX-70", "CX-90",             # Mazda
+]
+# Volvo's whole book is four cars, so sweeping the make is nearly free and
+# guarantees anything Volvo shows up however Hertz chooses to name it.
+makes = ["Volvo"]
+threshold_pct = -8.0
+national = false
+year_min = 2024
+odometer_max = 55000
+# Including Rent2Buy makes these models enormous (Palisade alone is 1,100+
+# vehicles / 49 pages). This tier only fires on an exceptional discount and
+# results come back cheapest-first, so a daily, page-capped sweep of the
+# cheap end is the right trade. Truncation is always logged, never silent.
+poll_hours = 24
+max_pages = 5
+# New arrivals count here too, but only if priced at or under prediction.
+alert_on_new = true
+new_max_residual_pct = 0.0
+# Only bother with better-equipped cars; a base trim is not an upgrade.
+exclude_trims = ["Base", "SE Base"]
+
+[[watch]]
+tier = "A"
+label = "Byers certified XC60"
+source = "byers-volvo"
+models = ["XC60"]
+# Byers is 15 minutes away and every car here is factory-certified with a
+# 5-year unlimited-mile warranty from original in-service date, which is a
+# different risk profile from an ex-rental. Worth knowing about on arrival
+# rather than only when it looks cheap.
+threshold_pct = -2.0
+national = false
+year_min = 2024
+year_max = 2025
+poll_hours = 6
+max_pages = 3
+alert_on_new = true
+new_max_residual_pct = 99.0   # any new certified XC60 in range is news

@@ -1,0 +1,9 @@
+venv/
+__pycache__/
+*.pyc
+logs/
+run.log
+legacy/
+data/cars_com_debug.html
+data/hertz_monitor.db
+.github/workflows/
