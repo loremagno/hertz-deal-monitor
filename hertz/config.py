@@ -33,6 +33,11 @@ class WatchEntry:
     year_min: int = 0
     odometer_max: int = 10**9
     exclude_trims: list[str] = field(default_factory=list)
+    # Hard colour requirements for this entry, matched as substrings.
+    # Only Dealer.com sources carry interior colour: Cars.com result cards
+    # show no colour at all and its detail pages are Cloudflare-blocked.
+    require_exterior: list[str] = field(default_factory=list)
+    require_interior: list[str] = field(default_factory=list)
 
     # How often to re-poll this entry, and how deep to page.
     #
@@ -76,6 +81,19 @@ class WatchEntry:
         for bad in self.exclude_trims:
             if bad.strip() and trim.startswith(bad.strip().lower()):
                 return False
+
+        exterior = (listing.exterior_color or "").lower()
+        if self.require_exterior and not any(
+            c.strip().lower() in exterior for c in self.require_exterior
+        ):
+            return False
+
+        interior = (listing.interior_color or "").lower()
+        if self.require_interior and not any(
+            c.strip().lower() in interior for c in self.require_interior
+        ):
+            return False
+
         return True
 
 
@@ -224,6 +242,8 @@ def load(path: Path = CONFIG_PATH) -> Config:
             year_min=int(w.get("year_min", 0)),
             odometer_max=int(w.get("odometer_max", 10**9)),
             exclude_trims=list(w.get("exclude_trims", [])),
+            require_exterior=list(w.get("require_exterior", [])),
+            require_interior=list(w.get("require_interior", [])),
             poll_hours=float(w.get("poll_hours", 24.0)),
             max_pages=int(w.get("max_pages", 6)),
             source=str(w.get("source", "hertz")),

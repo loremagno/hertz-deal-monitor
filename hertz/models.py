@@ -287,6 +287,7 @@ class Scored:
     landed_cost: float
     predicted_landed: float | None = None
     residual_pct: float | None = None      # negative = cheaper than predicted
+    residual_sigma: float | None = None    # residual in units of the fit's RMSE
     comp_n: int = 0
     tier: str = ""                          # "A", "B", or ""
     matched_label: str = ""

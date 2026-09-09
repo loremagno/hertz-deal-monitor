@@ -101,7 +101,10 @@ class BrowserSession:
         city_state: str = "COLUMBUS, OH, US",
         coordinates: str = "40.0464,-83.0680",
         retries: int = 3,
-        cookie_domains: tuple[str, ...] = (".hertzcarsales.com", ".byersvolvo.com"),
+        channel: str | None = None,
+        cookie_domains: tuple[str, ...] = (
+            ".hertzcarsales.com", ".byersvolvo.com", ".byersmazda.com",
+        ),
     ):
         self.headless = headless
         self.min_delay = min_delay
@@ -110,6 +113,10 @@ class BrowserSession:
         self.city_state = city_state
         self.coordinates = coordinates
         self.retries = retries
+        # CarMax's bot check rejects Playwright's bundled Chromium outright
+        # and accepts real Chrome from the same machine and IP, so the
+        # channel has to be selectable.
+        self.channel = channel
         self.cookie_domains = cookie_domains
         self._pw = None
         self._browser = None
@@ -137,8 +144,11 @@ class BrowserSession:
 
     def __enter__(self) -> "BrowserSession":
         self._pw = sync_playwright().start()
+        launch_args = {"headless": self.headless}
+        if self.channel:
+            launch_args["channel"] = self.channel
         self._browser = self._pw.chromium.launch(
-            headless=self.headless,
+            **launch_args,
             args=[
                 "--disable-blink-features=AutomationControlled",
                 "--disable-dev-shm-usage",
@@ -154,7 +164,8 @@ class BrowserSession:
         self._context.add_init_script(STEALTH_INIT)
         self._context.add_cookies(self._location_cookies())
         logger.info(
-            "Browser started (headless=%s, origin=%s)", self.headless, self.postal_code
+            "Browser started (headless=%s, channel=%s, origin=%s)",
+            self.headless, self.channel or "chromium", self.postal_code,
         )
         return self
 

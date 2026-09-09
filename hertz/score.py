@@ -81,6 +81,27 @@ def _normalize_model(listing: Listing) -> str:
     return f"{listing.make.strip().lower()}|{listing.model.strip().lower()}"
 
 
+# An ordinal trim ladder, coarse on purpose. Manufacturers name trims
+# differently, but almost all of them stack roughly base -> mid -> loaded, and
+# a single ordinal term removes most of the trim variation that would
+# otherwise sit in the error term and masquerade as a bargain.
+_TRIM_LADDER = (
+    (("plus ultimate", "premium plus", "ultra", "signature", "platinum",
+      "calligraphy", "type s", "grand touring"), 3),
+    (("premium", "plus", "limited", "sel premium", "touring", "xle", "ultimate"), 2),
+    (("preferred", "select", "sel", "core", "sport", "s ", "le", "se"), 1),
+)
+
+
+def trim_tier(trim: str) -> int:
+    """0 unknown/base, rising to 3 for a marque's loaded trim."""
+    text = f" {(trim or '').strip().lower()} "
+    for needles, tier in _TRIM_LADDER:
+        if any(n in text for n in needles):
+            return tier
+    return 0
+
+
 @dataclass
 class Hedonic:
     """Fitted log-price surface plus the bookkeeping needed to apply it."""
@@ -92,10 +113,26 @@ class Hedonic:
     rmse: float
 
     def features(self, listing: Listing) -> list[float] | None:
+        """Design row: [1, odo, odo^2, age, trim_tier, rent2buy, model dummies].
+
+        `trim_tier` and `rent2buy` were added after inspecting the residuals.
+        Without a trim control, a loaded Palisade reads as overpriced and a
+        base one as a bargain, purely because trim sat in the error term.
+        Without a Rent2Buy indicator, two different products -- an
+        inspectable lot car and a car still out on rent whose mileage is an
+        estimate -- were pooled as if they were the same good.
+        """
         if listing.odometer is None or listing.age_years is None:
             return None
         odo = listing.odometer / 10000.0
-        row = [1.0, odo, odo * odo, listing.age_years]
+        row = [
+            1.0,
+            odo,
+            odo * odo,
+            listing.age_years,
+            float(trim_tier(listing.trim)),
+            1.0 if listing.is_rent2buy else 0.0,
+        ]
         key = _normalize_model(listing)
         row.extend(1.0 if key == mk else 0.0 for mk in self.model_keys)
         return row
@@ -295,6 +332,14 @@ def score_listing(
             scored.predicted_landed = predicted
             scored.residual_pct = 100.0 * (listing.price - predicted) / predicted
             scored.comp_n = hedonic.comps_for(listing)
+            # How unusual is this residual, in units of the fit's own spread?
+            # A percentage alone is not interpretable: -3% against a 4%
+            # residual SD is under one sigma, i.e. an ordinary car.
+            if hedonic.rmse > 0:
+                import math as _math
+                scored.residual_sigma = (
+                    _math.log(listing.price / predicted) / hedonic.rmse
+                )
 
     return scored
 
