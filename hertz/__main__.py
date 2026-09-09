@@ -89,13 +89,15 @@ def main(argv: list[str] | None = None) -> int:
                         help="score and render, but send nothing and record no alerts")
     parser.add_argument("--digest", action="store_true", help="force the digest email")
     parser.add_argument("--quiet", action="store_true", help="suppress the terminal summary")
+    parser.add_argument("--force", action="store_true",
+                        help="re-poll every watch now, ignoring poll windows")
     args = parser.parse_args(argv)
 
     cfg = config.load()
     setup_logging(cfg)
     logger.info("=== Hertz deal monitor starting ===")
 
-    result = pipeline.run(cfg, dry_run=args.dry_run)
+    result = pipeline.run(cfg, dry_run=args.dry_run, force=args.force)
 
     board_html = board.render(result, cfg)
     (cfg.out_dir / "board.html").write_text(

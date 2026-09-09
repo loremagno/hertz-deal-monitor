@@ -157,7 +157,12 @@ def _poll_key(entry) -> str:
     return f"last_poll:{entry.tier}:{entry.label}"
 
 
+FORCE_POLL = False   # set by the CLI's --force: ignore every poll window
+
+
 def _entry_due(store: Store, entry) -> bool:
+    if FORCE_POLL:
+        return True
     last = store.get_meta(_poll_key(entry))
     if not last:
         return True
@@ -312,7 +317,9 @@ def enrich(session: ingest.BrowserSession, store: Store, candidates: list[Scored
                 scored.autocheck = report
 
 
-def run(cfg: Config, dry_run: bool = False) -> RunResult:
+def run(cfg: Config, dry_run: bool = False, force: bool = False) -> RunResult:
+    global FORCE_POLL
+    FORCE_POLL = force
     result = RunResult()
     provisional: list[Scored] = []
     store = Store(cfg.db_path)

@@ -17,6 +17,10 @@ on:
         description: "Score and render but send nothing"
         type: boolean
         default: false
+      force:
+        description: "Re-poll every watch now, ignoring poll windows"
+        type: boolean
+        default: false
 
 # Never let two runs write the database at once.
 concurrency:
@@ -93,6 +97,7 @@ jobs:
           python -m hertz \
             ${{ inputs.dry_run && '--dry-run' || '' }} \
             ${{ inputs.digest && '--digest' || '' }} \
+            ${{ inputs.force && '--force' || '' }} \
             --quiet
 
       - name: Persist database and board
