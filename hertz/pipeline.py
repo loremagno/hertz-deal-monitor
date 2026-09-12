@@ -196,6 +196,7 @@ class RunResult:
     hedonic_n: int = 0
     hedonic_rmse: float = 0.0
     curves: dict = field(default_factory=dict)
+    failed_entries: list = field(default_factory=list)   # (label, error) skipped this run
 
 
 def collect(
@@ -216,6 +217,7 @@ def collect(
     per_model: dict[str, int] = {}
     polled: set[str] = set()
     polled_sources: set[str] = set()
+    failed_entries: list[tuple[str, str]] = []
     # Entries whose poll window should be reset -- but only once the run has
     # actually stored what it fetched. A run that dies after collecting would
     # otherwise consume the window and skip the model until it reopens.
@@ -237,37 +239,57 @@ def collect(
         source = cfg.sources[entry.source]
         polled_sources.add(entry.source)
 
-        for model in entry.models:
-            key = f"{entry.source}:{model}"
-            if key in per_model:
-                continue
-            years = None
-            if entry.year_min:
-                top = min(entry.year_max, entry.year_min + 4)
-                years = list(range(entry.year_min, top + 1))
-            listings = ingest.fetch_model_nationwide(
-                session, model, entry.max_pages, source, years)
-            per_model[key] = len(listings)
-            polled.add(model.lower())
-            for listing in listings:
-                by_vin.setdefault(listing.vin, listing)
+        # One source going dark must not take the run down. A 20-second
+        # dataLayer timeout on Byers Mazda (a side quest with zero stock)
+        # once aborted everything, pausing the CX-50 Hybrid alerts that are
+        # the whole point. So a failing entry is skipped: its old rows are
+        # kept, its poll window is NOT reset (it retries next run), and it is
+        # reported. Only when every entry fails is the run itself a failure.
+        try:
+            for model in entry.models:
+                key = f"{entry.source}:{model}"
+                if key in per_model:
+                    continue
+                years = None
+                if entry.year_min:
+                    top = min(entry.year_max, entry.year_min + 4)
+                    years = list(range(entry.year_min, top + 1))
+                listings = ingest.fetch_model_nationwide(
+                    session, model, entry.max_pages, source, years)
+                per_model[key] = len(listings)
+                polled.add(model.lower())
+                for listing in listings:
+                    by_vin.setdefault(listing.vin, listing)
 
-        # Make-level queries catch a model that is not in inventory today but
-        # might appear later, without needing to guess its exact model string.
-        for make in entry.makes:
-            key = f"{entry.source}:make:{make}"
-            if key in per_model:
-                continue
-            listings = ingest.fetch_make_nationwide(session, make, entry.max_pages, source)
-            per_model[key] = len(listings)
-            polled.update(l.model.lower() for l in listings)
-            for listing in listings:
-                by_vin.setdefault(listing.vin, listing)
+            # Make-level queries catch a model that is not in inventory today
+            # but might appear later, without guessing its exact model string.
+            for make in entry.makes:
+                key = f"{entry.source}:make:{make}"
+                if key in per_model:
+                    continue
+                listings = ingest.fetch_make_nationwide(session, make, entry.max_pages, source)
+                per_model[key] = len(listings)
+                polled.update(l.model.lower() for l in listings)
+                for listing in listings:
+                    by_vin.setdefault(listing.vin, listing)
+        except Exception as exc:
+            failed_entries.append((entry.label, f"{type(exc).__name__}: {exc}"))
+            logger.warning("Skipping %r this run: %s", entry.label, exc)
+            continue
 
         polled_entries.append(entry)
 
     summary = ", ".join(f"{m}={n}" for m, n in sorted(per_model.items()))
     logger.info("Collected %d vehicles across %d models (%s)", len(by_vin), len(per_model), summary)
+
+    attempted = [e for e in cfg.watch if e.source in cfg.sources and _entry_due(store, e)]
+    if attempted and len(failed_entries) == len(attempted):
+        # Every Dealer.com source failed: that is the scraper or the network,
+        # not one dealer's bad afternoon, and it deserves the loud path.
+        raise ingest.BlockedError(
+            "Every watch entry failed this run: "
+            + "; ".join(f"{label} ({err[:80]})" for label, err in failed_entries)
+        )
 
     missing = [m for m, n in per_model.items() if n == 0]
     if missing:
@@ -285,7 +307,7 @@ def collect(
         resolved, len(listings), len(discovered),
     )
 
-    return listings, polled, polled_sources, polled_entries
+    return listings, polled, polled_sources, polled_entries, failed_entries
 
 
 def enrich(session: ingest.BrowserSession, store: Store, candidates: list[Scored], cfg: Config) -> None:
@@ -351,7 +373,9 @@ def run(cfg: Config, dry_run: bool = False, force: bool = False) -> RunResult:
             city_state=cfg.city_state,
             coordinates=cfg.coordinates,
         ) as session:
-            listings, polled_models, polled_sources, polled_entries = collect(session, cfg, store)
+            (listings, polled_models, polled_sources,
+             polled_entries, failed_entries) = collect(session, cfg, store)
+            result.failed_entries = failed_entries
             listings.extend(carmax_listings)
             if carmax_listings:
                 # Only when the sweep actually returned cars: an empty CarMax

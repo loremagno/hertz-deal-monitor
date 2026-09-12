@@ -128,6 +128,24 @@ def main(argv: list[str] | None = None) -> int:
             sent = notify.send_deal_alerts(cfg, result.alerts, board_html)
             logger.info("Sent %d deal alert(s)", sent)
 
+            # A source that was skipped is worth one quiet line, not an
+            # urgent failure alert: the rest of the run succeeded and the
+            # skipped entry retries on its own next run. Only say it once per
+            # streak, so a dealer that stays dark for a week is not a
+            # notification every two hours.
+            if result.failed_entries:
+                labels = ", ".join(label for label, _ in result.failed_entries)
+                if store.get_meta("skipped_sources") != labels:
+                    notify.send_push(
+                        cfg, "Hertz monitor: a source was skipped",
+                        f"{labels} did not respond this run; everything else "
+                        "refreshed normally and it will retry next run.",
+                        priority="low",
+                    )
+                    store.set_meta("skipped_sources", labels)
+            elif store.get_meta("skipped_sources"):
+                store.set_meta("skipped_sources", "")
+
             if args.digest or due_for_digest(store, cfg.digest_every_days):
                 count = len(result.watched)
                 notify.send_digest(
