@@ -134,7 +134,16 @@ def main(argv: list[str] | None = None) -> int:
         # to keep and merge into. It also survives a database restore, which
         # is how the cache came to be empty in the first place.
         seed_path = cfg.base_dir / "docs" / "dream_seed.json"
-        if not cached and seed_path.exists():
+        # "Empty" must mean no ROWS, not no string: a run in which every
+        # model was blocked writes a cache of {"rows": []}, which is truthy
+        # and silently out-ranked the seed on the very run meant to adopt it.
+        cached_rows = False
+        if cached:
+            try:
+                cached_rows = bool(json.loads(cached).get("rows"))
+            except Exception:
+                cached_rows = False
+        if not cached_rows and seed_path.exists():
             try:
                 seed = seed_path.read_text(encoding="utf-8")
                 if json.loads(seed).get("rows"):

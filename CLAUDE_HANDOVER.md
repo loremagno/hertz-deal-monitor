@@ -111,6 +111,14 @@ alerts. The E-Class needs `body_style_slugs[]=wagon`; unfiltered, the
 cheapest page is all sedans. Refreshed every 12 h, cached in `meta`, and
 a partial refresh merges with the cache per model.
 
+**Cars.com from GitHub's runners is one request per session at best**:
+across four cloud runs it blocked every request but the first of a fresh
+session. So the cloud rarely fills the dream tab from scratch. The tab is
+therefore **seeded from this machine** (`docs/dream_seed.json`, residential
+IP, three sweeps with 50 s pauses, ~4 min) and adopted by the cloud when its
+cache is empty; the seed is rewritten whenever a model answers. To refresh
+the seed by hand: run `dream.build(cfg)` locally and commit the file.
+
 **Incident, 2026-09-13 21:56 UTC.** A green run recorded zero CX-50
 Hybrids (52 an hour earlier): Hertz served that one page empty while every
 other model came through, and the run marked all 52 sold and emptied the
