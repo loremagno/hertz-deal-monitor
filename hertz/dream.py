@@ -154,8 +154,15 @@ def build(cfg, pause_seconds: float = 45.0, models: list[DreamModel] | None = No
 
 
 def to_json(board: DreamBoard) -> dict:
-    """Plain data for the dashboard, one dict per listing."""
+    """Plain data for the dashboard, one dict per listing.
+
+    `seeded_at` is the document's own clock. It decides whether a committed
+    seed out-ranks the runner's cache, and it must live in the file because
+    a fresh checkout resets every mtime.
+    """
+    from datetime import datetime
     return {
+        "seeded_at": datetime.now().isoformat(timespec="seconds"),
         "counts": board.counts,
         "skipped": board.skipped,
         "rows": [

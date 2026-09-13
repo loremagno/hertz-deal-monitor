@@ -143,13 +143,32 @@ def main(argv: list[str] | None = None) -> int:
                 cached_rows = bool(json.loads(cached).get("rows"))
             except Exception:
                 cached_rows = False
-        if not cached_rows and seed_path.exists():
+        # A committed seed is adopted when the cache is empty OR when the
+        # seed is newer than the cache. "Only when empty" let a stale 26-row
+        # uncapped cache out-rank a fresh 7-row capped seed, so the cap was
+        # committed and still not shown. Newer wins; the seed's own mtime is
+        # the clock, and adoption stamps dream_at so the next run does not
+        # re-adopt it.
+        # The clock is the seed's own `seeded_at` field, never the file's
+        # mtime: a fresh checkout on a runner stamps every file with the
+        # checkout time, so an mtime rule would re-adopt the seed on every
+        # run and quietly undo each cloud refresh.
+        if seed_path.exists():
             try:
                 seed = seed_path.read_text(encoding="utf-8")
-                if json.loads(seed).get("rows"):
+                seed_doc = json.loads(seed)
+                seeded_at = seed_doc.get("seeded_at")
+                cache_time = datetime.fromisoformat(stamp) if stamp else None
+                seed_time = datetime.fromisoformat(seeded_at) if seeded_at else None
+                seed_newer = (seed_time is not None
+                              and (cache_time is None or seed_time > cache_time))
+                if seed_doc.get("rows") and (not cached_rows or seed_newer):
                     cached = seed
+                    stamp = (seed_time or datetime.now()).isoformat(timespec="seconds")
                     store.set_meta("dream_json", seed)
-                    logger.info("Dream tab: adopted the committed seed")
+                    store.set_meta("dream_at", stamp)
+                    logger.info("Dream tab: adopted the committed seed (%s)",
+                                "cache empty" if not cached_rows else "seed newer")
             except Exception as exc:
                 logger.warning("Dream seed unreadable: %s", exc)
         fresh = False
@@ -173,10 +192,12 @@ def main(argv: list[str] | None = None) -> int:
                 rows = [r for r in old["rows"] if r["model"] not in answered] + fresh_doc["rows"]
                 counts = {**old.get("counts", {}), **fresh_doc["counts"]}
                 rows.sort(key=lambda r: (r["market_pct"] is None, r["market_pct"] or 0.0, r["price"]))
-                dream_doc = {"rows": rows, "counts": counts, "skipped": fresh_doc["skipped"]}
+                now_iso = datetime.now().isoformat(timespec="seconds")
+                dream_doc = {"rows": rows, "counts": counts, "skipped": fresh_doc["skipped"],
+                             "seeded_at": now_iso}
                 store.set_meta("dream_json", json.dumps(dream_doc))
                 if answered:
-                    store.set_meta("dream_at", datetime.now().isoformat(timespec="seconds"))
+                    store.set_meta("dream_at", now_iso)
                     # Keep the committed seed current whenever a model answers,
                     # so the seed is never older than the last good fetch.
                     try:
