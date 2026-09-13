@@ -127,6 +127,22 @@ def main(argv: list[str] | None = None) -> int:
     with Store(cfg.db_path) as store:
         cached = store.get_meta("dream_json")
         stamp = store.get_meta("dream_at")
+        # A committed seed outranks an empty cache. Cars.com blocks GitHub's
+        # runners on all but the first request of a session, so the cloud
+        # rarely fills the tab from scratch; a seed produced on a residential
+        # connection and committed as docs/dream_seed.json gives it something
+        # to keep and merge into. It also survives a database restore, which
+        # is how the cache came to be empty in the first place.
+        seed_path = cfg.base_dir / "docs" / "dream_seed.json"
+        if not cached and seed_path.exists():
+            try:
+                seed = seed_path.read_text(encoding="utf-8")
+                if json.loads(seed).get("rows"):
+                    cached = seed
+                    store.set_meta("dream_json", seed)
+                    logger.info("Dream tab: adopted the committed seed")
+            except Exception as exc:
+                logger.warning("Dream seed unreadable: %s", exc)
         fresh = False
         if stamp:
             try:
@@ -152,6 +168,12 @@ def main(argv: list[str] | None = None) -> int:
                 store.set_meta("dream_json", json.dumps(dream_doc))
                 if answered:
                     store.set_meta("dream_at", datetime.now().isoformat(timespec="seconds"))
+                    # Keep the committed seed current whenever a model answers,
+                    # so the seed is never older than the last good fetch.
+                    try:
+                        seed_path.write_text(json.dumps(dream_doc), encoding="utf-8")
+                    except Exception as exc:
+                        logger.warning("Dream seed not updated: %s", exc)
             except Exception as exc:
                 logger.warning("Dream tab not refreshed: %s", exc)
                 dream_doc = json.loads(cached) if cached else None
