@@ -138,11 +138,12 @@
   </section>
 
   <section role="tabpanel" id="tab-dream" hidden>
-    <div class="note warn">Aspirational, not gated: open-market listings from Cars.com, 2022 or
-      newer, <b>$47,000 or less</b>, ranked within each model against a curve fitted on that
-      model's listings under the same cap. Nothing here has an AutoCheck read and nothing here
-      alerts. "vs curve" is cheapness relative to the same model's other listings; Cars.com's own
-      deal rating is shown alongside.</div>
+    <div class="note warn">Station wagons only, aspirational, not gated: open-market listings from
+      Cars.com, 2022 or newer, <b>$47,000 or less</b>, ranked within each model against a curve
+      fitted on that model's listings under the same cap. The A4 allroad is searched within 300 mi;
+      the others nationwide. Nothing here has an AutoCheck read and nothing here alerts. "vs curve"
+      is cheapness relative to the same model's other listings; Cars.com's own deal rating is shown
+      alongside. Click a vehicle to open its listing.</div>
     <div class="controls" id="dream-controls"></div>
     <div class="scroll"><table id="dream-table"></table></div>
   </section>
@@ -370,7 +371,9 @@
 
   // ---- dream tab ---------------------------------------------------------------
   const DREAM_COLS = [
-    {key:'title', label:'Vehicle', cls:'veh', fmt: (v, r) => `<b>${esc(r.year)}</b> ${esc(v)}`},
+    {key:'title', label:'Vehicle', cls:'veh', fmt: (v, r) => r.url
+        ? `<a href="${esc(r.url)}" target="_blank" rel="noopener"><b>${esc(r.year)}</b> ${esc(v)}</a>`
+        : `<b>${esc(r.year)}</b> ${esc(v)} <span class="dim">(no link)</span>`},
     {key:'model', label:'Model'},
     {key:'mileage', label:'Miles', right:true, fmt: int},
     {key:'price', label:'Price', right:true, fmt: money},

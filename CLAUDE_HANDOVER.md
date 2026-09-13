@@ -111,6 +111,15 @@ alerts. The E-Class needs `body_style_slugs[]=wagon`; unfiltered, the
 cheapest page is all sedans. Refreshed every 12 h, cached in `meta`, and
 a partial refresh merges with the cache per model.
 
+**Dream models (2026-09-13, station wagons only)**: A6 allroad, **A4
+allroad (300 mi radius, Lorenzo's ask)**, V90 Cross Country, **V60**,
+E-Class All-Terrain. V60 and E-Class carry Cars.com's
+`body_style_slugs[]=wagon` so sedans never appear; allroad and Cross
+Country are wagon-only badges. **Rows are clickable**: the card reader
+`CARD_TEXT_LINKS` captures each card's `/vehicledetail/` href (the older
+text-only `CARD_TEXT` never did, which is why nothing was clickable), the
+tracking query string is stripped, and the page links the vehicle cell.
+
 **Dream-car cap: $47,000** (Lorenzo, 2026-09-13), enforced at fetch via
 Cars.com's `list_price_max` and again client-side. Of the first uncapped
 seed's 26 rows only one was under the cap, so the cap changes what the

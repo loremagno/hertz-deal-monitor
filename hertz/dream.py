@@ -17,13 +17,13 @@ import logging
 import time
 from dataclasses import dataclass, field
 
-from .benchmark import CARD_TEXT, MarketComp, MarketCurve, fit_curve, parse_card
+from .benchmark import CARD_TEXT_LINKS, MarketComp, MarketCurve, fit_curve, parse_card
 
 logger = logging.getLogger(__name__)
 
 SEARCH = (
     "https://www.cars.com/shopping/results/"
-    "?makes[]={make}&models[]={slug}&zip={zip}&maximum_distance=all"
+    "?makes[]={make}&models[]={slug}&zip={zip}&maximum_distance={distance}"
     "&stock_type=used&page_size=100&year_min={year_min}&list_price_max={price_max}{extra}"
 )
 BLOCKED_JS = "() => /you have been blocked|attention required/i.test(document.body.innerText.slice(0, 500))"
@@ -46,14 +46,24 @@ class DreamModel:
     # reach the E-Class wagons: unfiltered, the cheapest page is all sedans
     # and the pricier All-Terrains never appear.
     extra_query: str = ""
+    # Miles from home, or None for nationwide. Cars.com accepts a numeric
+    # maximum_distance, so this is a server-side filter, not a post-hoc one.
+    radius_miles: int | None = None
 
+
+# Station wagons, every one. Cars.com's own body-style filter keeps sedans
+# out for the models that also come as sedans (V60, A4, E-Class); the
+# allroad and Cross Country badges are wagon-only, so they need no filter.
+WAGON = "&body_style_slugs[]=wagon"
 
 DREAM_MODELS = [
     DreamModel("Audi A6 allroad", "audi", "audi-a6_allroad"),
+    DreamModel("Audi A4 allroad", "audi", "audi-a4_allroad", radius_miles=300),
     DreamModel("Volvo V90 Cross Country", "volvo", "volvo-v90_cross_country"),
+    DreamModel("Volvo V60", "volvo", "volvo-v60", extra_query=WAGON),
     DreamModel("Mercedes E-Class All-Terrain", "mercedes_benz", "mercedes_benz-e_class",
                body_markers=("wagon", "all-terrain", "all terrain", "estate"),
-               extra_query="&body_style_slugs[]=wagon"),
+               extra_query=WAGON),
 ]
 
 
@@ -77,6 +87,7 @@ def _fetch_model(cfg, model: DreamModel) -> list[MarketComp]:
     """One model, one fresh browser. Cars.com's tolerance is per session."""
     from . import ingest
     url = SEARCH.format(make=model.make, slug=model.slug, zip=cfg.zip,
+                        distance=model.radius_miles if model.radius_miles else "all",
                         year_min=model.year_min, price_max=model.price_max,
                         extra=model.extra_query)
     with ingest.BrowserSession(headless=True, min_delay=1.0, max_delay=1.5,
@@ -87,8 +98,19 @@ def _fetch_model(cfg, model: DreamModel) -> list[MarketComp]:
             page.wait_for_timeout(5000)
             if page.evaluate(BLOCKED_JS):
                 raise RuntimeError("Cars.com served a Cloudflare challenge")
-            cards = page.evaluate(CARD_TEXT)
-    comps = [c for c in (parse_card(t) for t in cards) if c]
+            cards = page.evaluate(CARD_TEXT_LINKS)
+
+    comps = []
+    for card in cards:
+        comp = parse_card(card.get("text") or "")
+        if comp is None:
+            continue
+        href = card.get("href") or ""
+        if href.startswith("/"):
+            href = "https://www.cars.com" + href
+        # Cars.com appends tracking parameters; the listing id is the path.
+        comp.url = href.split("?")[0] if href else ""
+        comps.append(comp)
     if model.body_markers:
         comps = [c for c in comps
                  if any(m in (c.title or "").lower() for m in model.body_markers)]
@@ -170,7 +192,7 @@ def to_json(board: DreamBoard) -> dict:
                 "model": r.model, "year": r.comp.year, "title": r.comp.title,
                 "price": r.comp.price, "mileage": r.comp.mileage,
                 "city": r.comp.city, "state": r.comp.state, "distance": r.comp.distance,
-                "dealer": r.comp.dealer, "rating": r.rating,
+                "dealer": r.comp.dealer, "rating": r.rating, "url": r.comp.url,
                 "market_pct": None if r.market_pct is None else round(r.market_pct, 1),
             }
             for r in board.rows

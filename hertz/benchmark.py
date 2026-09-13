@@ -63,6 +63,17 @@ CARD_TEXT = """
         .filter(t => /^\\$[\\d,]+/.test(t) && /\\bmi\\./.test(t))
 """
 
+# Text plus the listing link. The text-only reader above made every dream
+# row unclickable, because nothing ever captured the URL.
+CARD_TEXT_LINKS = """
+() => [...document.querySelectorAll('fuse-card')]
+        .map(c => {
+            const a = c.querySelector('a[href*="/vehicledetail/"]') || c.querySelector('a[href]');
+            return {text: (c.innerText || '').trim(), href: a ? a.getAttribute('href') : null};
+        })
+        .filter(o => /^\\$[\\d,]+/.test(o.text) && /\\bmi\\./.test(o.text))
+"""
+
 PRICE = re.compile(r"^\$([\d,]+)")
 MILEAGE = re.compile(r"([\d,]+)\s*mi\.")
 TITLE = re.compile(r"(?:Used|New|Certified)\s+(\d{4})\s+(.+)")
@@ -82,6 +93,7 @@ class MarketComp:
     state: str = ""
     distance: int | None = None
     rating: str = ""
+    url: str = ""
 
     @property
     def age_years(self) -> float:
