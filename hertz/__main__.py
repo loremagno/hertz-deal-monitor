@@ -7,11 +7,12 @@
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import sys
 from datetime import datetime, timedelta
 
-from . import artifact, board, config, notify, pipeline
+from . import artifact, board, config, dashboard, notify, pipeline
 from .score import rank
 from .store import Store
 
@@ -89,6 +90,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="score and render, but send nothing and record no alerts")
     parser.add_argument("--digest", action="store_true", help="force the digest email")
     parser.add_argument("--quiet", action="store_true", help="suppress the terminal summary")
+    parser.add_argument("--dream", action="store_true",
+                        help="refresh the dream-car tab now, ignoring its 12-hour cache")
     parser.add_argument("--force", action="store_true",
                         help="re-poll every watch now, ignoring poll windows")
     args = parser.parse_args(argv)
@@ -116,6 +119,43 @@ def main(argv: list[str] | None = None) -> int:
         logger.warning("Rich board could not be rendered: %s", exc)
 
     logger.info("Boards written to %s", cfg.out_dir)
+
+    # The dream-car tab: three Cars.com sweeps with a fresh browser each and
+    # a pause between them. Refreshed only every `dream_every_hours`, because
+    # it is aspirational rather than a watch, and each sweep costs ~45 s.
+    dream_doc = None
+    with Store(cfg.db_path) as store:
+        cached = store.get_meta("dream_json")
+        stamp = store.get_meta("dream_at")
+        fresh = False
+        if stamp:
+            try:
+                fresh = datetime.now() - datetime.fromisoformat(stamp) < timedelta(hours=12)
+            except ValueError:
+                fresh = False
+        if cached and fresh and not args.dream:
+            dream_doc = json.loads(cached)
+        else:
+            try:
+                from . import dream   # pulls in Playwright; only when refreshing
+                dream_doc = dream.to_json(dream.build(cfg))
+                if dream_doc["rows"] or not cached:
+                    store.set_meta("dream_json", json.dumps(dream_doc))
+                    store.set_meta("dream_at", datetime.now().isoformat(timespec="seconds"))
+                elif cached:
+                    dream_doc = json.loads(cached)   # every model blocked: keep the last good one
+            except Exception as exc:
+                logger.warning("Dream tab not refreshed: %s", exc)
+                dream_doc = json.loads(cached) if cached else None
+
+        # One JSON document drives the published dashboard (docs/index.html).
+        try:
+            doc = dashboard.build(result, cfg, dream_doc, store)
+            dashboard.write(doc, cfg.base_dir / "docs" / "data.json")
+            logger.info("Dashboard data written: %d listings, %d dream rows",
+                        len(doc["listings"]), len(doc["dream"]["rows"]))
+        except Exception as exc:
+            logger.warning("Dashboard data could not be written: %s", exc)
 
     with Store(cfg.db_path) as store:
         if not result.ok:

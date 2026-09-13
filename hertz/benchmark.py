@@ -216,11 +216,17 @@ class MarketCurve:
         )
 
 
-def fit_curve(comps: list[MarketComp]) -> MarketCurve | None:
-    """Ordinary least squares on the market sample. Needs a real sample."""
+def fit_curve(comps: list[MarketComp], min_n: int = 10) -> MarketCurve | None:
+    """Ordinary least squares on the market sample. Needs a real sample.
+
+    `min_n` is the floor for a benchmark that gates alerts (10). The dream
+    tab, which gates nothing, passes 6: three parameters on six points is
+    thin but honest for a ranking.
+    """
     usable = [c for c in comps if c.price > 5000 and c.mileage >= 0]
-    if len(usable) < 10:
-        logger.warning("Only %d usable market comps; not fitting a curve", len(usable))
+    if len(usable) < min_n:
+        logger.warning("Only %d usable market comps (need %d); not fitting a curve",
+                       len(usable), min_n)
         return None
 
     rows = [(1.0, c.mileage / 10000.0, c.age_years, float(trim_tier(c.trim)),

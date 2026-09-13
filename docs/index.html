@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Car Watch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --paper:#f7f5f1; --surface:#fffefc; --sunk:#efece6;
+    --ink:#14171b; --muted:#6f7178; --line:#ddd8ce;
+    --accent:#b8790a; --accent-soft:#f5e7cb;
+    --pass:#1c7a4f; --pass-soft:#e4f2ea;
+    --flag:#b0392a; --flag-soft:#f8e6e2;
+    --shadow:0 1px 2px rgba(20,23,27,.05), 0 8px 24px -16px rgba(20,23,27,.28);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#15171a; --surface:#1c1f24; --sunk:#212429;
+      --ink:#e9e7e2; --muted:#9a9ca3; --line:#31353c;
+      --accent:#e2a33c; --accent-soft:#3a2f1a;
+      --pass:#4ec98a; --pass-soft:#172b21;
+      --flag:#f0836f; --flag-soft:#2e1c19;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.7);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#15171a; --surface:#1c1f24; --sunk:#212429;
+    --ink:#e9e7e2; --muted:#9a9ca3; --line:#31353c;
+    --accent:#e2a33c; --accent-soft:#3a2f1a;
+    --pass:#4ec98a; --pass-soft:#172b21;
+    --flag:#f0836f; --flag-soft:#2e1c19;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.7);
+  }
+  *{box-sizing:border-box}
+  html{color-scheme:light dark}
+  body{margin:0; background:var(--paper); color:var(--ink);
+       font-family:"IBM Plex Sans",-apple-system,Segoe UI,Roboto,sans-serif;
+       line-height:1.5; -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1180px; margin:0 auto; padding:28px 20px 60px; display:flex; flex-direction:column; gap:22px}
+  h1,h2{font-family:Archivo,Segoe UI,sans-serif; margin:0; letter-spacing:-.018em; line-height:1.18; text-wrap:balance}
+  h1{font-size:clamp(24px,4vw,34px); font-weight:700}
+  h2{font-size:12.5px; font-weight:600; letter-spacing:.09em; text-transform:uppercase; color:var(--muted)}
+  .num{font-family:"IBM Plex Mono",ui-monospace,monospace; font-variant-numeric:tabular-nums}
+  header{display:flex; flex-direction:column; gap:8px; border-bottom:2px solid var(--ink); padding-bottom:14px}
+  .eyebrow{font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); font-weight:600}
+  .sub{color:var(--muted); font-size:13.5px}
+  .sub b{color:var(--ink); font-weight:600}
+  .stale{color:var(--flag); font-weight:600}
+
+  /* tabs */
+  nav.tabs{display:flex; gap:4px; border-bottom:1px solid var(--line); overflow-x:auto}
+  nav.tabs button{appearance:none; background:none; border:0; border-bottom:2px solid transparent;
+    padding:10px 14px; font:inherit; font-weight:600; font-size:14px; color:var(--muted); cursor:pointer; white-space:nowrap}
+  nav.tabs button[aria-selected="true"]{color:var(--ink); border-bottom-color:var(--accent)}
+  nav.tabs button .n{font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--muted); margin-left:6px}
+  section[role=tabpanel]{display:flex; flex-direction:column; gap:14px}
+  section[role=tabpanel][hidden]{display:none}
+
+  /* controls */
+  .controls{display:flex; flex-wrap:wrap; gap:8px; align-items:center}
+  .controls label{font-size:12.5px; color:var(--muted); display:flex; align-items:center; gap:6px}
+  .controls select,.controls input{font:inherit; font-size:13px; padding:6px 8px; border:1px solid var(--line);
+    border-radius:6px; background:var(--surface); color:var(--ink)}
+  .controls input[type=number]{width:96px}
+  .controls .count{margin-left:auto; font-size:12.5px; color:var(--muted)}
+
+  /* cards */
+  .panel{background:var(--surface); border:1px solid var(--line); border-radius:11px; padding:18px;
+    display:flex; flex-direction:column; gap:12px; box-shadow:var(--shadow)}
+  .panel.pass{border-left:5px solid var(--pass)}
+  .panel.flag{border-left:5px solid var(--flag)}
+  .phead{display:flex; flex-wrap:wrap; align-items:baseline; gap:10px}
+  .phead .name{font-family:Archivo,sans-serif; font-weight:600; font-size:18px}
+  .where{color:var(--muted); font-size:13px}
+  .chip{font-family:"IBM Plex Mono",monospace; font-size:10.5px; font-weight:600; letter-spacing:.07em;
+    text-transform:uppercase; padding:3px 8px; border-radius:4px; white-space:nowrap}
+  .chip.pass{background:var(--pass-soft); color:var(--pass)}
+  .chip.flag{background:var(--flag-soft); color:var(--flag)}
+  .chip.r2b,.chip.warn{background:var(--accent-soft); color:var(--accent)}
+  .chip.dim{background:var(--sunk); color:var(--muted)}
+  .split{display:grid; grid-template-columns:minmax(200px,250px) 1fr; gap:22px}
+  @media(max-width:660px){.split{grid-template-columns:1fr}}
+  .ledger{font-size:13.5px}
+  .ledger div{display:flex; justify-content:space-between; gap:14px; padding:4px 0}
+  .ledger div.total{border-top:1px solid var(--line); margin-top:4px; padding-top:8px; font-weight:600; font-size:16px}
+  .ledger .k{color:var(--muted)}
+  ul.why{margin:0; padding-left:17px; font-size:13.5px; display:flex; flex-direction:column; gap:4px}
+  .note{font-size:12.5px; padding:9px 12px; border-radius:7px; line-height:1.5}
+  .note.pass{background:var(--pass-soft)} .note.warn{background:var(--accent-soft)}
+  .note.flag{background:var(--flag-soft); color:var(--flag); font-weight:500}
+  a.cta{align-self:flex-start; text-decoration:none; font-weight:600; font-size:13px; background:var(--ink);
+    color:var(--paper); padding:8px 15px; border-radius:6px}
+  a{color:var(--accent)}
+  :focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+
+  /* table */
+  .scroll{overflow-x:auto; border:1px solid var(--line); border-radius:11px; background:var(--surface)}
+  table{border-collapse:collapse; width:100%; font-size:13px; min-width:760px}
+  th{background:var(--sunk); text-align:left; font-weight:600; font-size:11px; letter-spacing:.06em;
+    text-transform:uppercase; color:var(--muted); padding:9px 11px; white-space:nowrap; cursor:pointer; user-select:none}
+  th[aria-sort=ascending]::after{content:" ▲"} th[aria-sort=descending]::after{content:" ▼"}
+  td{padding:9px 11px; border-top:1px solid var(--line); white-space:nowrap}
+  td.veh{white-space:normal; min-width:200px}
+  .r{text-align:right}
+  tr.best td{background:var(--pass-soft)} tr.bad td{background:var(--flag-soft)}
+  .good{color:var(--pass); font-weight:600} .badv{color:var(--flag); font-weight:600} .dim{color:var(--muted)}
+  .empty{color:var(--muted); font-size:14px; padding:18px}
+  footer{font-size:12px; color:var(--muted); line-height:1.6; border-top:1px solid var(--line); padding-top:14px;
+    display:flex; flex-direction:column; gap:8px}
+  footer b{color:var(--ink)}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Car watch · from <span id="zip"></span></div>
+    <h1>Deal board</h1>
+    <div class="sub" id="status">Loading…</div>
+  </header>
+
+  <nav class="tabs" role="tablist" id="tabs"></nav>
+
+  <section role="tabpanel" id="tab-target">
+    <div id="target-panels"></div>
+    <h2>Every CX-50 Hybrid on the watch</h2>
+    <div class="controls" id="target-controls"></div>
+    <div class="scroll"><table id="target-table"></table></div>
+  </section>
+
+  <section role="tabpanel" id="tab-watch" hidden>
+    <div class="controls" id="watch-controls"></div>
+    <div class="scroll"><table id="watch-table"></table></div>
+  </section>
+
+  <section role="tabpanel" id="tab-dream" hidden>
+    <div class="note warn">Aspirational, not gated: these are open-market listings from Cars.com,
+      ranked within each model against a curve fitted on that model alone. Nothing here has an
+      AutoCheck read and nothing here alerts. "vs curve" is cheapness relative to the same model's
+      other listings; Cars.com's own deal rating is shown alongside.</div>
+    <div class="controls" id="dream-controls"></div>
+    <div class="scroll"><table id="dream-table"></table></div>
+  </section>
+
+  <section role="tabpanel" id="tab-about" hidden>
+    <div class="panel" id="about"></div>
+  </section>
+
+  <footer>
+    <div><b>Landed</b> = price (doc fee included) + delivery + <span id="tax"></span>% Franklin County tax + title
+      and registration. Delivery is the seller's own per-car quote where readable; Rent2Buy cars are collected in
+      person at zero delivery.</div>
+    <div><b>vs model</b> is the residual from a hedonic fit of log price on mileage, age, trim tier and a Rent2Buy
+      indicator with model fixed effects, across every watched vehicle; thin models fall back to a Cars.com curve for
+      the same model. It measures cheapness within a model, on asking prices.</div>
+    <div><b>Condition</b> is Experian AutoCheck where the seller links one. A reported accident, branded title or
+      odometer flag blocks an alert. Franchise-certified cars pass on the certification and say so. A clean report is
+      not a substitute for a pre-purchase inspection.</div>
+  </footer>
+</div>
+
+<script>
+(async function () {
+  const $ = (s, el = document) => el.querySelector(s);
+  const money = v => v == null ? '—' : '$' + Math.round(v).toLocaleString();
+  const int = v => v == null ? '—' : Math.round(v).toLocaleString();
+  const pct = v => v == null ? '—' : (v > 0 ? '+' : '') + v.toFixed(1) + '%';
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  let data;
+  try {
+    const r = await fetch('data.json', {cache: 'no-store'});
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    data = await r.json();
+  } catch (e) {
+    $('#status').innerHTML = '<span class="stale">Could not load data.json (' + esc(e.message) + ')</span>';
+    return;
+  }
+
+  // ---- header ---------------------------------------------------------
+  $('#zip').textContent = data.home.zip;
+  $('#tax').textContent = (data.economics.tax_rate * 100).toFixed(1);
+  const gen = new Date(data.generated_at);
+  const ageH = (Date.now() - gen.getTime()) / 36e5;
+  const listings = data.listings;
+  const target = listings.filter(l => /cx-50 hybrid/i.test(l.model));
+  const near = l => l.distance != null && l.distance <= data.home.radius_miles;
+  $('#status').innerHTML =
+    `Data as of <b>${gen.toLocaleString(undefined, {weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})}</b>` +
+    (ageH > 6 ? ` <span class="stale">(${Math.round(ageH)} h old — the schedule may have stalled)</span>` : '') +
+    ` · CX-50 Hybrid: <b>${target.length}</b> nationwide, <b>${target.filter(near).length}</b> within ${data.home.radius_miles} mi` +
+    ` · watchlist <b>${listings.filter(near).length}</b> cars · model n=${data.model.n}, log-RMSE ${data.model.log_rmse.toFixed(3)}` +
+    (data.skipped_sources.length ? ` · <span class="stale">skipped: ${esc(data.skipped_sources.join(', '))}</span>` : '');
+
+  // ---- tabs -----------------------------------------------------------
+  const TABS = [
+    ['target', 'CX-50 Hybrid', target.filter(near).length],
+    ['watch', 'Watchlist', listings.filter(near).length],
+    ['dream', 'Dream cars', data.dream.rows.length],
+    ['about', 'About', null],
+  ];
+  const tabs = $('#tabs');
+  const hash = (location.hash || '').slice(1);
+  let active = TABS.some(t => t[0] === hash) ? hash : 'target';
+  function showTab(id) {
+    active = id;
+    for (const [k] of TABS) {
+      $('#tab-' + k).hidden = k !== id;
+      $(`#tabs button[data-tab="${k}"]`).setAttribute('aria-selected', String(k === id));
+    }
+    history.replaceState(null, '', '#' + id);
+  }
+  tabs.innerHTML = TABS.map(([k, label, n]) =>
+    `<button role="tab" data-tab="${k}" aria-selected="false">${label}${n != null ? `<span class="n">${n}</span>` : ''}</button>`).join('');
+  tabs.addEventListener('click', e => { const b = e.target.closest('button[data-tab]'); if (b) showTab(b.dataset.tab); });
+  // A deep link like #dream must work both on load and when the hash changes
+  // in an already-open page (back button, a link from an email).
+  window.addEventListener('hashchange', () => {
+    const h = (location.hash || '').slice(1);
+    if (TABS.some(t => t[0] === h) && h !== active) showTab(h);
+  });
+  showTab(active);
+
+  // ---- generic sortable/filterable table ---------------------------------
+  function table(el, rows, cols, opts = {}) {
+    let sortKey = opts.sortKey, sortDir = opts.sortDir || 1;
+    function render() {
+      const sorted = [...rows].sort((a, b) => {
+        const x = a[sortKey], y = b[sortKey];
+        if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1;
+        return (x < y ? -1 : x > y ? 1 : 0) * sortDir;
+      });
+      el.innerHTML =
+        '<thead><tr>' + cols.map(c =>
+          `<th data-key="${c.key}" class="${c.right ? 'r' : ''}" aria-sort="${c.key === sortKey ? (sortDir > 0 ? 'ascending' : 'descending') : 'none'}">${c.label}</th>`).join('') +
+        '</tr></thead><tbody>' +
+        (sorted.length ? sorted.map(r => `<tr class="${opts.rowClass ? opts.rowClass(r) : ''}">` +
+          cols.map(c => `<td class="${c.right ? 'r num' : ''} ${c.cls || ''}">${c.fmt ? c.fmt(r[c.key], r) : esc(r[c.key])}</td>`).join('') + '</tr>').join('')
+         : `<tr><td colspan="${cols.length}" class="empty">Nothing matches.</td></tr>`) +
+        '</tbody>';
+    }
+    el.onclick = e => {
+      const th = e.target.closest('th[data-key]'); if (!th) return;
+      if (sortKey === th.dataset.key) sortDir = -sortDir; else { sortKey = th.dataset.key; sortDir = 1; }
+      render();
+    };
+    render();
+    return { update(newRows) { rows = newRows; render(); } };
+  }
+  const cond = (v, r) => `<span class="${r.condition_kind === 'clean' ? 'good' : r.condition_kind === 'bad' ? 'badv' : 'dim'}">${esc(v)}</span>`;
+  const veh = (v, r) => `<a href="${esc(r.url)}">${esc(r.year)} ${esc(r.make)} ${esc(r.model)}</a>` +
+      (r.tier === 'A' ? ' <span class="chip pass">A</span>' : '') +
+      (r.type === 'certified' ? ' <span class="chip pass">cert</span>' : r.type === 'rent2buy' ? ' <span class="chip r2b">R2B</span>' : '') +
+      (r.fit >= 3 ? ' <span class="chip pass">fit</span>' : '');
+  const resid = v => v == null ? '<span class="dim">—</span>' : `<span class="${v < 0 ? 'good' : 'badv'}">${pct(v)}</span>`;
+
+  const LISTING_COLS = [
+    {key:'label', label:'Vehicle', fmt: veh, cls:'veh'},
+    {key:'color', label:'Colour'},
+    {key:'lot', label:'Lot'},
+    {key:'distance', label:'Away', right:true, fmt: int},
+    {key:'miles', label:'Miles', right:true, fmt: int},
+    {key:'price', label:'Price', right:true, fmt: money},
+    {key:'landed', label:'Landed', right:true, fmt: v => `<b>${money(v)}</b>`},
+    {key:'residual_pct', label:'vs model', right:true, fmt: resid},
+    {key:'days_on_lot', label:'Days', right:true, fmt: v => v == null ? '<span class="dim">—</span>' : int(v)},
+    {key:'condition', label:'Condition', fmt: cond},
+  ];
+  const rowClass = r => r.cleared ? 'best' : r.condition_kind === 'bad' ? 'bad' : '';
+
+  // ---- controls factory ---------------------------------------------------
+  function controls(el, rows, spec, onChange) {
+    const state = {};
+    el.innerHTML = spec.map(s => {
+      if (s.type === 'select') {
+        const opts = [...new Set(rows.map(r => r[s.key]).filter(v => v != null && v !== ''))].sort();
+        return `<label>${s.label} <select data-k="${s.key}"><option value="">any</option>${opts.map(o => `<option>${esc(o)}</option>`).join('')}</select></label>`;
+      }
+      if (s.type === 'max') return `<label>${s.label} ≤ <input type="number" data-k="${s.key}" data-op="max" placeholder="${s.placeholder || ''}"></label>`;
+      if (s.type === 'check') return `<label><input type="checkbox" data-k="${s.key}" data-op="check"> ${s.label}</label>`;
+      return '';
+    }).join('') + '<span class="count"></span>';
+    function apply() {
+      const out = rows.filter(r => Object.entries(state).every(([k, [op, v]]) => {
+        if (v === '' || v == null) return true;
+        if (op === 'eq') return String(r[k]) === v;
+        if (op === 'max') return r[k] != null && r[k] <= Number(v);
+        if (op === 'check') return !v || !!r[k];
+        return true;
+      }));
+      el.querySelector('.count').textContent = `${out.length} of ${rows.length}`;
+      onChange(out);
+    }
+    el.addEventListener('input', e => {
+      const t = e.target; if (!t.dataset.k) return;
+      state[t.dataset.k] = [t.dataset.op || 'eq', t.type === 'checkbox' ? t.checked : t.value];
+      apply();
+    });
+    apply();
+  }
+
+  // ---- target tab -----------------------------------------------------------
+  const cleared = target.filter(r => r.cleared && near(r));
+  const flagged = target.filter(r => r.condition_kind === 'bad');
+  $('#target-panels').innerHTML =
+    cleared.map(r => `
+      <div class="panel pass">
+        <div class="phead"><span class="name">${esc(r.label)}</span><span class="chip pass">value &amp; condition</span>
+          ${r.type === 'rent2buy' ? '<span class="chip r2b">Rent2Buy</span>' : ''}</div>
+        <div class="where num">${esc(r.lot)} · ${int(r.distance)} mi · ${int(r.miles)} mi · ${esc(r.color)}</div>
+        <div class="split">
+          <div class="ledger num">
+            <div><span class="k">Price</span><span>${money(r.price)}</span></div>
+            <div><span class="k">Delivery</span><span>${r.delivery ? money(r.delivery) : 'collect'}</span></div>
+            <div><span class="k">Tax + fees</span><span>${money(r.landed - r.price - r.delivery)}</span></div>
+            <div class="total"><span>Landed</span><span>${money(r.landed)}</span></div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <ul class="why">${r.reasons.map(x => `<li>${esc(x)}</li>`).join('')}</ul>
+            ${r.type === 'rent2buy' ? '<div class="note warn">Still in the rental fleet: mileage and price are estimates, the car may be out on rent, and you collect it at the branch.</div>' : ''}
+            <a class="cta" href="${esc(r.url)}">Open listing · ${esc(r.vin.slice(-6))}</a>
+          </div>
+        </div>
+      </div>`).join('') +
+    (flagged.length ? `<h2 style="margin-top:6px">Held back on condition</h2>` + flagged.map(r => `
+      <div class="panel flag">
+        <div class="phead"><span class="name">${esc(r.label)}</span><span class="chip flag">blocked</span></div>
+        <div class="where num">${esc(r.lot)} · ${int(r.distance)} mi · ${int(r.miles)} mi · ${money(r.price)}</div>
+        <div class="note flag">${esc(r.condition)}</div>
+      </div>`).join('') : '') +
+    (!cleared.length && !flagged.length ? '<div class="note warn">No CX-50 Hybrid within range has cleared both gates yet.</div>' : '');
+
+  const targetTable = table($('#target-table'), target.filter(near), LISTING_COLS, {sortKey:'landed', rowClass});
+  controls($('#target-controls'), target.filter(near), [
+    {type:'select', key:'color', label:'Colour'},
+    {type:'select', key:'type', label:'Type'},
+    {type:'max', key:'miles', label:'Miles', placeholder:'35000'},
+    {type:'max', key:'distance', label:'Away', placeholder:'150'},
+    {type:'check', key:'cleared', label:'cleared only'},
+  ], rows => targetTable.update(rows));
+
+  // ---- watchlist tab -------------------------------------------------------
+  const WATCH_COLS = [
+    {key:'label', label:'Vehicle', fmt: veh, cls:'veh'},
+    {key:'watch', label:'Watch'},
+    {key:'color', label:'Colour'},
+    {key:'lot', label:'Lot'},
+    {key:'distance', label:'Away', right:true, fmt: int},
+    {key:'miles', label:'Miles', right:true, fmt: int},
+    {key:'price', label:'Price', right:true, fmt: money},
+    {key:'landed', label:'Landed', right:true, fmt: v => `<b>${money(v)}</b>`},
+    {key:'residual_pct', label:'vs model', right:true, fmt: resid},
+    {key:'condition', label:'Condition', fmt: cond},
+  ];
+  const watchRows = listings.filter(near);
+  const watchTable = table($('#watch-table'), watchRows, WATCH_COLS, {sortKey:'landed', rowClass});
+  controls($('#watch-controls'), watchRows, [
+    {type:'select', key:'watch', label:'Watch'},
+    {type:'select', key:'model', label:'Model'},
+    {type:'select', key:'source', label:'Source'},
+    {type:'select', key:'type', label:'Type'},
+    {type:'max', key:'miles', label:'Miles', placeholder:'35000'},
+    {type:'max', key:'landed', label:'Landed', placeholder:'40000'},
+  ], rows => watchTable.update(rows));
+
+  // ---- dream tab ---------------------------------------------------------------
+  const DREAM_COLS = [
+    {key:'title', label:'Vehicle', cls:'veh', fmt: (v, r) => `<b>${esc(r.year)}</b> ${esc(v)}`},
+    {key:'model', label:'Model'},
+    {key:'mileage', label:'Miles', right:true, fmt: int},
+    {key:'price', label:'Price', right:true, fmt: money},
+    {key:'market_pct', label:'vs curve', right:true, fmt: resid},
+    {key:'rating', label:'Cars.com', fmt: v => v ? `<span class="${/great/i.test(v) ? 'good' : 'dim'}">${esc(v)}</span>` : '<span class="dim">—</span>'},
+    {key:'distance', label:'Away', right:true, fmt: int},
+    {key:'city', label:'Where', fmt: (v, r) => esc([v, r.state].filter(Boolean).join(', '))},
+  ];
+  const dreamRows = data.dream.rows;
+  const dreamTable = table($('#dream-table'), dreamRows, DREAM_COLS, {sortKey:'market_pct'});
+  controls($('#dream-controls'), dreamRows, [
+    {type:'select', key:'model', label:'Model'},
+    {type:'max', key:'mileage', label:'Miles', placeholder:'40000'},
+    {type:'max', key:'price', label:'Price', placeholder:'50000'},
+    {type:'max', key:'distance', label:'Away', placeholder:'300'},
+  ], rows => dreamTable.update(rows));
+  if (data.dream.skipped.length)
+    $('#tab-dream').insertAdjacentHTML('afterbegin', `<div class="note flag">Not refreshed this run: ${esc(data.dream.skipped.join(', '))}.</div>`);
+
+  // ---- about tab ---------------------------------------------------------------
+  const lr = data.last_run;
+  $('#about').innerHTML =
+    `<div><b>Last successful run</b> ${lr ? `${esc(lr.finished_at)} · ${lr.fetched} fetched, ${lr.new_vins} new, ${lr.price_drops} price drops, ${lr.alerts_sent} alerts` : 'none recorded'}</div>
+     <div><b>Preferences</b> colours ${esc(data.preferences.colors.join(', '))}; ${esc(data.preferences.trims.join(', '))}; ideally under ${int(data.preferences.odometer_ideal)} mi.</div>
+     <h2 style="margin-top:8px">Watches</h2>
+     <div class="scroll"><table><thead><tr><th>Watch</th><th>Tier</th><th>Source</th><th>Models</th><th>Years</th><th class="r">Max mi</th><th class="r">Every</th><th class="r">Now</th></tr></thead><tbody>` +
+    data.watches.map(w => `<tr><td>${esc(w.label)}</td><td>${esc(w.tier)}</td><td>${esc(w.source)}</td><td>${esc(w.models.join(', '))}</td>
+      <td>${w.year_min ? esc(w.year_min) + (w.year_max ? '–' + esc(w.year_max) : '+') : 'any'}</td>
+      <td class="r num">${w.odometer_max ? int(w.odometer_max) : '—'}</td><td class="r num">${w.poll_hours} h</td><td class="r num">${w.count}</td></tr>`).join('') +
+    `</tbody></table></div>`;
+})();
+</script>
+</body>
+</html>
