@@ -111,6 +111,11 @@ alerts. The E-Class needs `body_style_slugs[]=wagon`; unfiltered, the
 cheapest page is all sedans. Refreshed every 12 h, cached in `meta`, and
 a partial refresh merges with the cache per model.
 
+**Dream-car cap: $47,000** (Lorenzo, 2026-09-13), enforced at fetch via
+Cars.com's `list_price_max` and again client-side. Of the first uncapped
+seed's 26 rows only one was under the cap, so the cap changes what the
+query *finds*, not just what the page shows.
+
 **Cars.com from GitHub's runners is one request per session at best**:
 across four cloud runs it blocked every request but the first of a fresh
 session. So the cloud rarely fills the dream tab from scratch. The tab is
