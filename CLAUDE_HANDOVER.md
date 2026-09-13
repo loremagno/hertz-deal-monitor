@@ -120,6 +120,27 @@ Country are wagon-only badges. **Rows are clickable**: the card reader
 text-only `CARD_TEXT` never did, which is why nothing was clickable), the
 tracking query string is stripped, and the page links the vehicle cell.
 
+**Brown interiors (Lorenzo, 2026-09-13: "absolute sucker for brown/light
+brown, but not super light")**: `score.interior_tier()` classifies the
+seller's interior string into `mid` (brown/cognac/caramel/saddle/tan…, the
+range he wants), `light` (blond/beige/sand…, lighter than he likes) or
+`dark`. **Whole-word matching**: a substring test on "tan" flagged "Titan
+Black", which would have put black-interior cars on the shortlist; the
+same bug was in `WatchEntry.matches` and is fixed there too. `mid` is a
+preference bonus everywhere on the board (chip "brown interior"); `light`
+is listed as a miss. Held right now: three Baltimore CX-50 Hybrids in
+"Black w Brown" (15–19k mi, one Ingot Blue) and both Byers XC60s in Blond.
+Only Hertz (~14% of rows) and Byers report interior colour; Cars.com and
+CarMax never do, so dream rows cannot be colour-checked and the page says so.
+
+**CX-70 on Cars.com** is a dream-tab model (300 mi, ≤35k mi, ≤$47k), not a
+watch: no colour, no history, but visible and clickable.
+
+**Cars.com detail pages are closed to automation**: a fresh browser landing
+directly on a VDP gets Cloudflare's "Just a moment…" challenge. So no
+AutoCheck/Carfax and no interior colour can ever come from Cars.com;
+the report has to be read by hand on the listing page.
+
 **Dream-car cap: $47,000** (Lorenzo, 2026-09-13), enforced at fetch via
 Cars.com's `list_price_max` and again client-side. Of the first uncapped
 seed's 26 rows only one was under the cap, so the cap changes what the
@@ -164,10 +185,15 @@ the commit messages.
 - [x] Zero-fetch guard verified live: a later run hit `Atlas=0` (throttled
       page) and total listings held at 512 instead of 119 Atlases being
       marked sold.
-- [ ] A6 allroad under $47k returned zero on the capped seed and is treated
-      as "skipped" by the empty-model rule; almost certainly a true zero.
-      Consider a per-model `allow_empty` flag so a genuinely thin model does
-      not read as a block forever.
+- [ ] A6 allroad and V60 under $47k returned zero on the capped seed and
+      are treated as "skipped" by the empty-model rule. A6: almost certainly
+      a true zero (post-2022 A6 allroads under $47k barely exist). V60: see
+      the probe result recorded below once run. Consider a per-model
+      `allow_empty` flag so a genuinely thin model does not read as a block
+      forever.
+- [x] Dream rows are clickable: 16/16 links verified in the cloud-produced
+      data.json (run 34789322947). Best current row: 2024 A4 allroad,
+      931 mi, $36,897, Twinsburg OH, 123 mi, −12.8% vs its curve.
 - [x] Workflow installed; `gh` credential widened to `workflow` scope.
 - [x] Repo private; Pages deleted; cadence every 2 h; only the DB committed.
 - [x] Review defects fixed (header stats, hard-coded board sentence,

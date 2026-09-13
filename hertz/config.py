@@ -6,6 +6,7 @@ environment so the same file works locally and in GitHub Actions.
 from __future__ import annotations
 
 import os
+import re
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -102,9 +103,11 @@ class WatchEntry:
         ):
             return False
 
-        interior = (listing.interior_color or "").lower()
-        if self.require_interior and not any(
-            c.strip().lower() in interior for c in self.require_interior
+        # Whole words, not substrings: "tan" is inside "Titan Black", and a
+        # substring test put black-interior cars on the brown shortlist.
+        interior_words = set(re.findall(r"[a-z]+", (listing.interior_color or "").lower()))
+        if self.require_interior and not (
+            interior_words & {c.strip().lower() for c in self.require_interior}
         ):
             return False
 

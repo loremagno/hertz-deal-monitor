@@ -202,7 +202,8 @@ threshold_pct = -2.0
 year_min = 2024
 odometer_max = 35000
 require_exterior = ["gray", "grey", "machine", "polymetal", "titanium"]
-require_interior = ["brown", "tan", "terracotta", "russet", "mocha"]
+# Whole-word matching in code: "tan" must not match "Titan Black".
+require_interior = ["brown", "tan", "terracotta", "russet", "mocha", "cognac", "caramel", "saddle", "chestnut", "amber", "tobacco", "nougat", "walnut"]
 poll_hours = 2
 max_pages = 3
 alert_on_new = true
@@ -219,7 +220,8 @@ threshold_pct = -2.0
 year_min = 2024
 odometer_max = 35000
 require_exterior = ["gray", "grey", "machine", "polymetal", "titanium"]
-require_interior = ["brown", "tan", "terracotta", "russet", "mocha"]
+# Whole-word matching in code: "tan" must not match "Titan Black".
+require_interior = ["brown", "tan", "terracotta", "russet", "mocha", "cognac", "caramel", "saddle", "chestnut", "amber", "tobacco", "nougat", "walnut"]
 poll_hours = 3
 max_pages = 3
 alert_on_new = true

@@ -82,6 +82,9 @@
   .chip.flag{background:var(--flag-soft); color:var(--flag)}
   .chip.r2b,.chip.warn{background:var(--accent-soft); color:var(--accent)}
   .chip.dim{background:var(--sunk); color:var(--muted)}
+  .chip.brown{background:#efe2d2; color:#6b3f1d}
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .chip.brown{background:#3a2a1c; color:#e0b58a} }
+  :root[data-theme="dark"] .chip.brown{background:#3a2a1c; color:#e0b58a}
   .split{display:grid; grid-template-columns:minmax(200px,250px) 1fr; gap:22px}
   @media(max-width:660px){.split{grid-template-columns:1fr}}
   .ledger{font-size:13.5px}
@@ -138,12 +141,14 @@
   </section>
 
   <section role="tabpanel" id="tab-dream" hidden>
-    <div class="note warn">Station wagons only, aspirational, not gated: open-market listings from
-      Cars.com, 2022 or newer, <b>$47,000 or less</b>, ranked within each model against a curve
-      fitted on that model's listings under the same cap. The A4 allroad is searched within 300 mi;
-      the others nationwide. Nothing here has an AutoCheck read and nothing here alerts. "vs curve"
-      is cheapness relative to the same model's other listings; Cars.com's own deal rating is shown
-      alongside. Click a vehicle to open its listing.</div>
+    <div class="note warn">Aspirational, not gated: open-market listings from Cars.com, 2022 or
+      newer, <b>$47,000 or less</b>, ranked within each model against a curve fitted on that model's
+      listings under the same cap. Station wagons, plus the CX-70 within 300 mi (the A4 allroad is
+      also 300 mi; the rest nationwide). Nothing here has a history report and nothing here alerts
+      &mdash; Cars.com blocks its detail pages, so <b>colour and accident history are unknown for
+      every row</b>; a standout price here is as likely to be a bad history as a bargain. "vs curve"
+      is cheapness within the same model; Cars.com's own deal rating is alongside. Click a vehicle
+      to open its listing and read the report there.</div>
     <div class="controls" id="dream-controls"></div>
     <div class="scroll"><table id="dream-table"></table></div>
   </section>
@@ -257,7 +262,9 @@
   const veh = (v, r) => `<a href="${esc(r.url)}">${esc(r.year)} ${esc(r.make)} ${esc(r.model)}</a>` +
       (r.tier === 'A' ? ' <span class="chip pass">A</span>' : '') +
       (r.type === 'certified' ? ' <span class="chip pass">cert</span>' : r.type === 'rent2buy' ? ' <span class="chip r2b">R2B</span>' : '') +
-      (r.fit >= 3 ? ' <span class="chip pass">fit</span>' : '');
+      (r.fit >= 3 ? ' <span class="chip pass">fit</span>' : '') +
+      (r.interior_tier === 'mid' ? ' <span class="chip brown" title="' + esc(r.interior) + '">brown interior</span>'
+       : r.interior_tier === 'light' ? ' <span class="chip dim" title="' + esc(r.interior) + '">light brown</span>' : '');
   const resid = v => v == null ? '<span class="dim">—</span>' : `<span class="${v < 0 ? 'good' : 'badv'}">${pct(v)}</span>`;
 
   const LISTING_COLS = [

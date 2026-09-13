@@ -256,6 +256,36 @@ def fit_hedonic(listings: list[Listing], ridge: float = 1e-3) -> Hedonic | None:
 # Gates
 # ---------------------------------------------------------------------------
 
+# Brown-family interiors, as sellers actually name them. Matched on WHOLE
+# WORDS: a substring test on "tan" flagged "Titan Black", which is the exact
+# false positive that would put a black-interior car on the shortlist.
+# Tiers: "light" is the blond/sand family Lorenzo does not want, "mid" is
+# the caramel/cognac/saddle range he does, "dark" is espresso/chocolate.
+_INTERIOR_TIERS = (
+    ("mid", ("brown", "cognac", "caramel", "saddle", "tan", "terracotta", "russet",
+             "mocha", "chestnut", "hazel", "amber", "tobacco", "nougat", "walnut",
+             "sienna", "camel", "toffee", "maple")),
+    ("light", ("blond", "blonde", "beige", "sand", "cream", "ivory", "parchment",
+               "oyster", "linen", "almond", "macchiato", "cashmere", "canvas")),
+    ("dark", ("espresso", "chocolate", "coffee", "mahogany", "truffle", "umber")),
+)
+
+
+def interior_tier(interior: str) -> str | None:
+    """'mid' | 'light' | 'dark' for a brown-family interior, else None.
+
+    Whole-word matching. Mixed interiors like "Black w Brown" count as the
+    brown tier, since that is the brown he is after.
+    """
+    words = set(re.findall(r"[a-z]+", (interior or "").lower()))
+    if not words:
+        return None
+    for tier, names in _INTERIOR_TIERS:
+        if words & set(names):
+            return tier
+    return None
+
+
 def preference_fit(listing: Listing, cfg: Config) -> tuple[int, list[str]]:
     """How well a car matches stated taste. Returns (matches, misses).
 
@@ -280,6 +310,14 @@ def preference_fit(listing: Listing, cfg: Config) -> tuple[int, list[str]]:
             matches += 1
         else:
             misses.append(f"{listing.trim or 'trim unknown'}")
+
+    # Interior is a bonus, never a miss: most sellers omit it, and a car
+    # should not be marked down for a field the seller left blank.
+    tier = interior_tier(listing.interior_color)
+    if tier == "mid":
+        matches += 1
+    elif tier == "light":
+        misses.append(f"{listing.interior_color}: light-brown interior, lighter than you like")
 
     if cfg.odometer_ideal and listing.odometer is not None:
         limit = cfg.odometer_ideal + cfg.odometer_tolerance

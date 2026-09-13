@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .config import Config
-from .score import preference_fit
+from .score import interior_tier, preference_fit
 
 
 def _row(s, cfg: Config) -> dict:
@@ -37,6 +37,7 @@ def _row(s, cfg: Config) -> dict:
         "source": l.source or "hertz",
         "type": "certified" if l.certified else ("rent2buy" if l.is_rent2buy else "lot"),
         "color": l.exterior_color, "interior": l.interior_color,
+        "interior_tier": interior_tier(l.interior_color),
         "lot": l.lot, "city": l.city, "state": l.state,
         "distance": None if l.geodist is None else round(l.geodist),
         "miles": l.odometer,
