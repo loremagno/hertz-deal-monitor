@@ -138,10 +138,11 @@
   </section>
 
   <section role="tabpanel" id="tab-dream" hidden>
-    <div class="note warn">Aspirational, not gated: these are open-market listings from Cars.com,
-      ranked within each model against a curve fitted on that model alone. Nothing here has an
-      AutoCheck read and nothing here alerts. "vs curve" is cheapness relative to the same model's
-      other listings; Cars.com's own deal rating is shown alongside.</div>
+    <div class="note warn">Aspirational, not gated: open-market listings from Cars.com, 2022 or
+      newer, <b>$47,000 or less</b>, ranked within each model against a curve fitted on that
+      model's listings under the same cap. Nothing here has an AutoCheck read and nothing here
+      alerts. "vs curve" is cheapness relative to the same model's other listings; Cars.com's own
+      deal rating is shown alongside.</div>
     <div class="controls" id="dream-controls"></div>
     <div class="scroll"><table id="dream-table"></table></div>
   </section>
@@ -378,7 +379,9 @@
     {key:'distance', label:'Away', right:true, fmt: int},
     {key:'city', label:'Where', fmt: (v, r) => esc([v, r.state].filter(Boolean).join(', '))},
   ];
-  const dreamRows = data.dream.rows;
+  // The cap is enforced at fetch time too; this is belt-and-braces for a
+  // stale seed produced before the cap existed.
+  const dreamRows = data.dream.rows.filter(r => r.price == null || r.price <= 47000);
   const dreamTable = table($('#dream-table'), dreamRows, DREAM_COLS, {sortKey:'market_pct'});
   controls($('#dream-controls'), dreamRows, [
     {type:'select', key:'model', label:'Model'},

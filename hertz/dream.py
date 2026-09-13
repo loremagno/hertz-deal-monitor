@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 SEARCH = (
     "https://www.cars.com/shopping/results/"
     "?makes[]={make}&models[]={slug}&zip={zip}&maximum_distance=all"
-    "&stock_type=used&page_size=100&year_min={year_min}{extra}"
+    "&stock_type=used&page_size=100&year_min={year_min}&list_price_max={price_max}{extra}"
 )
 BLOCKED_JS = "() => /you have been blocked|attention required/i.test(document.body.innerText.slice(0, 500))"
 
@@ -38,6 +38,10 @@ class DreamModel:
     # Substrings, any of which marks the body style wanted. Empty = all.
     body_markers: tuple[str, ...] = ()
     odometer_max: int = 60000
+    # Lorenzo's ceiling for a dream car. Applied at fetch time so the
+    # per-model curve is fitted on cars he would actually consider, not on
+    # $66k All-Terrains that then make a $46k one look like a bargain.
+    price_max: int = 47000
     # Extra query string. Cars.com's body-style filter is the only way to
     # reach the E-Class wagons: unfiltered, the cheapest page is all sedans
     # and the pricier All-Terrains never appear.
@@ -73,7 +77,8 @@ def _fetch_model(cfg, model: DreamModel) -> list[MarketComp]:
     """One model, one fresh browser. Cars.com's tolerance is per session."""
     from . import ingest
     url = SEARCH.format(make=model.make, slug=model.slug, zip=cfg.zip,
-                        year_min=model.year_min, extra=model.extra_query)
+                        year_min=model.year_min, price_max=model.price_max,
+                        extra=model.extra_query)
     with ingest.BrowserSession(headless=True, min_delay=1.0, max_delay=1.5,
                                postal_code=cfg.zip, city_state=cfg.city_state,
                                coordinates=cfg.coordinates) as session:
@@ -87,7 +92,8 @@ def _fetch_model(cfg, model: DreamModel) -> list[MarketComp]:
     if model.body_markers:
         comps = [c for c in comps
                  if any(m in (c.title or "").lower() for m in model.body_markers)]
-    comps = [c for c in comps if c.year >= model.year_min and c.mileage <= model.odometer_max]
+    comps = [c for c in comps if c.year >= model.year_min
+             and c.mileage <= model.odometer_max and c.price <= model.price_max]
 
     # The same car often appears twice, listed through two dealer channels
     # with the dealer name blank on one. Price, mileage and year together
