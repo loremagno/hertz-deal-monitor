@@ -21,6 +21,10 @@ on:
         description: "Re-poll every watch now, ignoring poll windows"
         type: boolean
         default: false
+      dream:
+        description: "Refresh the dream-car tab now, ignoring its 12-hour cache"
+        type: boolean
+        default: false
 
 # Never let two runs write the database at once.
 concurrency:
@@ -98,6 +102,7 @@ jobs:
             ${{ inputs.dry_run && '--dry-run' || '' }} \
             ${{ inputs.digest && '--digest' || '' }} \
             ${{ inputs.force && '--force' || '' }} \
+            ${{ inputs.dream && '--dream' || '' }} \
             --quiet
 
       - name: Persist database and board
