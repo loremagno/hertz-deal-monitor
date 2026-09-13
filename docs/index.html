@@ -130,7 +130,7 @@
 
   <section role="tabpanel" id="tab-target">
     <div id="target-panels"></div>
-    <h2>Every CX-50 Hybrid on the watch</h2>
+    <h2>Every CX-50 Hybrid on the watch <span class="dim" style="font-weight:400;text-transform:none;letter-spacing:0">&mdash; clear "Away" to see the whole country</span></h2>
     <div class="controls" id="target-controls"></div>
     <div class="scroll"><table id="target-table"></table></div>
   </section>
@@ -289,7 +289,14 @@
         const opts = [...new Set(rows.map(r => r[s.key]).filter(v => v != null && v !== ''))].sort();
         return `<label>${s.label} <select data-k="${s.key}"><option value="">any</option>${opts.map(o => `<option>${esc(o)}</option>`).join('')}</select></label>`;
       }
-      if (s.type === 'max') return `<label>${s.label} ≤ <input type="number" data-k="${s.key}" data-op="max" placeholder="${s.placeholder || ''}"></label>`;
+      if (s.type === 'max') {
+        // A `value` pre-fills AND applies the filter on load; clearing the
+        // box lifts it. This is how the 300-mile radius became a default
+        // rather than a wall: two brown-interior CX-50 Hybrids sat at 352 mi
+        // and the old hard filter made them invisible.
+        if (s.value != null) state[s.key] = ['max', String(s.value)];
+        return `<label>${s.label} ≤ <input type="number" data-k="${s.key}" data-op="max" placeholder="${s.placeholder || ''}"${s.value != null ? ` value="${s.value}"` : ''}></label>`;
+      }
       if (s.type === 'check') return `<label><input type="checkbox" data-k="${s.key}" data-op="check"> ${s.label}</label>`;
       return '';
     }).join('') + '<span class="count"></span>';
@@ -343,12 +350,12 @@
       </div>`).join('') : '') +
     (!cleared.length && !flagged.length ? '<div class="note warn">No CX-50 Hybrid within range has cleared both gates yet.</div>' : '');
 
-  const targetTable = table($('#target-table'), target.filter(near), LISTING_COLS, {sortKey:'landed', rowClass});
-  controls($('#target-controls'), target.filter(near), [
+  const targetTable = table($('#target-table'), target, LISTING_COLS, {sortKey:'landed', rowClass});
+  controls($('#target-controls'), target, [
     {type:'select', key:'color', label:'Colour'},
     {type:'select', key:'type', label:'Type'},
     {type:'max', key:'miles', label:'Miles', placeholder:'35000'},
-    {type:'max', key:'distance', label:'Away', placeholder:'150'},
+    {type:'max', key:'distance', label:'Away', value: data.home.radius_miles},
     {type:'check', key:'cleared', label:'cleared only'},
   ], rows => targetTable.update(rows));
 
@@ -365,13 +372,13 @@
     {key:'residual_pct', label:'vs model', right:true, fmt: resid},
     {key:'condition', label:'Condition', fmt: cond},
   ];
-  const watchRows = listings.filter(near);
-  const watchTable = table($('#watch-table'), watchRows, WATCH_COLS, {sortKey:'landed', rowClass});
-  controls($('#watch-controls'), watchRows, [
+  const watchTable = table($('#watch-table'), listings, WATCH_COLS, {sortKey:'landed', rowClass});
+  controls($('#watch-controls'), listings, [
     {type:'select', key:'watch', label:'Watch'},
     {type:'select', key:'model', label:'Model'},
     {type:'select', key:'source', label:'Source'},
     {type:'select', key:'type', label:'Type'},
+    {type:'max', key:'distance', label:'Away', value: data.home.radius_miles},
     {type:'max', key:'miles', label:'Miles', placeholder:'35000'},
     {type:'max', key:'landed', label:'Landed', placeholder:'40000'},
   ], rows => watchTable.update(rows));

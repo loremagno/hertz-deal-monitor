@@ -191,9 +191,19 @@ the commit messages.
       the probe result recorded below once run. Consider a per-model
       `allow_empty` flag so a genuinely thin model does not read as a block
       forever.
-- [x] Dream rows are clickable: 16/16 links verified in the cloud-produced
-      data.json (run 34789322947). Best current row: 2024 A4 allroad,
-      931 mi, $36,897, Twinsburg OH, 123 mi, −12.8% vs its curve.
+- [x] Dream rows are clickable: 22/22 links in the cloud-produced data.json
+      (run 34790564471, `2a5c875`). Models now: CX-70 (Cars.com, 300 mi),
+      A6 allroad, A4 allroad (300 mi), V90 CC, V60, E-Class All-Terrain.
+      V60 returns zero even uncapped with the wagon filter: the slug or the
+      body-style classification is wrong on Cars.com's side, not a block.
+- [x] Brown-interior flag live: cloud data shows 2 `mid` (both Baltimore
+      CX-50 Hybrids, "Black w Brown", 15–19k mi) and 1 `light` (Byers XC60,
+      Blond). A third brown Baltimore car sold between the local and cloud
+      snapshots.
+- [ ] **Lorenzo's standing caution**: a standout dream-tab price is more
+      likely a bad history than a bargain, and Cars.com will not give us the
+      report. Every dream row says so on the page. Do not build a "deal"
+      badge for the dream tab.
 - [x] Workflow installed; `gh` credential widened to `workflow` scope.
 - [x] Repo private; Pages deleted; cadence every 2 h; only the DB committed.
 - [x] Review defects fixed (header stats, hard-coded board sentence,
