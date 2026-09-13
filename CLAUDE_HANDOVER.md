@@ -83,7 +83,53 @@ personal project that had no business being public-facing at all. Repo is
 private again. **Do not enable Pages here. Do not make this repo public
 without asking.**
 
+## Session 2026-09-13: new owner, public dashboard, dream tab
+
+**The repo moved to `loremagno/hertz-deal-monitor`** (Lorenzo's second
+GitHub account, created for this). `LorenzoMagnolfi` survived the transfer
+as a collaborator with **push** rights: code and the schedule work from this
+machine, but visibility, Pages and secrets are admin-only and need
+`loremagno`. `gh auth switch` flips between the two accounts; the git
+credential helper is `gh`, so it follows the active one. Check `gh auth
+status` at the start of every session. Secrets survived the transfer.
+
+Why a second account: GitHub serves every project page on an account under
+that account's custom domain, so no `LorenzoMagnolfi` repo can ever host a
+public page without landing on lorenzomagnolfi.com. `loremagno` has no
+Pages and no domain anywhere; its project pages live at
+`loremagno.github.io/…` and cannot inherit anything.
+
+**Dashboard**: `docs/index.html` (static, client-side; tabs, sort, filter,
+hash deep-links, light/dark) renders `docs/data.json`, which the pipeline
+writes every run and the workflow commits. Once Pages is enabled on
+`main`/`/docs` the page is self-updating.
+
+**Dream tab** (`hertz/dream.py`): A6 allroad, V90 Cross Country, E-Class
+All-Terrain from Cars.com, one fresh browser per model with a 45 s pause,
+ranked against a per-model curve (floor 6). Aspirational: no AutoCheck, no
+alerts. The E-Class needs `body_style_slugs[]=wagon`; unfiltered, the
+cheapest page is all sedans. Refreshed every 12 h, cached in `meta`, and
+a partial refresh merges with the cache per model.
+
+**Incident, 2026-09-13 21:56 UTC.** A green run recorded zero CX-50
+Hybrids (52 an hour earlier): Hertz served that one page empty while every
+other model came through, and the run marked all 52 sold and emptied the
+dashboard. Fixed with a per-model zero-fetch guard (keep rows, do not mark
+polled, report) and `data/hertz.db` restored from `ef6f158`. Lesson: the
+run-level "fetched zero" guard is not enough; guards must be per model.
+
+**Local machine note.** Dropbox sync on this tree makes imports, git and
+SQLite crawl for minutes at a time (`site` import alone hit 2 s). When
+local commands time out, do not chase locks: let the cloud run do the work
+and verify from GitHub's side.
+
 ## Pending / Next Steps
+- [ ] **Lorenzo, as `loremagno`**: make the repo public and enable Pages
+      (Settings → Pages → branch `main`, folder `/docs`). Both returned 404
+      to the collaborator token. URL will be
+      `https://loremagno.github.io/hertz-deal-monitor/`.
+- [ ] Verify the first run after the guard commit shows CX-50 Hybrid back at
+      ~52 and the zero-fetch guard did not misfire.
 - [x] Workflow installed; `gh` credential widened to `workflow` scope.
 - [x] Repo private; Pages deleted; cadence every 2 h; only the DB committed.
 - [x] Review defects fixed (header stats, hard-coded board sentence,

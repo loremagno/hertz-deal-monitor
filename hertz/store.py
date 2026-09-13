@@ -333,6 +333,23 @@ class Store:
         )
         self.conn.commit()
 
+    def active_count(self, model: str) -> int:
+        """Active rows for one model, case-insensitive. Feeds the zero-fetch guard."""
+        row = self.conn.execute(
+            "SELECT COUNT(*) AS n FROM listings WHERE active = 1 AND LOWER(model) = ?",
+            (model.lower(),),
+        ).fetchone()
+        return int(row["n"]) if row else 0
+
+    def reactivate(self, model: str) -> int:
+        """Undo a wrongful mark-sold for one model (used once, by hand)."""
+        cur = self.conn.execute(
+            "UPDATE listings SET active = 1 WHERE active = 0 AND LOWER(model) = ?",
+            (model.lower(),),
+        )
+        self.conn.commit()
+        return cur.rowcount
+
     def last_successful_fetch_count(self) -> int:
         """Used by the silent-failure guard: a run that suddenly returns zero
         rows after a healthy run is a bug, not an empty market."""

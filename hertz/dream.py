@@ -119,6 +119,13 @@ def build(cfg, pause_seconds: float = 45.0, models: list[DreamModel] | None = No
             logger.warning("Dream tab: skipping %s: %s", model.label, exc)
             board.skipped.append(model.label)
             continue
+        if not comps:
+            # A wagon-only model with zero listings nationwide is not a
+            # market fact, it is a throttled page. Keep the last good rows
+            # rather than publishing an empty tab.
+            logger.warning("Dream tab: %s returned nothing; treating as skipped", model.label)
+            board.skipped.append(model.label)
+            continue
 
         board.counts[model.label] = len(comps)
         # Three parameters on six or more points is a thin but honest

@@ -138,12 +138,20 @@ def main(argv: list[str] | None = None) -> int:
         else:
             try:
                 from . import dream   # pulls in Playwright; only when refreshing
-                dream_doc = dream.to_json(dream.build(cfg))
-                if dream_doc["rows"] or not cached:
-                    store.set_meta("dream_json", json.dumps(dream_doc))
+                fresh_doc = dream.to_json(dream.build(cfg))
+                # Merge per model: a model that answered replaces its old
+                # rows; a model that was blocked keeps its last good rows.
+                # Overwriting the whole cache on a partial refresh turned a
+                # three-model tab into a one-model tab for twelve hours.
+                old = json.loads(cached) if cached else {"rows": [], "counts": {}, "skipped": []}
+                answered = set(fresh_doc["counts"])
+                rows = [r for r in old["rows"] if r["model"] not in answered] + fresh_doc["rows"]
+                counts = {**old.get("counts", {}), **fresh_doc["counts"]}
+                rows.sort(key=lambda r: (r["market_pct"] is None, r["market_pct"] or 0.0, r["price"]))
+                dream_doc = {"rows": rows, "counts": counts, "skipped": fresh_doc["skipped"]}
+                store.set_meta("dream_json", json.dumps(dream_doc))
+                if answered:
                     store.set_meta("dream_at", datetime.now().isoformat(timespec="seconds"))
-                elif cached:
-                    dream_doc = json.loads(cached)   # every model blocked: keep the last good one
             except Exception as exc:
                 logger.warning("Dream tab not refreshed: %s", exc)
                 dream_doc = json.loads(cached) if cached else None

@@ -400,6 +400,31 @@ def run(cfg: Config, dry_run: bool = False, force: bool = False) -> RunResult:
                     "Treating this as a scraper failure, not an empty market."
                 )
 
+            # The finer guard, learned the hard way: a run can be "green"
+            # with every OTHER model present while the target model comes
+            # back empty because Hertz throttled that one page. That run
+            # then marked all 52 CX-50 Hybrids sold, emptied the dashboard,
+            # and queued 52 bogus arrival alerts for the next run. A watched
+            # model dropping from a healthy count to zero is a fetch failure
+            # until a human says otherwise: its rows are kept, it is not
+            # marked polled, and the run reports it.
+            counts_now: dict[str, int] = {}
+            for l in listings:
+                counts_now[l.model.lower()] = counts_now.get(l.model.lower(), 0) + 1
+            suspect: list[str] = []
+            for model in sorted(polled_models):
+                before = store.active_count(model)
+                if before >= 5 and counts_now.get(model, 0) == 0:
+                    suspect.append(f"{model} ({before} -> 0)")
+            if suspect:
+                logger.warning("Refusing to mark these models sold on a zero fetch: %s",
+                               "; ".join(suspect))
+                result.failed_entries.extend(
+                    (f"zero-fetch guard: {m}", "model returned no rows after a healthy run")
+                    for m in suspect)
+                polled_models = {m for m in polled_models
+                                 if not (store.active_count(m) >= 5 and counts_now.get(m, 0) == 0)}
+
             seen: set[str] = set()
             for listing in listings:
                 change = store.upsert(listing)
