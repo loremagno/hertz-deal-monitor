@@ -136,13 +136,29 @@ SQLite crawl for minutes at a time (`site` import alone hit 2 s). When
 local commands time out, do not chase locks: let the cloud run do the work
 and verify from GitHub's side.
 
+**Seed precedence** (`__main__.py`): a committed `docs/dream_seed.json` is
+adopted when the cache has no rows OR the seed is newer, judged by the
+seed's own `seeded_at` field, never the file mtime (a fresh checkout resets
+every mtime, so an mtime rule re-adopted the seed on every run). Two
+earlier rules were wrong in sequence: "adopt when the cache string is
+missing" lost to an empty `{"rows": []}` cache; "adopt when the cache has
+no rows" lost to a stale 26-row uncapped cache. Both are reproduced in
+the commit messages.
+
 ## Pending / Next Steps
 - [ ] **Lorenzo, as `loremagno`**: make the repo public and enable Pages
       (Settings → Pages → branch `main`, folder `/docs`). Both returned 404
       to the collaborator token. URL will be
-      `https://loremagno.github.io/hertz-deal-monitor/`.
-- [ ] Verify the first run after the guard commit shows CX-50 Hybrid back at
-      ~52 and the zero-fetch guard did not misfire.
+      `https://loremagno.github.io/hertz-deal-monitor/`. Until then the
+      page can be previewed locally: `python -m http.server 8765 --directory docs`
+      (`.claude/launch.json` has it as `docs`).
+- [x] Zero-fetch guard verified live: a later run hit `Atlas=0` (throttled
+      page) and total listings held at 512 instead of 119 Atlases being
+      marked sold.
+- [ ] A6 allroad under $47k returned zero on the capped seed and is treated
+      as "skipped" by the empty-model rule; almost certainly a true zero.
+      Consider a per-model `allow_empty` flag so a genuinely thin model does
+      not read as a block forever.
 - [x] Workflow installed; `gh` credential widened to `workflow` scope.
 - [x] Repo private; Pages deleted; cadence every 2 h; only the DB committed.
 - [x] Review defects fixed (header stats, hard-coded board sentence,
