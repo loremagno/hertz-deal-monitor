@@ -422,9 +422,21 @@ cost ~$22.5k over 5 yrs at 12k/yr; hazard primary 0-14 d: P(still here)
 to measure each site's share under 25k miles for his models before writing
 a scraper, Avis Budget first if the numbers say so. Not started.
 
+**Avis Car Sales added (config only).** It is a Dealer.com site, so the
+Hertz reader works unchanged: `[[source]] name = "avis"`, plus "Mazda CX-50
+Hybrid (Avis)" (tier A, primary group, 2 h) and "Other Avis finds" (tier B,
+the Hertz upgrade list, 8 h). Probe 2026-09-14: 1,594 cars, 408 under 25k
+miles, 29 CX-50 Hybrids (lowest 22,309 mi, $29,999 PP, Pompano Beach FL),
+no Palisade/XC60 that day. Board shows an "Avis" chip on those rows.
+Enterprise: its search API needs a bearer token from `generate-anonymous-
+access-token` (public `ehi-api-key` in the page); the search body was not
+captured on the second probe (the /list/ page 404s; the home page makes the
+call). Parked until Avis proves useful.
+
 ## Pending / Next Steps
-- [ ] Ex-rental sources beyond Hertz: measure Avis Budget and Enterprise
-      low-mileage share for the watched models, then scrape the better one.
+- [ ] Enterprise Car Sales: capture the inventory search POST body from the
+      home page, replay with a mileage filter, and measure the under-25k share
+      before deciding whether a reader is worth it.
 - [ ] The hazard's leaving rate is honest only for fully swept models; the
       CX-50 Hybrid is; the pooled table is a lower bound on survival.
 - [x] Issues enabled on `loremagno/hertz-deal-monitor` (Lorenzo, 2026-09-14);

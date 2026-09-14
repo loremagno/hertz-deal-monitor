@@ -228,8 +228,11 @@
       alerts or the price model. Each table's footer shows how many are hidden and can show them
       again; ↺ restores one.</div>
     <div><b>Own cost</b> is landed price minus expected resale (the model's own yearly depreciation where a
-      market curve exists, else the default in config, with the fitted mileage slope) plus fuel at the mileage
-      chosen above, plus a warranty reserve once bumper-to-bumper cover is gone. <b>Wait?</b> on the CX-50 tab
+      market curve exists, else the default, spread along a front-loaded yearly shape from the car's current age,
+      with the fitted mileage slope) plus fuel at the mileage chosen
+      above, plus a warranty reserve once bumper-to-bumper cover is gone, plus whatever you enter under
+      "assumptions" for maintenance, insurance and the cost of cash. Undiscounted; per year is the total over
+      the holding period. <b>Wait?</b> on the CX-50 tab
       weighs the expected price cut over the next week (Hertz's markdown rate by days on sale) against the
       chance the car sells first times what it is worth relative to the market: wait when the first is larger.</div>
     <div><b>Following</b> a car (the ☆ at the end of its row) opens a pre-filled GitHub issue on the
@@ -280,14 +283,37 @@
   // not a constant. Every table's cost column recomputes when it changes.
   const SCEN_KEY = 'carwatch.scenario.v1';
   const econ = data.economics || {};
+  // Every assumption behind the number is a field here. `dep` null means
+  // "the model's own market curve where one exists, else the default";
+  // `maint`, `ins` and `opp` are the costs the board cannot observe, so they
+  // start at zero and are yours to set.
   const scen = Object.assign(
-    {miles: econ.miles_per_year || 12000, years: econ.holding_years || 5, fuel: econ.fuel_price || 3.2},
+    {miles: econ.miles_per_year || 12000, years: econ.holding_years || 5, fuel: econ.fuel_price || 3.2,
+     dep: null, reserve: econ.warranty_reserve ?? 1500, maint: 0, ins: 0, opp: 0, floor: 15, more: false, flat: false},
     (() => { try { return JSON.parse(localStorage.getItem(SCEN_KEY) || '{}') || {}; } catch (e) { return {}; } })());
   const saveScen = () => { try { localStorage.setItem(SCEN_KEY, JSON.stringify(scen)); } catch (e) {} };
   const dep = data.depreciation || {per_year_default: -0.08, per_10k: -0.04, per_10k_sq: 0, per_year_by_model: {}};
   const mpgTable = data.mpg_by_model || {};
   const warrantyTable = data.warranty_by_make || {};
   const modelKey = r => `${(r.make || '').toLowerCase().trim()}|${(r.model || '').toLowerCase().trim()}`;
+  // Depreciation is front-loaded: a new car loses about a fifth in its
+  // first year and the yearly loss then shrinks. The market curves were
+  // fitted on cars aged roughly one to three years, so each model's fitted
+  // rate is taken as the AVERAGE over years 1-3 and spread along this shape
+  // (the shape's mean over years 1-3 is exactly 1). The cars here are
+  // already one to two years old, so the projection starts part-way down.
+  const SHAPE = [1.36, 0.88, 0.76, 0.62, 0.55, 0.48, 0.43, 0.39, 0.36, 0.33, 0.31, 0.29];
+  const yearRate = (ref, age, flat) => flat ? ref : ref * (SHAPE[Math.min(SHAPE.length - 1, Math.max(0, Math.floor(age)))]);
+  // Cumulative log change from age a0 over `years`, integrating the yearly
+  // rate over whole and partial years of age.
+  function depreciateLog(ref, a0, years, flat) {
+    let total = 0, age = a0, left = years;
+    while (left > 1e-9) {
+      const step = Math.min(left, 1 - (age - Math.floor(age)) || 1);
+      total += yearRate(ref, age, flat) * step; age += step; left -= step;
+    }
+    return total;
+  }
   const nowFrac = (() => { const d = new Date(); return d.getFullYear() + d.getMonth() / 12; })();
   function warrantyOf(r) {
     if (r.warranty) return r.warranty;
@@ -299,17 +325,30 @@
   function costOf(r) {
     if (!r.price) return null;
     const key = modelKey(r);
-    const perYear = dep.per_year_by_model[key] ?? dep.per_year_default;
+    // Yearly rate: your override if set (a percentage, e.g. -8), else the
+    // model's own curve, else the default. Mileage effect from the fit.
+    const override = scen.dep != null && scen.dep !== '';
+    const perYear = override ? Number(scen.dep) / 100 : (dep.per_year_by_model[key] ?? dep.per_year_default);
+    const depSource = override ? 'your rate' : (dep.per_year_by_model[key] != null ? "the model's market curve" : 'the default rate');
     const b1 = dep.per_10k ?? -0.04, b2 = dep.per_10k_sq ?? 0;
     const odo0 = (r.miles || 0) / 1e4, odo1 = odo0 + scen.miles * scen.years / 1e4;
-    const resale = Math.max(0.15 * r.price, Math.exp(Math.log(r.price) + perYear * scen.years + b1 * (odo1 - odo0) + b2 * (odo1 * odo1 - odo0 * odo0)));
+    const floor = Math.max(0, Math.min(90, Number(scen.floor) || 0)) / 100;
+    const age0 = r.age_years != null ? r.age_years : Math.max(0, nowFrac - ((r.year || nowFrac) - 0.5));
+    const ageLog = depreciateLog(perYear, age0, scen.years, !!scen.flat);
+    const path = Array.from({length: Math.min(scen.years, 7)}, (_, i) => (100 * yearRate(perYear, age0 + i, !!scen.flat)).toFixed(0) + '%').join(', ');
+    const resale = Math.max(floor * r.price, Math.exp(Math.log(r.price) + ageLog + b1 * (odo1 - odo0) + b2 * (odo1 * odo1 - odo0 * odo0)));
     const mpg = r.mpg || mpgTable[key] || null;
     const fuel = mpg ? scen.miles * scen.years / mpg * scen.fuel : null;
     const landed = r.landed != null ? r.landed : r.price * (1 + (econ.tax_rate || 0)) + (econ.title_reg_fees || 0);
     const w = warrantyOf(r);
-    const reserve = (!w || w.b2b.months < 12 || w.b2b.miles < scen.miles) ? (econ.warranty_reserve || 0) : 0;
-    const total = landed - resale + (fuel || 0) + reserve;
-    return {total, perYear: total / scen.years, resale, fuel, reserve, mpg, landed, warranty: w};
+    const reserve = (!w || w.b2b.months < 12 || w.b2b.miles < scen.miles) ? (Number(scen.reserve) || 0) : 0;
+    const maint = (Number(scen.maint) || 0) * scen.years;
+    const ins = (Number(scen.ins) || 0) * scen.years;
+    // Opportunity cost of the cash: simple interest on the landed price for
+    // the holding period, at the rate the money would otherwise earn.
+    const opp = landed * ((Number(scen.opp) || 0) / 100) * scen.years;
+    const total = landed - resale + (fuel || 0) + reserve + maint + ins + opp;
+    return {total, perYear: total / scen.years, resale, fuel, reserve, maint, ins, opp, mpg, landed, warranty: w, perYearRate: perYear, depSource, path, age0};
   }
   const COST_SETS = [];
   function costify(rows) {
@@ -324,7 +363,7 @@
   const costFmt = (v, r) => {
     if (v == null) return '<span class="dim">—</span>';
     const c = r.cost_detail || {};
-    const tip = `landed ${money(c.landed)} − resale ${money(c.resale)} + fuel ${c.fuel == null ? 'n/a' : money(c.fuel)}${c.reserve ? ' + warranty reserve ' + money(c.reserve) : ''}${c.mpg ? ' · ' + Math.round(c.mpg) + ' mpg' : ' · no mpg'}`;
+    const tip = `landed ${money(c.landed)} − resale ${money(c.resale)} (age ${c.age0.toFixed(1)} yrs now; yearly ${c.path}, from ${c.depSource} averaging ${(100 * c.perYearRate).toFixed(1)}%/yr over years 1–3) + fuel ${c.fuel == null ? 'n/a' : money(c.fuel)}${c.reserve ? ' + warranty reserve ' + money(c.reserve) : ''}${c.maint ? ' + maintenance ' + money(c.maint) : ''}${c.ins ? ' + insurance ' + money(c.ins) : ''}${c.opp ? ' + cost of cash ' + money(c.opp) : ''}${c.mpg ? ' · ' + Math.round(c.mpg) + ' mpg' : ' · no mpg'}`;
     return `<span title="${esc(tip)}"><b>${money(v)}</b> <span class="dim">${money(r.cost_year)}/yr</span></span>`;
   };
   const waitFmt = (v, r) => {
@@ -335,14 +374,25 @@
   };
   function renderScenario() {
     const el = $('#scenario'); el.hidden = false;
+    const num = (k, step, min, max, w = 70, ph = '') => `<input type="number" step="${step}" min="${min}" max="${max}" data-s="${k}" value="${scen[k] == null ? '' : scen[k]}" placeholder="${ph}" style="width:${w}px">`;
     el.innerHTML = `<span class="lead">Own cost over</span>
       <label>years <select data-s="years">${[3, 5, 7, 10].map(y => `<option${y === scen.years ? ' selected' : ''}>${y}</option>`).join('')}</select></label>
       <label>at <select data-s="miles">${[6000, 8000, 10000, 12000, 15000, 18000, 22000].map(m => `<option value="${m}"${m === scen.miles ? ' selected' : ''}>${m.toLocaleString()}</option>`).join('')}</select> mi/yr</label>
-      <label>fuel $<input type="number" step="0.10" min="1" max="8" data-s="fuel" value="${scen.fuel}" style="width:70px"></label>
-      <span class="count">resale from each model's curve; mileage is the thing you don't know yet</span>`;
+      <label>fuel $${num('fuel', 0.1, 1, 8)}/gal</label>
+      <a href="#" data-more style="font-size:12.5px">${scen.more ? 'hide assumptions' : 'assumptions…'}</a>
+      ${scen.more ? `<span style="flex-basis:100%"></span>
+      <label title="The average yearly rate over years 1–3 of a car's life. Blank = the model's own market curve where one exists (XC60 −9.9%, CX-70 −7.8%), else the default. It is spread along a front-loaded shape (year 1 heaviest, flattening after) unless 'flat' is ticked. The mileage effect (about −3.5% per 10k, flattening) comes from the fit and always applies.">depreciation ${num('dep', 0.5, -40, 5, 64, 'curve')}%/yr</label>
+      <label title="Apply the same percentage every year instead of the front-loaded shape."><input type="checkbox" data-s="flat"${scen.flat ? ' checked' : ''}> flat</label>
+      <label title="Set aside when bumper-to-bumper cover has under 12 months or under a year of your mileage left.">warranty reserve $${num('reserve', 100, 0, 10000)}</label>
+      <label title="Routine service and tyres; not observed by the board, yours to set.">maintenance $${num('maint', 50, 0, 5000)}/yr</label>
+      <label title="Insurance differs little across these cars, but it is real money.">insurance $${num('ins', 50, 0, 6000)}/yr</label>
+      <label title="Simple interest on the landed price for the holding period: what the cash would earn elsewhere.">cost of cash ${num('opp', 0.5, 0, 15, 60)}%/yr</label>
+      <label title="Resale is never projected below this share of the purchase price.">resale floor ${num('floor', 5, 0, 90, 60)}%</label>
+      <span class="count">hover a cost for its breakdown</span>` : `<span class="count">resale from each model's curve; mileage is the thing you don't know yet</span>`}`;
+    el.querySelector('a[data-more]').addEventListener('click', e => { e.preventDefault(); scen.more = !scen.more; saveScen(); renderScenario(); });
     el.addEventListener('input', e => {
       const t = e.target; if (!t.dataset.s) return;
-      scen[t.dataset.s] = Number(t.value); saveScen();
+      scen[t.dataset.s] = t.type === 'checkbox' ? t.checked : (t.value === '' ? null : Number(t.value)); saveScen();
       COST_SETS.forEach(costify); rerenders.forEach(f => f());
     });
   }
@@ -515,6 +565,7 @@
   const veh = (v, r) => `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.year)} ${esc(r.make)} ${esc(r.model)}</a>` +
       (r.tier === 'A' ? ' <span class="chip pass">A</span>' : '') +
       (r.type === 'certified' ? ' <span class="chip pass">cert</span>' : r.type === 'rent2buy' ? ' <span class="chip r2b">R2B</span>' : '') +
+      (r.source === 'avis' ? ' <span class="chip dim" title="Avis Car Sales">Avis</span>' : '') +
       (r.fit >= 3 ? ' <span class="chip pass">fit</span>' : '') +
       (r.interior_tier === 'mid' ? ' <span class="chip brown" title="' + esc(r.interior) + '">brown interior</span>'
        : r.interior_tier === 'light' ? ' <span class="chip dim" title="' + esc(r.interior) + '">light brown</span>' : '');

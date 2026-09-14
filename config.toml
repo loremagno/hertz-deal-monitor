@@ -123,6 +123,16 @@ name = "byers-volvo"
 base_url = "https://www.byersvolvo.com"
 search_path = "/certified-inventory/index.htm"   # certified pre-owned only
 
+# Avis Car Sales: the second ex-rental channel, and another Dealer.com site,
+# so the Hertz reader works unchanged. 1,594 cars nationwide on 2026-09-14,
+# 408 under 25k miles, 29 CX-50 Hybrids (lowest 22k). Cars carry postal
+# codes, so distances work; no Rent2Buy, no delivery quote on the page (the
+# per-mile fallback applies); doc fee not in the price.
+[[source]]
+name = "avis"
+base_url = "https://www.aviscarsales.com"
+search_path = "/used-inventory/index.htm"
+
 [[watch]]
 tier = "A"
 group = "primary"
@@ -137,6 +147,39 @@ poll_hours = 0.25
 max_pages = 10
 alert_on_new = true
 new_max_residual_pct = 3.0
+
+[[watch]]
+tier = "A"
+group = "primary"
+label = "Mazda CX-50 Hybrid (Avis)"
+source = "avis"
+models = ["CX-50 Hybrid"]
+threshold_pct = -3.0
+national = true
+year_min = 2025
+odometer_max = 35000
+poll_hours = 2
+max_pages = 4
+alert_on_new = true
+new_max_residual_pct = 3.0
+
+[[watch]]
+tier = "B"
+group = "hertz"
+label = "Other Avis finds"
+source = "avis"
+models = ["Atlas", "GV70", "GV80", "CX-90", "CX-70", "XC60", "V60 Cross Country",
+          "Sorento", "Telluride", "Santa Fe", "Santa Fe Hybrid", "Palisade",
+          "C-Class", "GLA 250", "GLB 250", "GLE"]
+threshold_pct = -8.0
+national = false
+year_min = 2024
+odometer_max = 35000
+poll_hours = 8
+max_pages = 3
+alert_on_new = true
+new_max_residual_pct = 0.0
+exclude_trims = ["Base", "SE Base", "Preferred", "3.3 Turbo Preferred", "LE", "LX", "S", "SE"]
 
 # ---------------------------------------------------------------------------
 # Other Hertz finds: the named upgrade list, polled daily.

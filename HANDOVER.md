@@ -18,6 +18,8 @@ Primary target a 2025+ Mazda CX-50 Hybrid; several secondary watches.
 | Hertz Car Sales | **works** | Dealer.com `window.DDC.dataLayer.vehicles`, headless Chromium |
 | Byers Volvo (certified) | **works** | same Dealer.com reader, different base URL |
 | Byers Mazda | **works** | same; zero CX-70 stock at time of writing |
+| Avis Car Sales | **works** | Dealer.com like Hertz: `/used-inventory/index.htm`, `window.DDC.dataLayer`, server-side `odometer`/`model`/`year`; 1,594 cars on 2026-09-14, 26% under 25k miles, 29 CX-50 Hybrids; postal codes present; no Rent2Buy; delivery by the per-mile fallback |
+| Enterprise Car Sales | **explored, not read** | Not Dealer.com: an Elasticsearch API at `api.ehi.com/vehicle/sales/retail/inventory/search/template` behind an anonymous bearer token issued with a public `ehi-api-key`; 8,628 hits nationwide. Lorenzo's read is that its stock skews high-mileage. Request body not yet captured. |
 | Cars.com (search) | **works** | listings read from the page's own `<search-provider data-vehicle-array>` JSON (trim as written, VIN, price, mileage, exterior-colour bucket, seller zip, CPO flag); page size clamped to 24; one request per browser session; colour facets (`exterior_color_slugs[]`, `interior_color_slugs[]`) filter server-side |
 | CarMax | **works, real Chrome only** | `.kmx-car-tile__content` tiles |
 | Cars.com (detail pages) | **blocked** | Cloudflare "Attention Required" |
@@ -177,11 +179,20 @@ store has never held for Hertz sends one quiet push the run it appears
 
 **Own cost** (page-side, `costOf` in `docs/index.html`, inputs from
 `data.json`): landed price, minus expected resale after the chosen years
-and miles per year, plus fuel, plus a warranty reserve. Resale uses the
-model's own market-curve yearly rate where one exists (XC60 −9.9%, CX-70
-−7.8% on 2026-09-14) else `[economics] depreciation_per_year` (−8%), with
-the hedonic's fitted mileage terms (−4.1% per 10k at the origin, flattening
-quadratically). Fuel is the car's EPA combined figure (Hertz rows carry it;
+and miles per year, plus fuel, plus a warranty reserve, plus whatever the
+"assumptions" panel holds for maintenance, insurance and the cost of cash
+(simple interest on the landed price), undiscounted. Resale: the model's
+own market-curve yearly rate where one exists (XC60 −9.9%, CX-70 −7.8% on
+2026-09-14) else `[economics] depreciation_per_year` (−8%), read as the
+AVERAGE over years 1-3 of a car's life and spread along a front-loaded
+shape (`SHAPE` in the page: year 1 = 1.36×, year 2 = 0.88×, year 3 = 0.76×,
+flattening to 0.3× by year 12; mean over years 1-3 = 1) starting from the
+car's current age, so a two-year-old car is past the cliff; a "flat" tick
+applies the rate every year instead. Lorenzo's point, 2026-09-14: first-year
+depreciation is much higher than later years, and a flat rate over-charged
+the later years. The hedonic's fitted mileage terms (−3.5% per 10k at the
+origin, flattening) apply on top. The panel also exposes the depreciation
+override, the warranty reserve, and the resale floor (15%). Fuel is the car's EPA combined figure (Hertz rows carry it;
 `market.mpg_by_model` supplies medians and a fallback table for CarMax,
 Byers and Cars.com rows) at `[economics] fuel_price`. The reserve
 (`warranty_reserve`, $1,500) applies when bumper-to-bumper cover is under
