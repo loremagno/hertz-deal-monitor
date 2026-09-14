@@ -14,12 +14,14 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+from . import market
 from .config import Config
 from .score import interior_tier, preference_fit
 
 
-def _row(s, cfg: Config, groups: dict | None = None) -> dict:
+def _row(s, cfg: Config, groups: dict | None = None, extra: dict | None = None) -> dict:
     groups = groups or {}
+    extra = extra or {}
     l = s.listing
     report = s.autocheck
     if report is None:
@@ -61,6 +63,13 @@ def _row(s, cfg: Config, groups: dict | None = None) -> dict:
         "reasons": s.reasons,
         "url": l.url,
         "image": l.image_url,
+        # For the cost view and the wait-or-buy rule.
+        "mpg": market.combined_mpg(l),
+        "fuel_type": l.fuel_type,
+        "age_years": None if l.age_years is None else round(l.age_years, 2),
+        "warranty": market.warranty_left(l),
+        "wait": extra.get("wait"),
+        "days_on_sale": extra.get("days_on_sale"),
     }
 
 
@@ -91,6 +100,44 @@ def build(result, cfg: Config, dream: dict | None, store, suv: dict | None = Non
         "FROM runs WHERE ok = 1 ORDER BY id DESC LIMIT 1"
     ).fetchone()
 
+    # Timing: the price index and the markdown/leaving hazard from the
+    # committed price history, and a wait-or-buy verdict per Hertz car.
+    hedonic = getattr(result, "hedonic", None)
+    primary = next((w for w in cfg.watch if w.group == "primary"), None)
+    primary_key = ""
+    if primary and primary.models:
+        make = next((s.listing.make for s in scored
+                     if s.listing.model.lower() == primary.models[0].lower()), "")
+        primary_key = f"{make.strip().lower()}|{primary.models[0].strip().lower()}"
+    try:
+        index = market.price_index(store, hedonic, primary_key) if hedonic else []
+        hazard = market.hazard(store, primary_key)
+    except Exception as exc:                      # never let timing break the board
+        import logging
+        logging.getLogger(__name__).warning("Market timing skipped: %s", exc)
+        index, hazard = [], {}
+    first_seen = {r["vin"]: r["first_seen"] for r in store.conn.execute(
+        "SELECT vin, first_seen FROM listings").fetchall()}
+    extras: dict[str, dict] = {}
+    for s in watched:
+        l = s.listing
+        if (l.source or "hertz") != "hertz":
+            continue
+        days = market.lot_days(l, first_seen.get(l.vin))
+        table = hazard.get("primary" if primary_key and market._key(l) == primary_key else "all", {})
+        extras[l.vin] = {"days_on_sale": days,
+                         "wait": market.advise(l, s.predicted_landed, table, days) if table else None}
+
+    # What the cost view needs: mileage slopes from the fit, a yearly rate
+    # per model from its market curve, mpg per model, warranty terms.
+    depreciation = {"per_year_default": cfg.depreciation_per_year,
+                    "per_10k": None, "per_10k_sq": None, "per_year_by_model": {}}
+    if hedonic is not None and len(hedonic.coefficients) > 2:
+        depreciation["per_10k"] = round(hedonic.coefficients[1], 5)
+        depreciation["per_10k_sq"] = round(hedonic.coefficients[2], 5)
+    for key, curve in (getattr(result, "curves", None) or {}).items():
+        depreciation["per_year_by_model"][key] = round(curve.per_year, 4)
+
     groups = {w.label: w.group for w in cfg.watch}
     watches = [
         {"label": w.label, "tier": w.tier, "source": w.source, "models": w.models,
@@ -107,13 +154,19 @@ def build(result, cfg: Config, dream: dict | None, store, suv: dict | None = Non
         "home": {"zip": cfg.zip, "radius_miles": cfg.alert_radius_miles},
         "model": {"n": result.hedonic_n, "log_rmse": round(result.hedonic_rmse, 4)},
         "economics": {"tax_rate": cfg.sales_tax_rate, "delivery_base": cfg.delivery_base,
-                      "delivery_per_mile": cfg.delivery_per_mile},
+                      "delivery_per_mile": cfg.delivery_per_mile, "title_reg_fees": cfg.title_reg_fees,
+                      "fuel_price": cfg.fuel_price, "warranty_reserve": cfg.warranty_reserve,
+                      "miles_per_year": cfg.miles_per_year, "holding_years": cfg.holding_years},
+        "depreciation": depreciation,
+        "mpg_by_model": market.mpg_by_model([s.listing for s in scored]),
+        "warranty_by_make": market.WARRANTY,
+        "market": {"index": index, "hazard": hazard, "primary": primary_key},
         "preferences": {"colors": cfg.pref_colors, "trims": cfg.pref_trims,
                         "odometer_ideal": cfg.odometer_ideal},
         "last_run": dict(last_run) if last_run else None,
         "skipped_sources": [label for label, _ in getattr(result, "failed_entries", [])],
         "watches": watches,
-        "listings": [_row(s, cfg, groups) for s in watched],
+        "listings": [_row(s, cfg, groups, extras.get(s.listing.vin)) for s in watched],
         "dream": dream or {"rows": [], "counts": {}, "skipped": []},
         # Cars.com rows for the SUV tab. No colour, no history, no VIN: the
         # page marks them as Cars.com and never shows them as clean.

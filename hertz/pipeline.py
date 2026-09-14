@@ -322,6 +322,7 @@ class RunResult:
     hedonic_fitted: bool = False
     hedonic_n: int = 0
     hedonic_rmse: float = 0.0
+    hedonic: object = None                # the fitted model, for the index and the cost view
     curves: dict = field(default_factory=dict)
     failed_entries: list = field(default_factory=list)   # (label, error) skipped this run
     new_models: list = field(default_factory=list)       # (make, model, count, min price) first seen this run
@@ -422,6 +423,8 @@ def collect(
 
     summary = ", ".join(f"{m}={n}" for m, n in sorted(per_model.items()))
     logger.info("Collected %d vehicles across %d models (%s)", len(by_vin), len(per_model), summary)
+    for label, coverage in ingest.COVERAGE.items():
+        store.set_meta(f"coverage:{label}", coverage)
 
     attempted = [e for e in cfg.watch if e.source in cfg.sources and _entry_due(store, e)]
     if attempted and len(failed_entries) == len(attempted):
@@ -618,6 +621,7 @@ def run(cfg: Config, dry_run: bool = False, force: bool = False) -> RunResult:
 
             hedonic = score.fit_hedonic(known)
             result.hedonic_fitted = hedonic is not None
+            result.hedonic = hedonic
             result.hedonic_n = hedonic.n_obs if hedonic else 0
             result.hedonic_rmse = hedonic.rmse if hedonic else 0.0
 

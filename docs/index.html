@@ -123,6 +123,10 @@
     padding:10px 14px; border-radius:8px; font-size:13px; line-height:1.45; box-shadow:var(--shadow);
     max-width:min(92vw,560px); z-index:9}
   #toast a{color:var(--accent-soft)}
+  #scenario{border:1px solid var(--line); border-radius:8px; background:var(--surface); padding:8px 12px; margin-top:6px}
+  #scenario .lead{font-weight:600; color:var(--ink); margin-right:4px}
+  .chip.wait{background:var(--pass-soft); color:var(--pass)} .chip.buy{background:var(--accent-soft); color:var(--accent)}
+  table.mini{min-width:0; font-size:12.5px} table.mini td,table.mini th{padding:6px 9px}
   .good{color:var(--pass); font-weight:600} .badv{color:var(--flag); font-weight:600} .dim{color:var(--muted)}
   .empty{color:var(--muted); font-size:14px; padding:18px}
   footer{font-size:12px; color:var(--muted); line-height:1.6; border-top:1px solid var(--line); padding-top:14px;
@@ -137,6 +141,7 @@
     <div class="eyebrow">Car watch · from <span id="zip"></span></div>
     <h1>Deal board</h1>
     <div class="sub" id="status">Loading…</div>
+    <div class="controls" id="scenario" hidden></div>
   </header>
 
   <nav class="tabs" role="tablist" id="tabs"></nav>
@@ -190,6 +195,16 @@
     <div class="scroll"><table id="dream-table"></table></div>
   </section>
 
+  <section role="tabpanel" id="tab-budget" hidden>
+    <div class="note warn">Every car on the board, ranked by what it costs to <b>own</b> over the years and
+      mileage set at the top of the page: landed price, minus the expected resale from the model's own
+      depreciation and the fitted mileage slope, plus fuel at the car's EPA figure, plus a reserve when the
+      bumper-to-bumper warranty is gone. Cars.com rows carry tax and fees but no delivery, and no history.
+      Change the mileage to see how the ranking moves; that is the question you cannot answer yet.</div>
+    <div class="controls" id="budget-controls"></div>
+    <div class="scroll"><table id="budget-table"></table></div>
+  </section>
+
   <section role="tabpanel" id="tab-follow" hidden>
     <div class="note warn" id="follow-note"></div>
     <div class="scroll"><table id="follow-table"></table></div>
@@ -212,6 +227,11 @@
       it is remembered across refreshes here but not on another device, and it never affects the
       alerts or the price model. Each table's footer shows how many are hidden and can show them
       again; ↺ restores one.</div>
+    <div><b>Own cost</b> is landed price minus expected resale (the model's own yearly depreciation where a
+      market curve exists, else the default in config, with the fitted mileage slope) plus fuel at the mileage
+      chosen above, plus a warranty reserve once bumper-to-bumper cover is gone. <b>Wait?</b> on the CX-50 tab
+      weighs the expected price cut over the next week (Hertz's markdown rate by days on sale) against the
+      chance the car sells first times what it is worth relative to the market: wait when the first is larger.</div>
     <div><b>Following</b> a car (the ☆ at the end of its row) opens a pre-filled GitHub issue on the
       monitor's repo; creating it is what makes the monitor watch that car. Every run then comments on the
       issue and sends a push when its price, mileage, listing status or AutoCheck changes. Close the issue to
@@ -254,6 +274,80 @@
     ` · CX-50 Hybrid: <b>${target.length}</b> nationwide, <b>${target.filter(near).length}</b> within ${data.home.radius_miles} mi` +
     ` · <b>${listings.filter(near).length}</b> watched cars in range · model n=${data.model.n}, log-RMSE ${data.model.log_rmse.toFixed(3)}` +
     (data.skipped_sources.length ? ` · <span class="stale">skipped: ${esc(data.skipped_sources.join(', '))}</span>` : '');
+
+  // ---- ownership cost ---------------------------------------------------
+  // The mileage you will drive is the open question, so it is a selector,
+  // not a constant. Every table's cost column recomputes when it changes.
+  const SCEN_KEY = 'carwatch.scenario.v1';
+  const econ = data.economics || {};
+  const scen = Object.assign(
+    {miles: econ.miles_per_year || 12000, years: econ.holding_years || 5, fuel: econ.fuel_price || 3.2},
+    (() => { try { return JSON.parse(localStorage.getItem(SCEN_KEY) || '{}') || {}; } catch (e) { return {}; } })());
+  const saveScen = () => { try { localStorage.setItem(SCEN_KEY, JSON.stringify(scen)); } catch (e) {} };
+  const dep = data.depreciation || {per_year_default: -0.08, per_10k: -0.04, per_10k_sq: 0, per_year_by_model: {}};
+  const mpgTable = data.mpg_by_model || {};
+  const warrantyTable = data.warranty_by_make || {};
+  const modelKey = r => `${(r.make || '').toLowerCase().trim()}|${(r.model || '').toLowerCase().trim()}`;
+  const nowFrac = (() => { const d = new Date(); return d.getFullYear() + d.getMonth() / 12; })();
+  function warrantyOf(r) {
+    if (r.warranty) return r.warranty;
+    const terms = warrantyTable[(r.make || '').toLowerCase()]; if (!terms || !r.year || r.miles == null) return null;
+    const age = Math.max(0, nowFrac - (r.year - 0.5));
+    return {b2b: {months: Math.max(0, Math.round((terms[0][0] - age) * 12)), miles: Math.max(0, terms[0][1] - r.miles)},
+            powertrain: {months: Math.max(0, Math.round((terms[1][0] - age) * 12)), miles: Math.max(0, terms[1][1] - r.miles)}};
+  }
+  function costOf(r) {
+    if (!r.price) return null;
+    const key = modelKey(r);
+    const perYear = dep.per_year_by_model[key] ?? dep.per_year_default;
+    const b1 = dep.per_10k ?? -0.04, b2 = dep.per_10k_sq ?? 0;
+    const odo0 = (r.miles || 0) / 1e4, odo1 = odo0 + scen.miles * scen.years / 1e4;
+    const resale = Math.max(0.15 * r.price, Math.exp(Math.log(r.price) + perYear * scen.years + b1 * (odo1 - odo0) + b2 * (odo1 * odo1 - odo0 * odo0)));
+    const mpg = r.mpg || mpgTable[key] || null;
+    const fuel = mpg ? scen.miles * scen.years / mpg * scen.fuel : null;
+    const landed = r.landed != null ? r.landed : r.price * (1 + (econ.tax_rate || 0)) + (econ.title_reg_fees || 0);
+    const w = warrantyOf(r);
+    const reserve = (!w || w.b2b.months < 12 || w.b2b.miles < scen.miles) ? (econ.warranty_reserve || 0) : 0;
+    const total = landed - resale + (fuel || 0) + reserve;
+    return {total, perYear: total / scen.years, resale, fuel, reserve, mpg, landed, warranty: w};
+  }
+  const COST_SETS = [];
+  function costify(rows) {
+    if (!COST_SETS.includes(rows)) COST_SETS.push(rows);
+    for (const r of rows) {
+      const c = costOf(r);
+      r.cost = c ? Math.round(c.total) : null; r.cost_year = c ? Math.round(c.perYear) : null;
+      r.cost_detail = c; r.wait_advice = r.wait ? r.wait.advice : null;
+    }
+    return rows;
+  }
+  const costFmt = (v, r) => {
+    if (v == null) return '<span class="dim">—</span>';
+    const c = r.cost_detail || {};
+    const tip = `landed ${money(c.landed)} − resale ${money(c.resale)} + fuel ${c.fuel == null ? 'n/a' : money(c.fuel)}${c.reserve ? ' + warranty reserve ' + money(c.reserve) : ''}${c.mpg ? ' · ' + Math.round(c.mpg) + ' mpg' : ' · no mpg'}`;
+    return `<span title="${esc(tip)}"><b>${money(v)}</b> <span class="dim">${money(r.cost_year)}/yr</span></span>`;
+  };
+  const waitFmt = (v, r) => {
+    const w = r.wait; if (!w) return '<span class="dim">—</span>';
+    const tip = `days on sale ${r.days_on_sale ?? '?'} (${w.bucket}); expected cut next week ${money(w.expected_cut)}; P(still here) ${Math.round(100 * w.p_survive)}%; worth ${money(w.surplus)} vs benchmark`;
+    const cls = w.advice === 'wait' ? 'wait' : w.advice === 'buy' ? 'buy' : 'dim';
+    return `<span class="chip ${cls}" title="${esc(tip)}">${esc(w.advice)}</span>`;
+  };
+  function renderScenario() {
+    const el = $('#scenario'); el.hidden = false;
+    el.innerHTML = `<span class="lead">Own cost over</span>
+      <label>years <select data-s="years">${[3, 5, 7, 10].map(y => `<option${y === scen.years ? ' selected' : ''}>${y}</option>`).join('')}</select></label>
+      <label>at <select data-s="miles">${[6000, 8000, 10000, 12000, 15000, 18000, 22000].map(m => `<option value="${m}"${m === scen.miles ? ' selected' : ''}>${m.toLocaleString()}</option>`).join('')}</select> mi/yr</label>
+      <label>fuel $<input type="number" step="0.10" min="1" max="8" data-s="fuel" value="${scen.fuel}" style="width:70px"></label>
+      <span class="count">resale from each model's curve; mileage is the thing you don't know yet</span>`;
+    el.addEventListener('input', e => {
+      const t = e.target; if (!t.dataset.s) return;
+      scen[t.dataset.s] = Number(t.value); saveScen();
+      COST_SETS.forEach(costify); rerenders.forEach(f => f());
+    });
+  }
+  costify(listings);
+  renderScenario();
 
   // ---- following -------------------------------------------------------
   // "Follow" needs a home both this page and the scheduled run can reach,
@@ -324,6 +418,7 @@
     ['suv', 'SUV watch', byGroup('suv').filter(near).length +
         (data.suv_market?.rows || []).filter(r => r.distance != null && r.distance <= data.home.radius_miles).length],
     ['dream', 'Station wagons', data.dream.rows.length],
+    ['budget', 'Best at budget', null],
     ['follow', 'Followed', followCount()],
     ['about', 'About', null],
   ];
@@ -433,8 +528,10 @@
     {key:'miles', label:'Miles', right:true, fmt: int},
     {key:'price', label:'Price', right:true, fmt: money},
     {key:'landed', label:'Landed', right:true, fmt: v => `<b>${money(v)}</b>`},
+    {key:'cost', label:'Own cost', right:true, fmt: costFmt},
     {key:'residual_pct', label:'vs model', right:true, fmt: resid},
     {key:'days_on_lot', label:'Days', right:true, fmt: v => v == null ? '<span class="dim">—</span>' : int(v)},
+    {key:'wait_advice', label:'Wait?', fmt: waitFmt},
     {key:'condition', label:'Condition', fmt: cond},
   ];
   const rowClass = r => r.cleared ? 'best' : r.condition_kind === 'bad' ? 'bad' : '';
@@ -484,7 +581,7 @@
     cleared.map(r => `
       <div class="panel pass">
         <div class="phead"><span class="name">${esc(r.label)}</span><span class="chip pass">value &amp; condition</span>
-          ${r.type === 'rent2buy' ? '<span class="chip r2b">Rent2Buy</span>' : ''}</div>
+          ${r.type === 'rent2buy' ? '<span class="chip r2b">Rent2Buy</span>' : ''}${r.wait ? ' ' + waitFmt(null, r) : ''}</div>
         <div class="where num">${esc(r.lot)} · ${int(r.distance)} mi · ${int(r.miles)} mi · ${esc(r.color)}</div>
         <div class="split">
           <div class="ledger num">
@@ -527,6 +624,7 @@
     {key:'miles', label:'Miles', right:true, fmt: int},
     {key:'price', label:'Price', right:true, fmt: money},
     {key:'landed', label:'Landed', right:true, fmt: v => `<b>${money(v)}</b>`},
+    {key:'cost', label:'Own cost', right:true, fmt: costFmt},
     {key:'residual_pct', label:'vs model', right:true, fmt: resid},
     {key:'condition', label:'Condition', fmt: cond},
   ];
@@ -555,6 +653,7 @@
     {key:'miles', label:'Miles', right:true, fmt: int},
     {key:'price', label:'Price', right:true, fmt: money},
     {key:'landed', label:'Landed', right:true, fmt: v => `<b>${money(v)}</b>`},
+    {key:'cost', label:'Own cost', right:true, fmt: costFmt},
     {key:'residual_pct', label:'vs model', right:true, fmt: resid},
     {key:'condition', label:'Condition', fmt: cond},
   ];
@@ -588,7 +687,7 @@
     condition_kind: r.certified ? 'cert' : 'none', fit: 0, misses: [],
     days_on_lot: null, price_drop_30d: null, cleared: false, reasons: [], url: r.url, image: '',
   }; });
-  const suvRows = byGroup('suv').concat(suvMarket);
+  const suvRows = costify(byGroup('suv').concat(suvMarket));
   const suvTable = table($('#suv-table'), suvRows, SUV_COLS, {sortKey:'residual_pct', rowClass});
   controls($('#suv-controls'), suvRows, [
     {type:'select', key:'model', label:'Model'},
@@ -678,6 +777,40 @@
     ? `Cars you starred. Each is an open <a href="https://github.com/${esc(followCfg.repo)}/issues?q=is%3Aissue+is%3Aopen+label%3Afollow" target="_blank" rel="noopener">follow issue</a> on the repo; the monitor comments there and pushes when the price, mileage, listing status or AutoCheck changes. Close an issue to stop following. "Then" is the price when you starred it.`
     : `Stars are kept in this browser for now. <b>Alerts on followed cars are off</b>: ${esc(followCfg.reason || 'the monitor could not reach GitHub')}. ${followCfg.repo ? `Enable Issues under <a href="https://github.com/${esc(followCfg.repo)}/settings" target="_blank" rel="noopener">the repo's settings</a> (General → Features → Issues), then star the cars again to create their issues.` : ''}`;
 
+  // ---- best at budget -----------------------------------------------------------
+  // Every row the board knows, in one shape, ranked by ownership cost.
+  const dreamAsRows = (data.dream.rows || []).filter(r => r.price && r.price <= 47000).map(r => {
+    const m = /^(\S+)\s+(.+)$/.exec(r.model || '') || [null, '', r.model];
+    return {vin: r.vin || r.url, label: `${r.year} ${r.title}`, year: r.year, make: m[1], model: m[2], trim: r.title,
+      source: 'cars.com', type: r.certified ? 'certified' : 'lot', color: r.color || '', interior: '', interior_tier: null,
+      lot: [r.city, r.state].filter(Boolean).join(', ') || r.dealer || 'Cars.com', distance: r.distance,
+      miles: r.mileage, price: r.price, delivery: 0,
+      landed: Math.round(r.price * (1 + (econ.tax_rate || 0)) + (econ.title_reg_fees || 0)),
+      residual_pct: r.market_pct, residual_sigma: null, benchmark: 'market', comps: 0, tier: '', watch: r.model, group: 'dream',
+      condition: 'not checked (Cars.com)', condition_kind: 'none', fit: 0, misses: [], days_on_lot: null, price_drop_30d: null,
+      cleared: false, reasons: [], url: r.url, image: '', mpg: null, warranty: null, wait: null};
+  });
+  const budgetRows = costify(listings.concat(suvMarket.map(r => ({...r, landed: Math.round(r.price * (1 + (econ.tax_rate || 0)) + (econ.title_reg_fees || 0))})), dreamAsRows));
+  const BUDGET_COLS = [
+    {key:'label', label:'Vehicle', fmt: veh, cls:'veh'},
+    {key:'source', label:'Source'},
+    {key:'distance', label:'Away', right:true, fmt: (v, r) => r.source === 'carmax' ? '<span class="dim">ships</span>' : int(v)},
+    {key:'miles', label:'Miles', right:true, fmt: int},
+    {key:'price', label:'Price', right:true, fmt: money},
+    {key:'landed', label:'Landed', right:true, fmt: v => `<b>${money(v)}</b>`},
+    {key:'cost', label:'Own cost', right:true, fmt: costFmt},
+    {key:'residual_pct', label:'vs model', right:true, fmt: resid},
+    {key:'condition', label:'Condition', fmt: cond},
+  ];
+  const budgetTable = table($('#budget-table'), budgetRows, BUDGET_COLS, {sortKey:'cost', rowClass});
+  controls($('#budget-controls'), budgetRows, [
+    {type:'max', key:'landed', label:'Landed budget', value: 36000},
+    {type:'select', key:'make', label:'Make'},
+    {type:'select', key:'source', label:'Source'},
+    {type:'max', key:'miles', label:'Miles', placeholder:'25000'},
+    {type:'max', key:'distance', label:'Away', value: data.home.radius_miles},
+  ], rows => budgetTable.update(rows));
+
   // ---- about tab ---------------------------------------------------------------
   const lr = data.last_run;
   $('#about').innerHTML =
@@ -688,7 +821,24 @@
     data.watches.map(w => `<tr><td>${esc(w.label)}</td><td>${esc(w.tier)}</td><td>${esc(w.source)}</td><td>${esc(w.models.join(', '))}</td>
       <td>${w.year_min ? esc(w.year_min) + (w.year_max ? '–' + esc(w.year_max) : '+') : 'any'}</td>
       <td class="r num">${w.odometer_max ? int(w.odometer_max) : '—'}</td><td class="r num">${w.poll_hours} h</td><td class="r num">${w.count}</td></tr>`).join('') +
-    `</tbody></table></div>`;
+    `</tbody></table></div>` +
+    marketTiming();
+  function marketTiming() {
+    const mk = data.market || {}; const idx = mk.index || []; const hz = mk.hazard || {};
+    const idxRows = idx.map(w => `<tr><td class="num">${esc(w.week_end)}</td><td class="r num">${int(w.n)}</td><td class="r num">${w.index.toFixed(3)}</td>
+      <td class="r num">${w.index_primary == null ? '—' : w.index_primary.toFixed(3)}</td><td class="r num">${int(w.inventory_primary)}</td><td class="r num">${money(w.median_price_primary)}</td></tr>`).join('');
+    const hzRows = name => Object.entries(hz[name] || {}).map(([b, r]) => `<tr><td class="num">${esc(b)}</td>
+      <td class="r num">${r.weekly_price_change_pct == null ? '—' : pct(r.weekly_price_change_pct)}</td>
+      <td class="r num">${r.p_cut_week == null ? '—' : Math.round(100 * r.p_cut_week) + '%'}</td>
+      <td class="r num">${r.p_survive_week == null ? '—' : Math.round(100 * r.p_survive_week) + '%'}</td>
+      <td class="r num">${int(r.car_days)}</td><td class="r num">${int(r.cuts)}</td><td class="r num">${int(r.left)}</td></tr>`).join('');
+    return `<h2 style="margin-top:14px">Market timing</h2>
+      <div class="dim" style="font-size:12.5px">Price level by week relative to today's fit (1.030 = 3% dearer for the same mileage, year, trim and model), with the CX-50 Hybrid alone and its count on the site. Accumulates from 9 September 2026.</div>
+      <div class="scroll"><table class="mini"><thead><tr><th>Week ending</th><th class="r">Cars</th><th class="r">Index</th><th class="r">CX-50 Hybrid</th><th class="r">On site</th><th class="r">Median price</th></tr></thead><tbody>${idxRows || '<tr><td colspan="6" class="empty">No history yet.</td></tr>'}</tbody></table></div>
+      <div class="dim" style="font-size:12.5px;margin-top:8px">Hertz markdown and leaving rates by days on sale. Leaving rates count only models swept in full, since a car dropping out of a capped sweep looks like a sale.</div>
+      <div class="scroll"><table class="mini"><thead><tr><th>CX-50 Hybrid · days</th><th class="r">Price / week</th><th class="r">P(cut)</th><th class="r">P(still here)</th><th class="r">Car-days</th><th class="r">Cuts</th><th class="r">Left</th></tr></thead><tbody>${hzRows('primary') || '<tr><td colspan="7" class="empty">No history yet.</td></tr>'}</tbody></table></div>
+      <div class="scroll" style="margin-top:6px"><table class="mini"><thead><tr><th>All Hertz · days</th><th class="r">Price / week</th><th class="r">P(cut)</th><th class="r">P(still here)</th><th class="r">Car-days</th><th class="r">Cuts</th><th class="r">Left</th></tr></thead><tbody>${hzRows('all') || '<tr><td colspan="7" class="empty">No history yet.</td></tr>'}</tbody></table></div>`;
+  }
 })();
 </script>
 </body>

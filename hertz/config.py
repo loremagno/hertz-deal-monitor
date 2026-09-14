@@ -189,6 +189,13 @@ class Config:
     tax_excludes_doc_fee: bool = True
     delivery_base: float = 145.0
     delivery_per_mile: float = 2.00
+    # Five-year cost inputs. Mileage is the one you do not know yet, so the
+    # page carries a selector; this is only its starting value.
+    fuel_price: float = 3.20
+    depreciation_per_year: float = -0.08     # log rate, when no market curve knows better
+    warranty_reserve: int = 1500             # set aside when bumper-to-bumper cover is gone
+    miles_per_year: int = 12000
+    holding_years: int = 5
 
     # buyer preferences (soft: they shape reporting, they do not filter)
     pref_colors: list[str] = field(default_factory=list)
@@ -295,6 +302,11 @@ def load(path: Path = CONFIG_PATH) -> Config:
         tax_excludes_doc_fee=bool(econ.get("tax_excludes_doc_fee", True)),
         delivery_base=float(delivery.get("base", 145.0)),
         delivery_per_mile=float(delivery.get("per_mile", 2.00)),
+        fuel_price=float(econ.get("fuel_price", 3.20)),
+        depreciation_per_year=float(econ.get("depreciation_per_year", -0.08)),
+        warranty_reserve=int(econ.get("warranty_reserve", 1500)),
+        miles_per_year=int(prefs.get("miles_per_year", 12000)),
+        holding_years=int(prefs.get("holding_years", 5)),
         pref_colors=list(prefs.get("colors", [])),
         pref_trims=list(prefs.get("trims", [])),
         odometer_ideal=int(prefs.get("odometer_ideal", 0)),

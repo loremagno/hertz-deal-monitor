@@ -68,6 +68,11 @@ MAX_PAGES = 60  # 1,440 vehicles; a safety stop, not an expected limit
 SORT_ASC = "odometer asc"
 SORT_DESC = "odometer desc"
 
+# Whether the last sweep of each model/make reached every matching car.
+# The collector copies this into the store; the hazard estimates only count
+# a car as sold when its model was swept in full.
+COVERAGE: dict[str, str] = {}
+
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
@@ -341,6 +346,9 @@ def fetch_all(session: BrowserSession, params: dict, max_pages: int = MAX_PAGES,
         truncated = bool(total and len(collected) < total)
 
     result = list(collected.values())
+    label = str(params.get("model") or params.get("make") or "")
+    if label:
+        COVERAGE[label.lower()] = "capped" if truncated else "full"
     if truncated:
         logger.warning(
             "TRUNCATED: took the %d lowest-mileage of %d matching vehicles (page cap %d). "

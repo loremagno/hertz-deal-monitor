@@ -173,6 +173,48 @@ store has never held for Hertz sends one quiet push the run it appears
 
 ---
 
+## Ownership cost, the price index and the wait-or-buy rule
+
+**Own cost** (page-side, `costOf` in `docs/index.html`, inputs from
+`data.json`): landed price, minus expected resale after the chosen years
+and miles per year, plus fuel, plus a warranty reserve. Resale uses the
+model's own market-curve yearly rate where one exists (XC60 −9.9%, CX-70
+−7.8% on 2026-09-14) else `[economics] depreciation_per_year` (−8%), with
+the hedonic's fitted mileage terms (−4.1% per 10k at the origin, flattening
+quadratically). Fuel is the car's EPA combined figure (Hertz rows carry it;
+`market.mpg_by_model` supplies medians and a fallback table for CarMax,
+Byers and Cars.com rows) at `[economics] fuel_price`. The reserve
+(`warranty_reserve`, $1,500) applies when bumper-to-bumper cover is under
+12 months or under one year of the chosen mileage; terms by make are in
+`market.WARRANTY`. Mileage and years are selectors on the page (persisted
+in the browser), because how much Lorenzo will drive is the open question;
+the "Best at budget" tab ranks every row on the board by this cost under a
+landed-price cap.
+
+**Price index** (`market.price_index`): each car's price is a step function
+through `price_history`; for each week the panel holds every car listed
+that week at its end-of-week price, residualised against the CURRENT
+hedonic; exp(mean residual) is the level relative to today. Overall and for
+the primary model, with the primary model's count on the site. Starts
+2026-09-09 and accumulates; shown on the About tab.
+
+**Hazard** (`market.hazard`): by days on sale (0-14, 15-30, 31-60, 61+),
+the weekly log price change over every car-week (cuts and quiet weeks
+alike), P(cut within a week), and P(still listed a week later) from
+exposure days and leaving events. Leaving events count only for models
+whose last sweep was complete (`coverage:<model>` meta, written by the
+collector from `ingest.COVERAGE`), since a car dropping out of a capped
+sweep looks exactly like a sale. Rent2Buy rows carry a future availability
+date in the inventory field, so their days on sale run from first sight.
+
+**Wait or buy** (`market.advise`): expected cut next week × P(still there)
+against surplus over the benchmark × P(gone); "wait" when the first is
+larger, "buy" otherwise, "no rush" when the car is not below its benchmark.
+Shown on the CX-50 tab per car (the primary model's own hazard) and
+elsewhere with the pooled rates.
+
+---
+
 ## Following a car
 
 The board's ☆ pre-fills a GitHub issue on the repo (label `follow`; the body

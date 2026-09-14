@@ -39,6 +39,15 @@ tax_excludes_doc_fee = true
 base = 145.0
 per_mile = 2.00
 
+# Five-year cost of ownership, as shown on the board. Resale uses each
+# model's own market curve where one exists (XC60 -9.4%/yr, CX-70 -7.5%),
+# else this default, with the fitted mileage slope; fuel from the car's
+# EPA figures at the mileage chosen on the page; a reserve when the
+# bumper-to-bumper warranty has run out.
+fuel_price = 3.20
+depreciation_per_year = -0.08
+warranty_reserve = 1500
+
 [carmax]
 # CarMax prices shipping per car and shows it on the results page. Anything
 # dearer than this is not worth the freight.
@@ -57,6 +66,10 @@ colors = ["blue", "slate", "gray", "grey", "graphite", "machine"]
 trims = ["Premium Plus"]
 odometer_ideal = 20000
 odometer_tolerance = 8000     # "ideally under 20k, but not much more"
+# Starting values for the cost view's selectors; the page lets you change
+# both, because how much you will drive is the open question.
+miles_per_year = 12000
+holding_years = 5
 
 [scoring]
 # A residual is only trusted when the car's model has at least this many

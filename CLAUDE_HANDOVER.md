@@ -402,7 +402,31 @@ reached, so they enter the store as new. It went out twice because run
 34807668912's alert record died with its failed commit. Expect a few more
 such arrivals over the next runs as the mileage-sorted pages settle.
 
+## Session 2026-09-14 (night): own cost, budget tab, price index, hazard, wait-or-buy
+
+Lorenzo asked for out-of-the-box thinking, liked all directions ("let's start
+building"), with the caveat that his mileage is unknown. Built (see
+HANDOVER "Ownership cost, the price index and the wait-or-buy rule"):
+`hertz/market.py`; `dashboard.build` exports `depreciation`, `mpg_by_model`,
+`warranty_by_make`, `market.index/hazard`, per-row `mpg`, `warranty`,
+`days_on_sale`, `wait`; `RunResult.hedonic`; `ingest.COVERAGE` →
+`coverage:<model>` meta; config `[economics] fuel_price / depreciation_per_year
+/ warranty_reserve`, `[preferences] miles_per_year / holding_years`. Page:
+scenario bar (years, miles/yr, fuel; localStorage), "Own cost" column on the
+CX-50, Hertz and SUV tables, "Wait?" column and card chip on the CX-50 tab,
+"Best at budget" tab (all rows incl. Cars.com, ranked by own cost under a
+landed cap, default $36k), market timing tables on About. Verified on a
+locally built document from the committed DB (609 rows; CX-50 Hybrid own
+cost ~$22.5k over 5 yrs at 12k/yr; hazard primary 0-14 d: P(still here)
+0.65). Enterprise/Avis: Lorenzo notes Enterprise skews high-mileage; plan is
+to measure each site's share under 25k miles for his models before writing
+a scraper, Avis Budget first if the numbers say so. Not started.
+
 ## Pending / Next Steps
+- [ ] Ex-rental sources beyond Hertz: measure Avis Budget and Enterprise
+      low-mileage share for the watched models, then scrape the better one.
+- [ ] The hazard's leaving rate is honest only for fully swept models; the
+      CX-50 Hybrid is; the pooled table is a lower bound on survival.
 - [x] Issues enabled on `loremagno/hertz-deal-monitor` (Lorenzo, 2026-09-14);
       the run reports `follow.enabled: true`. Nothing followed yet: the first
       ☆ on the board creates the first issue.
