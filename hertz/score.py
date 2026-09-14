@@ -276,8 +276,13 @@ def fit_hedonic(listings: list[Listing], ridge: float = 1e-6) -> Hedonic | None:
     counts: dict[str, int] = {}
     for listing in usable:
         counts[_normalize_model(listing)] = counts.get(_normalize_model(listing), 0) + 1
-    # One model and one model year are the reference categories.
-    model_keys = sorted(counts)[1:]
+    # The reference model is the LARGEST one, never the alphabetical first:
+    # a one-row "Audi Q4 e-tron" as the reference had no dummy of its own,
+    # its level fell on the pooled intercept, and it read +9.9% against
+    # nothing. With the biggest model as reference every thin model gets a
+    # dummy, and its leave-one-out residual is honestly undefined.
+    reference = max(counts, key=lambda k: (counts[k], k))
+    model_keys = sorted(k for k in counts if k != reference)
     year_keys = sorted({l.year for l in usable})[1:]
 
     scratch = Hedonic([], model_keys, year_keys, counts, 0, 0.0, [], set(), {}, doc_fee)
