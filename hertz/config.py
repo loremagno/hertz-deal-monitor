@@ -97,8 +97,19 @@ class WatchEntry:
             t.strip().lower() in trim for t in self.require_trims
         ):
             return False
+        # Whole-word, not prefix: "SE" as a prefix excluded "SEL", which is
+        # every Santa Fe Hertz stocks. A base-trim name must match a whole
+        # token of the trim string ("LX", "S", "SE", "LE"), and a multi-word
+        # entry ("3.3 Turbo Preferred") must appear as a phrase.
+        trim_words = set(re.findall(r"[a-z0-9.]+", trim))
         for bad in self.exclude_trims:
-            if bad.strip() and trim.startswith(bad.strip().lower()):
+            bad = bad.strip().lower()
+            if not bad:
+                continue
+            if " " in bad:
+                if re.search(rf"(?<![a-z0-9.]){re.escape(bad)}(?![a-z0-9.])", trim):
+                    return False
+            elif bad in trim_words:
                 return False
 
         exterior = (listing.exterior_color or "").lower()

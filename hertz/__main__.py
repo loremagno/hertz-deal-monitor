@@ -208,9 +208,69 @@ def main(argv: list[str] | None = None) -> int:
                 logger.warning("Dream tab not refreshed: %s", exc)
                 dream_doc = json.loads(cached) if cached else None
 
+        # The Cars.com SUV sweep (XC60 Plus within 300 mi) rides the same
+        # cache-and-seed logic as the wagons, in its own slot, so a blocked
+        # run keeps the last good rows and a committed seed fills a cold
+        # start. The rows land on the SUV tab beside the Hertz/Byers/CarMax
+        # cars, marked as Cars.com so their missing colour and history are
+        # not mistaken for clean ones.
+        suv_doc = None
+        suv_cached = store.get_meta("suv_json")
+        suv_stamp = store.get_meta("suv_at")
+        suv_seed = cfg.base_dir / "docs" / "suv_seed.json"
+        suv_has_rows = False
+        if suv_cached:
+            try:
+                suv_has_rows = bool(json.loads(suv_cached).get("rows"))
+            except Exception:
+                suv_has_rows = False
+        if suv_seed.exists():
+            try:
+                sd = json.loads(suv_seed.read_text(encoding="utf-8"))
+                st_ = sd.get("seeded_at")
+                ct_ = datetime.fromisoformat(suv_stamp) if suv_stamp else None
+                stt = datetime.fromisoformat(st_) if st_ else None
+                if sd.get("rows") and (not suv_has_rows or (stt and (ct_ is None or stt > ct_))):
+                    suv_cached = json.dumps(sd)
+                    suv_stamp = (stt or datetime.now()).isoformat(timespec="seconds")
+                    store.set_meta("suv_json", suv_cached)
+                    store.set_meta("suv_at", suv_stamp)
+                    logger.info("SUV sweep: adopted the committed seed")
+            except Exception as exc:
+                logger.warning("SUV seed unreadable: %s", exc)
+        suv_fresh = False
+        if suv_stamp:
+            try:
+                suv_fresh = datetime.now() - datetime.fromisoformat(suv_stamp) < timedelta(hours=12)
+            except ValueError:
+                suv_fresh = False
+        if suv_cached and suv_fresh and not args.dream:
+            suv_doc = json.loads(suv_cached)
+        else:
+            try:
+                from . import dream
+                fresh_suv = dream.to_json(dream.build_suv(cfg))
+                old = json.loads(suv_cached) if suv_cached else {"rows": [], "counts": {}, "skipped": []}
+                answered = set(fresh_suv["counts"])
+                rows = [r for r in old["rows"] if r["model"] not in answered] + fresh_suv["rows"]
+                rows.sort(key=lambda r: (r["market_pct"] is None, r["market_pct"] or 0.0, r["price"]))
+                now_iso = datetime.now().isoformat(timespec="seconds")
+                suv_doc = {"rows": rows, "counts": {**old.get("counts", {}), **fresh_suv["counts"]},
+                           "skipped": fresh_suv["skipped"], "seeded_at": now_iso}
+                store.set_meta("suv_json", json.dumps(suv_doc))
+                if answered:
+                    store.set_meta("suv_at", now_iso)
+                    try:
+                        suv_seed.write_text(json.dumps(suv_doc), encoding="utf-8")
+                    except Exception as exc:
+                        logger.warning("SUV seed not updated: %s", exc)
+            except Exception as exc:
+                logger.warning("SUV sweep not refreshed: %s", exc)
+                suv_doc = json.loads(suv_cached) if suv_cached else None
+
         # One JSON document drives the published dashboard (docs/index.html).
         try:
-            doc = dashboard.build(result, cfg, dream_doc, store)
+            doc = dashboard.build(result, cfg, dream_doc, store, suv_doc)
             dashboard.write(doc, cfg.base_dir / "docs" / "data.json")
             logger.info("Dashboard data written: %d listings, %d dream rows",
                         len(doc["listings"]), len(doc["dream"]["rows"]))

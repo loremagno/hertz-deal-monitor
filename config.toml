@@ -127,9 +127,11 @@ source = "hertz"
 models = [
     "Atlas",                      # Volkswagen
     "GV70", "GV80",               # Genesis
-    "Highlander Hybrid",          # Toyota
-    "CX-90",                      # Mazda
-    "V60", "V60 Cross Country",   # Volvo: the V60 has appeared at Hertz before
+    "CX-90",                      # Mazda -- Preferred excluded below
+    "V60 Cross Country",          # Volvo: appears at Hertz (3 today)
+    "Sorento", "Telluride",       # Kia: 25 Sorento at Hertz (LX/S only -> excluded below); Telluride 0
+    "Santa Fe", "Santa Fe Hybrid",  # Hyundai: 1,290 Santa Fe, all SEL
+    "C-Class", "GLA 250", "GLB 250", "GLE",   # Mercedes: 262 at Hertz, mostly GLA/GLB 250
 ]
 threshold_pct = -8.0
 national = false
@@ -139,7 +141,10 @@ poll_hours = 8
 max_pages = 5
 alert_on_new = true
 new_max_residual_pct = 0.0
-exclude_trims = ["Base", "SE Base"]
+# Prefix-matched against the trim. Highlander is dropped from the list
+# outright: Hertz stocks only the LE. CX-90 "Preferred" and "3.3 Turbo
+# Preferred" are the base trims; Premium Sport and above stay.
+exclude_trims = ["Base", "SE Base", "Preferred", "3.3 Turbo Preferred", "LE", "LX", "S", "SE"]
 
 [[watch]]
 tier = "B"
@@ -172,7 +177,7 @@ source = "hertz"
 models = [
     "CX-50",                       # the gas sibling of the target
     "CX-5", "CX-90 PHEV",
-    "RAV4 Hybrid", "Highlander", "Sienna", "Camry Hybrid",
+    "RAV4 Hybrid", "Sienna", "Camry Hybrid",   # Highlander dropped: LE only at Hertz
     "CR-V Hybrid", "Accord Hybrid",
     "Santa Fe Hybrid", "Tucson Hybrid", "Sorento Hybrid", "Sportage Hybrid",
     "Outback", "Forester",
@@ -189,7 +194,30 @@ poll_hours = 48
 max_pages = 2
 alert_on_new = false
 new_max_residual_pct = 0.0
-exclude_trims = ["Base", "SE Base", "LX", "S "]
+exclude_trims = ["Base", "SE Base", "Preferred", "3.3 Turbo Preferred", "LE", "LX", "S", "SE"]
+
+# ---------------------------------------------------------------------------
+# Very discounted, any trim. Lorenzo: "if base models, show me also VERY VERY
+# discounted cars." Same models as Other Hertz finds plus the ones excluded
+# there, with NO trim exclusions, and a bar of -10% below prediction. On the
+# current distribution (p5 -5.5%, min -12.5%) that is a genuine outlier, so
+# this lane fires rarely and only for something worth a second look.
+# ---------------------------------------------------------------------------
+
+[[watch]]
+tier = "B"
+group = "hertz"
+label = "Very discounted, any trim"
+source = "hertz"
+models = ["Highlander", "CX-90", "Atlas", "GV80", "Palisade", "Sienna", "RAV4 Hybrid", "CX-50", "CX-5"]
+threshold_pct = -10.0
+national = false
+year_min = 2024
+odometer_max = 35000
+poll_hours = 24
+max_pages = 3
+alert_on_new = false
+new_max_residual_pct = 0.0
 
 # ---------------------------------------------------------------------------
 # SUV watchlist: XC60 (Plus only, 2024-25) and CX-70 (3.3, Premium or better).

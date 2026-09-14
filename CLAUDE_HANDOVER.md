@@ -120,6 +120,30 @@ Country are wagon-only badges. **Rows are clickable**: the card reader
 text-only `CARD_TEXT` never did, which is why nothing was clickable), the
 tracking query string is stripped, and the page links the vehicle cell.
 
+**Session 2026-09-13, late: list pruning, dismissals, XC60 on Cars.com.**
+
+- *Other Hertz finds*: Highlander dropped (Hertz stocks only the LE); CX-90
+  Preferred excluded; Sorento/Telluride, Santa Fe (+Hybrid), and Mercedes
+  C-Class/GLA 250/GLB 250/GLE added **from live Hertz model strings** (my
+  earlier "zero at Hertz" for Sorento/Santa Fe came from a stale local DB;
+  Hertz has 25 Sorento and 1,290 Santa Fe, and 262 Mercedes). A **"Very
+  discounted, any trim"** lane admits base trims at −10%, which on the
+  hertz-group residual distribution (p5 −5.5%, min −12.5%) is a true
+  outlier.
+- **`exclude_trims` is now whole-word, not prefix.** Prefix matching on
+  `"SE"` excluded `"SEL"`, i.e. every Santa Fe Hertz stocks. Multi-word
+  entries match as a phrase. The old `"S "` trailing-space trick is gone.
+- **Dismissals** live in the browser's `localStorage`
+  (`carwatch.dismissed.v1`), keyed by VIN (or URL for Cars.com rows): they
+  survive refreshes and republishes, do not sync between devices, and never
+  reach the pipeline, so the price model keeps every car. Verified: hide,
+  persist across a real reload, footer count, show-hidden, restore.
+- **XC60 on Cars.com** is `dream.SUV_MODELS` (`build_suv`), Plus-only via a
+  whole-word "plus" marker, 300 mi, ≤35k mi, ≤$47k, with its own cache,
+  seed (`docs/suv_seed.json`) and 12-h refresh, rendered on the SUV tab as
+  source "cars.com" with condition "not checked (Cars.com)". First seed: 3
+  cars, best a 2025 Plus, 11,534 mi, $34,900, Maumee OH (111 mi).
+
 **Tab reorganisation (Lorenzo, 2026-09-13).** Every watch carries a
 `group`: `primary` (CX-50 Hybrid), `hertz` (Other Hertz finds: the named
 upgrade list daily, plus a curated **Broad Hertz finds** list every 48 h at

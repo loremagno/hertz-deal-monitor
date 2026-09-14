@@ -110,6 +110,11 @@
   td.veh{white-space:normal; min-width:200px}
   .r{text-align:right}
   tr.best td{background:var(--pass-soft)} tr.bad td{background:var(--flag-soft)}
+  tr.out td{opacity:.45; text-decoration:line-through}
+  tr.out td:last-child{text-decoration:none}
+  button.x{appearance:none; border:1px solid var(--line); background:var(--surface); color:var(--muted);
+    border-radius:5px; width:26px; height:24px; cursor:pointer; font-size:14px; line-height:1}
+  button.x:hover{color:var(--flag); border-color:var(--flag)}
   .good{color:var(--pass); font-weight:600} .badv{color:var(--flag); font-weight:600} .dim{color:var(--muted)}
   .empty{color:var(--muted); font-size:14px; padding:18px}
   footer{font-size:12px; color:var(--muted); line-height:1.6; border-top:1px solid var(--line); padding-top:14px;
@@ -144,8 +149,9 @@
   </section>
 
   <section role="tabpanel" id="tab-suv" hidden>
-    <div class="note warn"><b>Volvo XC60</b>: Plus only, 2024&ndash;25, from Byers (certified), CarMax and
-      Hertz. <b>Mazda CX-70</b>: 3.3 turbo, Premium or better, from Hertz and Byers Mazda. A
+    <div class="note warn"><b>Volvo XC60</b>: Plus only, 2024&ndash;25, from Byers (certified), CarMax,
+      Hertz and Cars.com within 300 mi (Cars.com rows carry no colour or history; "landed" there is
+      the asking price alone). <b>Mazda CX-70</b>: 3.3 turbo, Premium or better, from Hertz and Byers Mazda. A
       <span class="chip brown">brown interior</span> chip marks the interiors you like; "light brown"
       marks the blond/beige ones you don't. Clear "Away" for the whole country.</div>
     <div class="controls" id="suv-controls"></div>
@@ -176,6 +182,10 @@
     <div><b>vs model</b> is the residual from a hedonic fit of log price on mileage, age, trim tier and a Rent2Buy
       indicator with model fixed effects, across every watched vehicle; thin models fall back to a Cars.com curve for
       the same model. It measures cheapness within a model, on asking prices.</div>
+    <div><b>Dismissing</b> a car (the × at the end of its row) hides it for good in this browser only;
+      it is remembered across refreshes here but not on another device, and it never affects the
+      alerts or the price model. Each table's footer shows how many are hidden and can show them
+      again; ↺ restores one.</div>
     <div><b>Condition</b> is Experian AutoCheck where the seller links one. A reported accident, branded title or
       odometer flag blocks an alert. Franchise-certified cars pass on the certification and say so. A clean report is
       not a substitute for a pre-purchase inspection.</div>
@@ -248,11 +258,33 @@
   });
   showTab(active);
 
+  // ---- dismissals ----------------------------------------------------------
+  // "Kick a listing out and it stays out." The page is static and has no
+  // server to remember anything, so the memory lives in THIS browser's
+  // localStorage: it survives refreshes and republishes, but a phone and a
+  // laptop each keep their own list. Dismissing never reaches the pipeline;
+  // every car still feeds the price model exactly as before.
+  const DISMISS_KEY = 'carwatch.dismissed.v1';
+  const loadDismissed = () => { try { return new Set(JSON.parse(localStorage.getItem(DISMISS_KEY) || '[]')); } catch (e) { return new Set(); } };
+  const saveDismissed = s => { try { localStorage.setItem(DISMISS_KEY, JSON.stringify([...s])); } catch (e) {} };
+  let dismissed = loadDismissed();
+  let showDismissed = false;
+  const dismissKey = r => r.vin || r.url;
+  const rerenders = [];   // every table re-applies its filters after a dismissal
+  function dismiss(key) { dismissed.add(key); saveDismissed(dismissed); rerenders.forEach(f => f()); }
+  function restore(key) { dismissed.delete(key); saveDismissed(dismissed); rerenders.forEach(f => f()); }
+  document.addEventListener('click', e => {
+    const b = e.target.closest('button[data-dismiss]'); if (b) { e.preventDefault(); dismiss(b.dataset.dismiss); return; }
+    const u = e.target.closest('button[data-restore]'); if (u) { e.preventDefault(); restore(u.dataset.restore); }
+  });
+
   // ---- generic sortable/filterable table ---------------------------------
   function table(el, rows, cols, opts = {}) {
     let sortKey = opts.sortKey, sortDir = opts.sortDir || 1;
     function render() {
-      const sorted = [...rows].sort((a, b) => {
+      const visible = rows.filter(r => showDismissed || !dismissed.has(dismissKey(r)));
+      const hidden = rows.length - visible.length;
+      const sorted = [...visible].sort((a, b) => {
         const x = a[sortKey], y = b[sortKey];
         if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1;
         return (x < y ? -1 : x > y ? 1 : 0) * sortDir;
@@ -260,13 +292,23 @@
       el.innerHTML =
         '<thead><tr>' + cols.map(c =>
           `<th data-key="${c.key}" class="${c.right ? 'r' : ''}" aria-sort="${c.key === sortKey ? (sortDir > 0 ? 'ascending' : 'descending') : 'none'}">${c.label}</th>`).join('') +
-        '</tr></thead><tbody>' +
-        (sorted.length ? sorted.map(r => `<tr class="${opts.rowClass ? opts.rowClass(r) : ''}">` +
-          cols.map(c => `<td class="${c.right ? 'r num' : ''} ${c.cls || ''}">${c.fmt ? c.fmt(r[c.key], r) : esc(r[c.key])}</td>`).join('') + '</tr>').join('')
-         : `<tr><td colspan="${cols.length}" class="empty">Nothing matches.</td></tr>`) +
-        '</tbody>';
+        '<th></th></tr></thead><tbody>' +
+        (sorted.length ? sorted.map(r => {
+          const k = dismissKey(r), isOut = dismissed.has(k);
+          return `<tr class="${opts.rowClass ? opts.rowClass(r) : ''}${isOut ? ' out' : ''}">` +
+            cols.map(c => `<td class="${c.right ? 'r num' : ''} ${c.cls || ''}">${c.fmt ? c.fmt(r[c.key], r) : esc(r[c.key])}</td>`).join('') +
+            `<td class="r">${isOut
+              ? `<button class="x" data-restore="${esc(k)}" title="Bring this car back">↺</button>`
+              : `<button class="x" data-dismiss="${esc(k)}" title="Hide this car for good (this browser)">×</button>`}</td></tr>`;
+        }).join('')
+         : `<tr><td colspan="${cols.length + 1}" class="empty">Nothing matches.</td></tr>`) +
+        '</tbody>' +
+        (hidden ? `<tfoot><tr><td colspan="${cols.length + 1}" class="dim" style="font-size:12px;padding:8px 11px">${hidden} dismissed car${hidden === 1 ? '' : 's'} hidden — <a href="#" data-toggle-dismissed>show</a></td></tr></tfoot>` : '');
     }
+    rerenders.push(render);
     el.onclick = e => {
+      const t = e.target.closest('a[data-toggle-dismissed]');
+      if (t) { e.preventDefault(); showDismissed = !showDismissed; rerenders.forEach(f => f()); return; }
       const th = e.target.closest('th[data-key]'); if (!th) return;
       if (sortKey === th.dataset.key) sortDir = -sortDir; else { sortKey = th.dataset.key; sortDir = 1; }
       render();
@@ -414,7 +456,20 @@
     {key:'residual_pct', label:'vs model', right:true, fmt: resid},
     {key:'condition', label:'Condition', fmt: cond},
   ];
-  const suvRows = byGroup('suv');
+  // Cars.com XC60 rows join the SUV tab in the same shape as a listing row,
+  // with source "cars.com", no interior, and a condition that says so.
+  const suvMarket = (data.suv_market?.rows || []).map(r => ({
+    vin: 'CARSCOM-' + (r.url || '').split('/').filter(Boolean).pop(),
+    label: `${r.year} ${r.title}`, year: r.year, make: 'Volvo', model: 'XC60', trim: r.title,
+    source: 'cars.com', type: 'lot', color: '', interior: '', interior_tier: null,
+    lot: [r.city, r.state].filter(Boolean).join(', ') || 'Cars.com', distance: r.distance,
+    miles: r.mileage, price: r.price, delivery: 0, landed: r.price,
+    residual_pct: r.market_pct, residual_sigma: null, benchmark: 'market', comps: 0,
+    tier: 'A', watch: 'Cars.com XC60', group: 'suv',
+    condition: 'not checked (Cars.com)', condition_kind: 'none', fit: 0, misses: [],
+    days_on_lot: null, price_drop_30d: null, cleared: false, reasons: [], url: r.url, image: '',
+  }));
+  const suvRows = byGroup('suv').concat(suvMarket);
   const suvTable = table($('#suv-table'), suvRows, SUV_COLS, {sortKey:'landed', rowClass});
   controls($('#suv-controls'), suvRows, [
     {type:'select', key:'model', label:'Model'},

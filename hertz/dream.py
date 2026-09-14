@@ -14,6 +14,7 @@ V90 Cross Country are wagon-only models, so they need no such filter.
 from __future__ import annotations
 
 import logging
+import re
 import time
 from dataclasses import dataclass, field
 
@@ -55,6 +56,16 @@ class DreamModel:
 # out for the models that also come as sedans (V60, A4, E-Class); the
 # allroad and Cross Country badges are wagon-only, so they need no filter.
 WAGON = "&body_style_slugs[]=wagon"
+
+# Cars.com sweeps that belong on the SUV tab, not the wagon tab. Same
+# fetcher, same caveats (no colour, no history, one request per session).
+# XC60: Plus only. Cars.com abbreviates trims inconsistently ("B5 Plus",
+# "Plus, B5 AWD"), so the marker is a whole-word "plus"; Core and Ultra
+# have neither.
+SUV_MODELS = [
+    DreamModel("Volvo XC60 (Cars.com)", "volvo", "volvo-xc60", year_min=2024,
+               radius_miles=300, odometer_max=35000, body_markers=("plus",)),
+]
 
 DREAM_MODELS = [
     # The CX-70 is also a Hertz/Byers watch with a grey-outside/brown-inside
@@ -121,8 +132,11 @@ def _fetch_model(cfg, model: DreamModel) -> list[MarketComp]:
         comp.url = href.split("?")[0] if href else ""
         comps.append(comp)
     if model.body_markers:
+        # Whole-word: the XC60 marker "plus" must not match "Premium Plus"
+        # and "wagon" must not match "Wagoneer".
         comps = [c for c in comps
-                 if any(m in (c.title or "").lower() for m in model.body_markers)]
+                 if any(re.search(rf"\b{re.escape(m)}\b", (c.title or "").lower())
+                        for m in model.body_markers)]
     comps = [c for c in comps if c.year >= model.year_min
              and c.mileage <= model.odometer_max and c.price <= model.price_max]
 
@@ -182,6 +196,11 @@ def build(cfg, pause_seconds: float = 45.0, models: list[DreamModel] | None = No
     # Cheapest against its own model's curve first; unpriced-by-curve last.
     board.rows.sort(key=lambda r: (r.market_pct is None, r.market_pct or 0.0, r.comp.price))
     return board
+
+
+def build_suv(cfg, pause_seconds: float = 45.0) -> DreamBoard:
+    """The Cars.com SUV sweep (XC60 Plus within 300 mi). Same machinery."""
+    return build(cfg, pause_seconds=pause_seconds, models=SUV_MODELS)
 
 
 def to_json(board: DreamBoard) -> dict:

@@ -64,7 +64,7 @@ def _row(s, cfg: Config, groups: dict | None = None) -> dict:
     }
 
 
-def build(result, cfg: Config, dream: dict | None, store) -> dict:
+def build(result, cfg: Config, dream: dict | None, store, suv: dict | None = None) -> dict:
     """Assemble the document the page renders."""
     scored = [s for s in result.all_scored if s.listing.price]
     watched = [s for s in scored if s.tier]
@@ -98,6 +98,9 @@ def build(result, cfg: Config, dream: dict | None, store) -> dict:
         "watches": watches,
         "listings": [_row(s, cfg, groups) for s in watched],
         "dream": dream or {"rows": [], "counts": {}, "skipped": []},
+        # Cars.com rows for the SUV tab. No colour, no history, no VIN: the
+        # page marks them as Cars.com and never shows them as clean.
+        "suv_market": suv or {"rows": [], "counts": {}, "skipped": []},
     }
 
 
