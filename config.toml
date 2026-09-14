@@ -219,8 +219,8 @@ price_max = 40000
 body_styles = ["SUV", "Crossover", "Sedan", "Wagon"]
 exclude_base_trims = true
 threshold_pct = -8.0
-board_max_residual_pct = -6.0
-min_sigma = -2.0
+# No board bar: this lane is under twenty low-mileage cars, all worth seeing;
+# the Hertz sweep's bars exist because that lane is hundreds.
 poll_hours = 12
 alert_on_new = false
 new_max_residual_pct = 0.0
