@@ -442,9 +442,18 @@ new source is a silent baseline (`known_sources` in `run()`), so the first
 Avis poll stores 29 CX-50 Hybrids without 29 pushes.
 
 ## Pending / Next Steps
-- [ ] Enterprise Car Sales: capture the inventory search POST body from the
-      home page, replay with a mileage filter, and measure the under-25k share
-      before deciding whether a reader is worth it.
+- [ ] Enterprise Car Sales: measured and parked. Its search API is fully
+      replayable through Playwright's request API with the page's own headers
+      (anonymous bearer token from `generate-anonymous-access-token` with the
+      public `ehi-api-key`; POST `inventory/search/template` with
+      `{"id":"filter_search_template","params":{latitude, longitude, radius,
+      userZipcode, derivedBodyType:[["SUV"]], makeDescription:[["Mazda"]],
+      vehicleAvailableForSale:[["true"]], size, from}}`; hits carry VIN,
+      odometer, make/model/trim, year, exterior AND interior colour, mpg,
+      postal code, salePrice, KBB value, listDate). But within 300 mi: 988
+      cars, median 54,396 mi, 5% under 25k; 62 Mazdas, median 43k, no CX-50
+      Hybrid. Lorenzo's read ("Enterprise only sells high-mileage cars") holds.
+      Build a reader only if a low-mileage-only lane ever seems worth it.
 - [ ] The hazard's leaving rate is honest only for fully swept models; the
       CX-50 Hybrid is; the pooled table is a lower bound on survival.
 - [x] Issues enabled on `loremagno/hertz-deal-monitor` (Lorenzo, 2026-09-14);

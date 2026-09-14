@@ -19,7 +19,7 @@ Primary target a 2025+ Mazda CX-50 Hybrid; several secondary watches.
 | Byers Volvo (certified) | **works** | same Dealer.com reader, different base URL |
 | Byers Mazda | **works** | same; zero CX-70 stock at time of writing |
 | Avis Car Sales | **works** | Dealer.com like Hertz: `/used-inventory/index.htm`, `window.DDC.dataLayer`, server-side `odometer`/`model`/`year`; 1,594 cars on 2026-09-14, 26% under 25k miles, 29 CX-50 Hybrids; postal codes present; no Rent2Buy; delivery by the per-mile fallback |
-| Enterprise Car Sales | **explored, not read** | Not Dealer.com: an Elasticsearch API at `api.ehi.com/vehicle/sales/retail/inventory/search/template` behind an anonymous bearer token issued with a public `ehi-api-key`; 8,628 hits nationwide. Lorenzo's read is that its stock skews high-mileage. Request body not yet captured. |
+| Enterprise Car Sales | **measured, parked** | Elasticsearch API at `api.ehi.com/vehicle/sales/retail/inventory/search/template` (anonymous bearer token from the public `ehi-api-key`); replayable via Playwright's request API; rich hits (VIN, odometer, interior colour, KBB). Within 300 mi: 988 cars, median 54k miles, 5% under 25k; no CX-50 Hybrid. Not worth a reader for this buyer. |
 | Cars.com (search) | **works** | listings read from the page's own `<search-provider data-vehicle-array>` JSON (trim as written, VIN, price, mileage, exterior-colour bucket, seller zip, CPO flag); page size clamped to 24; one request per browser session; colour facets (`exterior_color_slugs[]`, `interior_color_slugs[]`) filter server-side |
 | CarMax | **works, real Chrome only** | `.kmx-car-tile__content` tiles |
 | Cars.com (detail pages) | **blocked** | Cloudflare "Attention Required" |
