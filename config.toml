@@ -154,6 +154,7 @@ group = "primary"
 label = "Mazda CX-50 Hybrid (Avis)"
 source = "avis"
 models = ["CX-50 Hybrid"]
+exclude_base_trims = true     # Avis stocks Preferred too; Hertz never did
 threshold_pct = -3.0
 national = true
 year_min = 2025
