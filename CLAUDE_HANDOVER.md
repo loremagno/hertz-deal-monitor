@@ -464,6 +464,12 @@ Avis poll stores 29 CX-50 Hybrids without 29 pushes.
       out, board at -6%/-2sigma). Enterprise cars are stored certified; the
       qualifies() wording names the 109-point inspection, 12/12 warranty and
       7-day repurchase. Distances from the postal code.
+      Cloud run 34883684141: the runner got the token, 17 cars under 25k
+      2024+ within 300 mi, 8 matched, all stored as a silent baseline (new
+      source). They did not show because the lane carried the sweep's
+      -6%/-2sigma board bar; removed (34a2329): a lane of under twenty
+      low-mileage cars is all worth seeing. Avis distances verified after
+      f049192 (Knoxville 299 mi, Orlando 800, Irving 917).
 - [ ] The hazard's leaving rate is honest only for fully swept models; the
       CX-50 Hybrid is; the pooled table is a lower bound on survival.
 - [x] Issues enabled on `loremagno/hertz-deal-monitor` (Lorenzo, 2026-09-14);
