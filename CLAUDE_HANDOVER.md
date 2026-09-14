@@ -144,6 +144,17 @@ tracking query string is stripped, and the page links the vehicle cell.
   source "cars.com" with condition "not checked (Cars.com)". First seed: 3
   cars, best a 2025 Plus, 11,534 mi, $34,900, Maumee OH (111 mi).
 
+- **CX-70 on Cars.com is on the SUV tab, not the wagon tab** (Lorenzo's
+  correction). `dream.SUV_MODELS` holds both XC60 and CX-70; the page
+  derives make/model from the row's own label, so a new SUV model needs no
+  page change. The wagon seed was stripped of its CX-70 rows and restamped.
+- **The very-discounted lane's bar now gates the BOARD, not just alerts.**
+  Its first run put 237 rows on the page, most priced above prediction
+  (an Atlas at +11.9%). `dashboard.build` drops a lane's rows unless they
+  clear the lane's `threshold_pct`; live after the fix: 12 rows, none above
+  −10.2%. Rule: a watch whose whole point is "only if very discounted" must
+  never list a car that is not.
+
 **Tab reorganisation (Lorenzo, 2026-09-13).** Every watch carries a
 `group`: `primary` (CX-50 Hybrid), `hertz` (Other Hertz finds: the named
 upgrade list daily, plus a curated **Broad Hertz finds** list every 48 h at
