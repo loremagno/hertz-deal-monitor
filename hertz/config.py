@@ -27,6 +27,10 @@ class WatchEntry:
 
     tier: str
     label: str
+    # Which dashboard tab this watch belongs to: "primary" (the CX-50
+    # Hybrid), "hertz" (other Hertz finds), or "suv" (XC60 and CX-70). The
+    # station-wagon tab is fed by the dream module, not by watches.
+    group: str = "hertz"
     models: list[str] = field(default_factory=list)
     makes: list[str] = field(default_factory=list)
     threshold_pct: float = -8.0
@@ -266,6 +270,7 @@ def load(path: Path = CONFIG_PATH) -> Config:
             poll_hours=float(w.get("poll_hours", 24.0)),
             max_pages=int(w.get("max_pages", 6)),
             source=str(w.get("source", "hertz")),
+            group=str(w.get("group", "hertz")),
             year_max=int(w.get("year_max", 9999)),
             alert_on_new=bool(w.get("alert_on_new", False)),
             new_max_residual_pct=float(w.get("new_max_residual_pct", 0.0)),

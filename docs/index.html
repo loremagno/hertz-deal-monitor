@@ -136,8 +136,20 @@
   </section>
 
   <section role="tabpanel" id="tab-watch" hidden>
+    <div class="note warn">The named upgrade list at Hertz (Atlas, GV70/80, Highlander Hybrid, CX-90,
+      Palisade 2026, V60), polled daily, cheapest page per model. Alerts only on an exceptional
+      discount. Clear "Away" for the whole country.</div>
     <div class="controls" id="watch-controls"></div>
     <div class="scroll"><table id="watch-table"></table></div>
+  </section>
+
+  <section role="tabpanel" id="tab-suv" hidden>
+    <div class="note warn"><b>Volvo XC60</b>: Plus only, 2024&ndash;25, from Byers (certified), CarMax and
+      Hertz. <b>Mazda CX-70</b>: 3.3 turbo, Premium or better, from Hertz and Byers Mazda. A
+      <span class="chip brown">brown interior</span> chip marks the interiors you like; "light brown"
+      marks the blond/beige ones you don't. Clear "Away" for the whole country.</div>
+    <div class="controls" id="suv-controls"></div>
+    <div class="scroll"><table id="suv-table"></table></div>
   </section>
 
   <section role="tabpanel" id="tab-dream" hidden>
@@ -200,14 +212,18 @@
     `Data as of <b>${gen.toLocaleString(undefined, {weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})}</b>` +
     (ageH > 6 ? ` <span class="stale">(${Math.round(ageH)} h old — the schedule may have stalled)</span>` : '') +
     ` · CX-50 Hybrid: <b>${target.length}</b> nationwide, <b>${target.filter(near).length}</b> within ${data.home.radius_miles} mi` +
-    ` · watchlist <b>${listings.filter(near).length}</b> cars · model n=${data.model.n}, log-RMSE ${data.model.log_rmse.toFixed(3)}` +
+    ` · <b>${listings.filter(near).length}</b> watched cars in range · model n=${data.model.n}, log-RMSE ${data.model.log_rmse.toFixed(3)}` +
     (data.skipped_sources.length ? ` · <span class="stale">skipped: ${esc(data.skipped_sources.join(', '))}</span>` : '');
 
   // ---- tabs -----------------------------------------------------------
+  // Four tabs, one per group. "group" comes from the watch entry in
+  // config.toml; the wagons come from the dream module, not from watches.
+  const byGroup = g => listings.filter(l => l.group === g);
   const TABS = [
     ['target', 'CX-50 Hybrid', target.filter(near).length],
-    ['watch', 'Watchlist', listings.filter(near).length],
-    ['dream', 'Dream cars', data.dream.rows.length],
+    ['watch', 'Other Hertz finds', byGroup('hertz').filter(near).length],
+    ['suv', 'SUV watch', byGroup('suv').filter(near).length],
+    ['dream', 'Station wagons', data.dream.rows.length],
     ['about', 'About', null],
   ];
   const tabs = $('#tabs');
@@ -372,16 +388,41 @@
     {key:'residual_pct', label:'vs model', right:true, fmt: resid},
     {key:'condition', label:'Condition', fmt: cond},
   ];
-  const watchTable = table($('#watch-table'), listings, WATCH_COLS, {sortKey:'landed', rowClass});
-  controls($('#watch-controls'), listings, [
-    {type:'select', key:'watch', label:'Watch'},
+  const hertzRows = byGroup('hertz');
+  const watchTable = table($('#watch-table'), hertzRows, WATCH_COLS, {sortKey:'landed', rowClass});
+  controls($('#watch-controls'), hertzRows, [
     {type:'select', key:'model', label:'Model'},
-    {type:'select', key:'source', label:'Source'},
     {type:'select', key:'type', label:'Type'},
     {type:'max', key:'distance', label:'Away', value: data.home.radius_miles},
     {type:'max', key:'miles', label:'Miles', placeholder:'35000'},
     {type:'max', key:'landed', label:'Landed', placeholder:'40000'},
   ], rows => watchTable.update(rows));
+
+  // ---- SUV tab ---------------------------------------------------------------
+  const SUV_COLS = [
+    {key:'label', label:'Vehicle', fmt: veh, cls:'veh'},
+    {key:'source', label:'Source'},
+    {key:'color', label:'Colour'},
+    {key:'interior', label:'Interior', fmt: (v, r) => r.interior_tier === 'mid'
+        ? `<span class="chip brown">${esc(v)}</span>` : r.interior_tier === 'light'
+        ? `<span class="chip dim">${esc(v)}</span>` : (v ? esc(v) : '<span class="dim">—</span>')},
+    {key:'lot', label:'Lot'},
+    {key:'distance', label:'Away', right:true, fmt: int},
+    {key:'miles', label:'Miles', right:true, fmt: int},
+    {key:'price', label:'Price', right:true, fmt: money},
+    {key:'landed', label:'Landed', right:true, fmt: v => `<b>${money(v)}</b>`},
+    {key:'residual_pct', label:'vs model', right:true, fmt: resid},
+    {key:'condition', label:'Condition', fmt: cond},
+  ];
+  const suvRows = byGroup('suv');
+  const suvTable = table($('#suv-table'), suvRows, SUV_COLS, {sortKey:'landed', rowClass});
+  controls($('#suv-controls'), suvRows, [
+    {type:'select', key:'model', label:'Model'},
+    {type:'select', key:'source', label:'Source'},
+    {type:'select', key:'interior_tier', label:'Interior'},
+    {type:'max', key:'distance', label:'Away', value: data.home.radius_miles},
+    {type:'max', key:'miles', label:'Miles', placeholder:'35000'},
+  ], rows => suvTable.update(rows));
 
   // ---- dream tab ---------------------------------------------------------------
   const DREAM_COLS = [

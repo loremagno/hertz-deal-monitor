@@ -18,7 +18,8 @@ from .config import Config
 from .score import interior_tier, preference_fit
 
 
-def _row(s, cfg: Config) -> dict:
+def _row(s, cfg: Config, groups: dict | None = None) -> dict:
+    groups = groups or {}
     l = s.listing
     report = s.autocheck
     if report is None:
@@ -50,6 +51,7 @@ def _row(s, cfg: Config) -> dict:
         "comps": s.comp_n,
         "tier": s.tier,
         "watch": s.matched_label,
+        "group": groups.get(s.matched_label, "hertz"),
         "condition": condition, "condition_kind": condition_kind,
         "fit": fit, "misses": misses,
         "days_on_lot": l.days_on_lot,
@@ -72,8 +74,10 @@ def build(result, cfg: Config, dream: dict | None, store) -> dict:
         "FROM runs WHERE ok = 1 ORDER BY id DESC LIMIT 1"
     ).fetchone()
 
+    groups = {w.label: w.group for w in cfg.watch}
     watches = [
         {"label": w.label, "tier": w.tier, "source": w.source, "models": w.models,
+         "group": w.group,
          "poll_hours": w.poll_hours, "year_min": w.year_min or None,
          "year_max": None if w.year_max >= 9999 else w.year_max,
          "odometer_max": None if w.odometer_max >= 10**8 else w.odometer_max,
@@ -92,7 +96,7 @@ def build(result, cfg: Config, dream: dict | None, store) -> dict:
         "last_run": dict(last_run) if last_run else None,
         "skipped_sources": [label for label, _ in getattr(result, "failed_entries", [])],
         "watches": watches,
-        "listings": [_row(s, cfg) for s in watched],
+        "listings": [_row(s, cfg, groups) for s in watched],
         "dream": dream or {"rows": [], "counts": {}, "skipped": []},
     }
 

@@ -120,6 +120,27 @@ Country are wagon-only badges. **Rows are clickable**: the card reader
 text-only `CARD_TEXT` never did, which is why nothing was clickable), the
 tracking query string is stripped, and the page links the vehicle cell.
 
+**Tab reorganisation (Lorenzo, 2026-09-13).** Every watch carries a
+`group`: `primary` (CX-50 Hybrid), `hertz` (Other Hertz finds: the named
+upgrade list daily, plus a curated **Broad Hertz finds** list every 48 h at
+2 pages/model), `suv` (XC60 Plus-only 2024–25 from Byers/CarMax/Hertz;
+CX-70 3.3 **Premium or better** from Hertz/Byers, brown interior flagged),
+and the station-wagon tab fed by `dream.py`. The page buckets rows by
+`group` into four tabs. `require_trims` is **any-of**: `["Premium"]` admits
+Premium Sport / Premium Plus / S Premium and excludes Preferred; my first
+draft `["3.3","Premium"]` would have admitted "3.3 Turbo Preferred".
+Verified against the real trim strings.
+
+**"Scan the full Hertz inventory for $28–35k finds" was rejected on the
+numbers**: that band is 10,551 cars (440 pages) of Blazers, Rogues and
+Tiguans, and `geoRadius` is silently ignored, so it cannot be narrowed
+server-side. Hence the curated broad list instead.
+
+**V60 Cross Country is its own model everywhere** (Hertz: 3 in stock, e.g.
+a 2025 B5 Plus at $32,249; Cars.com slug `volvo-v60_cross_country`: 11
+under $47k). The plain "V60" returned zero on both — the CX-50 / CX-50
+Hybrid trap again. Both fixed.
+
 **Brown interiors (Lorenzo, 2026-09-13: "absolute sucker for brown/light
 brown, but not super light")**: `score.interior_tier()` classifies the
 seller's interior string into `mid` (brown/cognac/caramel/saddle/tan…, the

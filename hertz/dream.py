@@ -66,7 +66,10 @@ DREAM_MODELS = [
     DreamModel("Audi A6 allroad", "audi", "audi-a6_allroad"),
     DreamModel("Audi A4 allroad", "audi", "audi-a4_allroad", radius_miles=300),
     DreamModel("Volvo V90 Cross Country", "volvo", "volvo-v90_cross_country"),
-    DreamModel("Volvo V60", "volvo", "volvo-v60", extra_query=WAGON),
+    # "V60 Cross Country" is its own model on Cars.com, exactly as it is on
+    # Hertz -- the same trap as CX-50 vs CX-50 Hybrid. The plain "volvo-v60"
+    # slug with the wagon filter returned zero even uncapped.
+    DreamModel("Volvo V60 Cross Country", "volvo", "volvo-v60_cross_country"),
     DreamModel("Mercedes E-Class All-Terrain", "mercedes_benz", "mercedes_benz-e_class",
                body_markers=("wagon", "all-terrain", "all terrain", "estate"),
                extra_query=WAGON),

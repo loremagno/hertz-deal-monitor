@@ -102,6 +102,7 @@ search_path = "/certified-inventory/index.htm"   # certified pre-owned only
 
 [[watch]]
 tier = "A"
+group = "primary"
 label = "Mazda CX-50 Hybrid"
 source = "hertz"
 models = ["CX-50 Hybrid"]
@@ -109,71 +110,40 @@ threshold_pct = -3.0
 national = true
 year_min = 2025
 odometer_max = 35000
-# 61 cars nationally, three pages: cheap enough to re-poll every run.
 poll_hours = 0.25
 max_pages = 10
-# Tell me about every new one, not only the underpriced ones.
 alert_on_new = true
 new_max_residual_pct = 3.0
 
+# ---------------------------------------------------------------------------
+# Other Hertz finds: the named upgrade list, polled daily.
+# ---------------------------------------------------------------------------
+
 [[watch]]
 tier = "B"
-label = "Opportunistic upgrades"
+group = "hertz"
+label = "Other Hertz finds"
 source = "hertz"
-# Checked against live inventory on 2026-09-08. Counts were:
-#   Palisade 100, Atlas 66, GV80 29, CX-90 25, CX-70 2, Highlander Hybrid 1.
-# XC60 and GV70 are NOT in Hertz's fleet at all, and Volvo's entire national
-# inventory is four cars (S60, V60 Cross Country, XC40). The XC60 and GV70
-# entries are kept deliberately: a model query that matches nothing today
-# costs one page load and will catch the car the moment one arrives.
 models = [
-    "XC60", "V60 Cross Country",  # Volvo — XC60 not currently stocked
     "Atlas",                      # Volkswagen
-    "GV70", "GV80",               # Genesis — GV70 not currently stocked
+    "GV70", "GV80",               # Genesis
     "Highlander Hybrid",          # Toyota
-    "CX-70", "CX-90",             # Mazda
+    "CX-90",                      # Mazda
+    "V60", "V60 Cross Country",   # Volvo: the V60 has appeared at Hertz before
 ]
 threshold_pct = -8.0
 national = false
 year_min = 2024
 odometer_max = 35000
-# Including Rent2Buy makes these models enormous (Palisade alone is 1,100+
-# vehicles / 49 pages). This tier only fires on an exceptional discount and
-# results come back cheapest-first, so a daily, page-capped sweep of the
-# cheap end is the right trade. Truncation is always logged, never silent.
 poll_hours = 8
 max_pages = 5
-# New arrivals count here too, but only if priced at or under prediction.
 alert_on_new = true
 new_max_residual_pct = 0.0
-# Only bother with better-equipped cars; a base trim is not an upgrade.
 exclude_trims = ["Base", "SE Base"]
 
 [[watch]]
-tier = "A"
-label = "Byers certified XC60"
-source = "byers-volvo"
-models = ["XC60"]
-# Plus or Ultra only; Core is not the car.
-require_trims = ["Plus", "Ultra"]
-market_make = "volvo"
-market_slug = "volvo-xc60"
-# Byers is 15 minutes away and every car here is factory-certified with a
-# 5-year unlimited-mile warranty from original in-service date, which is a
-# different risk profile from an ex-rental. Worth knowing about on arrival
-# rather than only when it looks cheap.
-threshold_pct = -2.0
-national = false
-year_min = 2024
-year_max = 2025
-odometer_max = 35000
-poll_hours = 2
-max_pages = 3
-alert_on_new = true
-new_max_residual_pct = 99.0   # any new certified XC60 in range is news
-
-[[watch]]
 tier = "B"
+group = "hertz"
 label = "Hyundai Palisade (2026 only)"
 source = "hertz"
 models = ["Palisade"]
@@ -185,25 +155,64 @@ max_pages = 5
 alert_on_new = true
 new_max_residual_pct = 0.0
 
-# --- side quest: CX-70, gray outside, brown inside --------------------------
-# Interior colour is only available from Dealer.com sources. Cars.com result
-# cards carry no colour at all and its detail pages return a Cloudflare
-# challenge, so it cannot serve this search however convenient it would be.
-# Hertz and Byers Mazda both expose exteriorColor and interiorColor directly.
+# ---------------------------------------------------------------------------
+# Broad Hertz finds: a wider net for a nice, underpriced car in the
+# $28-35k band. NOT the whole catalogue: that band is 10,551 cars (440
+# pages) of Blazers, Rogues and Tiguans, and geoRadius is silently ignored,
+# so "scan everything" is noise. This is a curated list of models Lorenzo
+# would plausibly want, polled every two days, cheapest page each, and it
+# alerts only on an exceptional discount. Add or drop models freely.
+# ---------------------------------------------------------------------------
+
+[[watch]]
+tier = "B"
+group = "hertz"
+label = "Broad Hertz finds"
+source = "hertz"
+models = [
+    "CX-50",                       # the gas sibling of the target
+    "CX-5", "CX-90 PHEV",
+    "RAV4 Hybrid", "Highlander", "Sienna", "Camry Hybrid",
+    "CR-V Hybrid", "Accord Hybrid",
+    "Santa Fe Hybrid", "Tucson Hybrid", "Sorento Hybrid", "Sportage Hybrid",
+    "Outback", "Forester",
+    "XC40", "S60",
+    "Q5", "A4", "A6",
+    "GLC", "C-Class",
+    "X3", "3 Series",
+]
+threshold_pct = -8.0
+national = false
+year_min = 2024
+odometer_max = 35000
+poll_hours = 48
+max_pages = 2
+alert_on_new = false
+new_max_residual_pct = 0.0
+exclude_trims = ["Base", "SE Base", "LX", "S "]
+
+# ---------------------------------------------------------------------------
+# SUV watchlist: XC60 (Plus only, 2024-25) and CX-70 (3.3, Premium or better).
+# Brown interiors are flagged on the board by score.interior_tier; the CX-70
+# entries below no longer REQUIRE brown, they prefer it. Mazda's 3.3 ladder
+# is Preferred < Premium Sport < Premium Plus / S Premium, so requiring
+# "3.3" and "Premium" admits every trim above Preferred.
+# ---------------------------------------------------------------------------
 
 [[watch]]
 tier = "A"
-label = "CX-70 gray/brown (Hertz)"
-source = "hertz"
-models = ["CX-70"]
-market_make = "mazda"
-market_slug = "mazda-cx_70"
+group = "suv"
+label = "Byers certified XC60"
+source = "byers-volvo"
+models = ["XC60"]
+require_trims = ["Plus"]
+market_make = "volvo"
+market_slug = "volvo-xc60"
 threshold_pct = -2.0
+national = false
 year_min = 2024
+year_max = 2025
 odometer_max = 35000
-require_exterior = ["gray", "grey", "machine", "polymetal", "titanium"]
-# Whole-word matching in code: "tan" must not match "Titan Black".
-require_interior = ["brown", "tan", "terracotta", "russet", "mocha", "cognac", "caramel", "saddle", "chestnut", "amber", "tobacco", "nougat", "walnut"]
 poll_hours = 2
 max_pages = 3
 alert_on_new = true
@@ -211,35 +220,71 @@ new_max_residual_pct = 99.0
 
 [[watch]]
 tier = "A"
-label = "CX-70 gray/brown (Byers Mazda)"
-source = "byers-mazda"
-models = ["CX-70"]
-market_make = "mazda"
-market_slug = "mazda-cx_70"
-threshold_pct = -2.0
-year_min = 2024
-odometer_max = 35000
-require_exterior = ["gray", "grey", "machine", "polymetal", "titanium"]
-# Whole-word matching in code: "tan" must not match "Titan Black".
-require_interior = ["brown", "tan", "terracotta", "russet", "mocha", "cognac", "caramel", "saddle", "chestnut", "amber", "tobacco", "nougat", "walnut"]
-poll_hours = 3
-max_pages = 3
-alert_on_new = true
-new_max_residual_pct = 99.0
-
-[[watch]]
-tier = "A"
+group = "suv"
 label = "CarMax XC60"
 source = "carmax"
 models = ["XC60"]
-require_trims = ["Plus", "Ultra"]
+require_trims = ["Plus"]
 carmax_make = "volvo"
 carmax_model = "xc60"
 market_make = "volvo"
 market_slug = "volvo-xc60"
 threshold_pct = -2.0
 year_min = 2024
+year_max = 2025
 odometer_max = 35000
 poll_hours = 3
+alert_on_new = true
+new_max_residual_pct = 99.0
+
+[[watch]]
+tier = "A"
+group = "suv"
+label = "Hertz XC60"
+source = "hertz"
+models = ["XC60"]
+require_trims = ["Plus"]
+market_make = "volvo"
+market_slug = "volvo-xc60"
+threshold_pct = -2.0
+year_min = 2024
+year_max = 2025
+odometer_max = 35000
+poll_hours = 2
+max_pages = 3
+alert_on_new = true
+new_max_residual_pct = 99.0
+
+[[watch]]
+tier = "A"
+group = "suv"
+label = "CX-70 (Hertz)"
+source = "hertz"
+models = ["CX-70"]
+require_trims = ["Premium"]   # any-of: "Premium Sport", "Premium Plus", "S Premium"; excludes Preferred
+market_make = "mazda"
+market_slug = "mazda-cx_70"
+threshold_pct = -2.0
+year_min = 2024
+odometer_max = 35000
+poll_hours = 2
+max_pages = 3
+alert_on_new = true
+new_max_residual_pct = 99.0
+
+[[watch]]
+tier = "A"
+group = "suv"
+label = "CX-70 (Byers Mazda)"
+source = "byers-mazda"
+models = ["CX-70"]
+require_trims = ["Premium"]   # any-of: "Premium Sport", "Premium Plus", "S Premium"; excludes Preferred
+market_make = "mazda"
+market_slug = "mazda-cx_70"
+threshold_pct = -2.0
+year_min = 2024
+odometer_max = 35000
+poll_hours = 3
+max_pages = 3
 alert_on_new = true
 new_max_residual_pct = 99.0
