@@ -470,6 +470,13 @@ Avis poll stores 29 CX-50 Hybrids without 29 pushes.
       -6%/-2sigma board bar; removed (34a2329): a lane of under twenty
       low-mileage cars is all worth seeing. Avis distances verified after
       f049192 (Knoxville 299 mi, Orlando 800, Irving 917).
+      Two more fixes from the first Enterprise board: the Enterprise pass
+      runs outside collect(), so its cars reached the board with no distance
+      (bf6eeb3: geocoded in the pass); and the hedonic dropped the
+      alphabetically FIRST model as its reference category, so a one-row
+      "Audi Q4 e-tron" had no dummy and read +9.9% against the pooled
+      intercept (5fb3989: the reference is the largest model, Kia Sportage
+      with 286 rows; thin models now get an honest "—").
 - [ ] The hazard's leaving rate is honest only for fully swept models; the
       CX-50 Hybrid is; the pooled table is a lower bound on survival.
 - [x] Issues enabled on `loremagno/hertz-deal-monitor` (Lorenzo, 2026-09-14);
