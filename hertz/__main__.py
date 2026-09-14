@@ -12,7 +12,7 @@ import logging
 import sys
 from datetime import datetime, timedelta
 
-from . import artifact, board, config, dashboard, notify, pipeline
+from . import artifact, board, clock, config, dashboard, notify, pipeline
 from .score import rank
 from .store import Store
 
@@ -79,7 +79,7 @@ def due_for_digest(store: Store, every_days: int) -> bool:
     if not last:
         return True
     try:
-        return datetime.now() - datetime.fromisoformat(last) >= timedelta(days=every_days)
+        return clock.now() - datetime.fromisoformat(last) >= timedelta(days=every_days)
     except ValueError:
         return True
 
@@ -172,7 +172,7 @@ def main(argv: list[str] | None = None) -> int:
                               and (cache_time is None or seed_time > cache_time))
                 if seed_doc.get("rows") and (not cached_rows or seed_newer):
                     cached = seed
-                    stamp = (seed_time or datetime.now()).isoformat(timespec="seconds")
+                    stamp = (seed_time or clock.now()).isoformat(timespec="seconds")
                     store.set_meta("dream_json", seed)
                     store.set_meta("dream_at", stamp)
                     logger.info("Dream tab: adopted the committed seed (%s)",
@@ -182,7 +182,7 @@ def main(argv: list[str] | None = None) -> int:
         fresh = False
         if stamp:
             try:
-                fresh = datetime.now() - datetime.fromisoformat(stamp) < timedelta(hours=12)
+                fresh = clock.now() - datetime.fromisoformat(stamp) < timedelta(hours=12)
             except ValueError:
                 fresh = False
         if cached and fresh and not args.dream:
@@ -200,7 +200,7 @@ def main(argv: list[str] | None = None) -> int:
                 rows = [r for r in old["rows"] if r["model"] not in answered] + fresh_doc["rows"]
                 counts = {**old.get("counts", {}), **fresh_doc["counts"]}
                 rows.sort(key=lambda r: (r["market_pct"] is None, r["market_pct"] or 0.0, r["price"]))
-                now_iso = datetime.now().isoformat(timespec="seconds")
+                now_iso = clock.now_iso()
                 dream_doc = {"rows": rows, "counts": counts, "skipped": fresh_doc["skipped"],
                              "seeded_at": now_iso}
                 store.set_meta("dream_json", json.dumps(dream_doc))
@@ -240,7 +240,7 @@ def main(argv: list[str] | None = None) -> int:
                 stt = datetime.fromisoformat(st_) if st_ else None
                 if sd.get("rows") and (not suv_has_rows or (stt and (ct_ is None or stt > ct_))):
                     suv_cached = json.dumps(sd)
-                    suv_stamp = (stt or datetime.now()).isoformat(timespec="seconds")
+                    suv_stamp = (stt or clock.now()).isoformat(timespec="seconds")
                     store.set_meta("suv_json", suv_cached)
                     store.set_meta("suv_at", suv_stamp)
                     logger.info("SUV sweep: adopted the committed seed")
@@ -249,7 +249,7 @@ def main(argv: list[str] | None = None) -> int:
         suv_fresh = False
         if suv_stamp:
             try:
-                suv_fresh = datetime.now() - datetime.fromisoformat(suv_stamp) < timedelta(hours=12)
+                suv_fresh = clock.now() - datetime.fromisoformat(suv_stamp) < timedelta(hours=12)
             except ValueError:
                 suv_fresh = False
         if suv_cached and suv_fresh and not args.dream:
@@ -262,7 +262,7 @@ def main(argv: list[str] | None = None) -> int:
                 answered = set(fresh_suv["counts"])
                 rows = [r for r in old["rows"] if r["model"] not in answered] + fresh_suv["rows"]
                 rows.sort(key=lambda r: (r["market_pct"] is None, r["market_pct"] or 0.0, r["price"]))
-                now_iso = datetime.now().isoformat(timespec="seconds")
+                now_iso = clock.now_iso()
                 suv_doc = {"rows": rows, "counts": {**old.get("counts", {}), **fresh_suv["counts"]},
                            "skipped": fresh_suv["skipped"], "seeded_at": now_iso}
                 store.set_meta("suv_json", json.dumps(suv_doc))
@@ -340,7 +340,7 @@ def main(argv: list[str] | None = None) -> int:
                     cfg, f"Hertz board: {count} watchlist cars, {len(result.alerts)} alerts",
                     board_html,
                 )
-                store.set_meta("last_digest_at", datetime.now().isoformat(timespec="seconds"))
+                store.set_meta("last_digest_at", clock.now_iso())
 
     if not args.quiet:
         print_summary(result, cfg)

@@ -25,7 +25,7 @@ from datetime import datetime
 
 import requests
 
-from . import notify
+from . import clock, notify
 from .config import Config
 from .store import Store
 
@@ -256,7 +256,7 @@ def run(cfg: Config, store: Store, dream_doc: dict | None, suv_doc: dict | None,
             if r.get("vin"):
                 market[r["vin"]] = r
 
-    now = datetime.now().isoformat(timespec="seconds")
+    now = clock.now_iso()
     reported = 0
     for f in follows:
         cur = _current(store, f.key, market)

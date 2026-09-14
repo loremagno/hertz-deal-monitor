@@ -372,6 +372,21 @@ the sweep; a Tiguan SE at −8.0% / −2.0 sigma survives. Local dry run
 otherwise clean: first sweep recorded the baseline, curves cached, board
 624 rows.
 
+**Cloud run 34807668912 (forced, 04:53 UTC): monitor green, persist step
+FAILED** on a rebase conflict (a 27-second cron run had pushed its snapshot
+seconds earlier; binary DB + data.json conflict), so the sweep's snapshot
+was lost and the live board stayed on the cron run's output. Fixed with
+`git pull --rebase -X theirs` and three attempts in the workflow. The run
+also fired a value alert (push + email) for a 2026 Palisade SEL at $37,329
+under the new fit: within-Hertz benchmark, Palisade sigma ~0.026, so −8% is
+about −3 sigma there; locally the cheapest 2026 SELs sit at −6.3%. Not a
+bug, a tight model. Two more fixes from the run: the committed CX-70 curve
+was not adopted because local seeds carried Eastern time and the runner
+compares UTC (now `hertz/clock.py`, all cross-machine stamps naive UTC;
+existing seeds' stamps shifted +4 h; curve cache key bumped to `:v2` for
+the 0-3 trim scale), and unlabelled trims get a missing-label dummy (the
+Highlander case above).
+
 ## Pending / Next Steps
 - [x] Issues enabled on `loremagno/hertz-deal-monitor` (Lorenzo, 2026-09-14);
       the run reports `follow.enabled: true`. Nothing followed yet: the first

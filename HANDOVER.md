@@ -109,7 +109,10 @@ linear age term: the first-year drop is a cliff, and a straight line through
 2024-2026 once priced a 2025 above its MSRP. `trim_tier` is the make's own
 ladder (`hertz/trims.py`: Audi Premium = base, Mazda Premium = third rung,
 Volvo Core/Plus/Ultra, Hyundai SE/SEL/Limited/Calligraphy, ...), 0 to 3,
-1.5 when unrecognised. The ridge is numerical only (10⁻⁶·N): the earlier
+1.5 when unrecognised, plus a missing-label indicator: 30 of Hertz's 72
+Highlanders are unlabelled Rent2Buy units at a median $36k against $40.7k
+for the labelled lot cars, and without the indicator every one read as a
+15% bargain. The ridge is numerical only (10⁻⁶·N): the earlier
 10⁻³·N shrank every model dummy towards the reference model's level, a ~6%
 bias for a nine-row model 60% dearer than the reference. Typical fit on
 2026-09-14: N = 982, 25 models, leave-one-out log-RMSE 0.040; −3.9% per 10k
@@ -234,6 +237,14 @@ score and render without sending anything.
   need a fresh browser per page (the second request in a session is blocked)
   and is not done; 24 same-model, same-years cars with real trims is enough
   for a three-parameter curve, and the caveat is on the board.
+- **Every stamp that crosses machines is naive UTC** (`hertz/clock.py`).
+  Seeds are made in Ohio and adopted on a UTC runner; naive local time made
+  a seed refit at 00:23 Eastern look older than a runner fetch at 03:33 UTC
+  an hour earlier, and the committed CX-70 curve was never adopted.
+- **The persist step resolves a concurrent-snapshot conflict in its own
+  favour** (`git pull --rebase -X theirs`, three attempts): two runs close
+  together both commit the binary database, and a plain rebase stopped on
+  the conflict and lost a full sweep (run 34807668912).
 - **Following needs Issues enabled on the repo** (`has_issues` was false on
   2026-09-13). Until then the page keeps stars in the browser and says so.
 - **Cars.com from a datacenter IP allows about one request** before

@@ -24,7 +24,7 @@ from dataclasses import dataclass
 
 from .config import Config, WatchEntry
 from .models import AutoCheck, Listing, Scored
-from .trims import trim_tier
+from .trims import UNKNOWN as TRIM_UNKNOWN, trim_tier
 
 logger = logging.getLogger(__name__)
 
@@ -130,19 +130,26 @@ class Hedonic:
     doc_fee: int
 
     def features(self, listing: Listing) -> list[float] | None:
-        """Design row: [1, odo, odo^2, model-year dummies, trim tier, rent2buy, model dummies].
+        """Design row: [1, odo, odo^2, model-year dummies, trim tier, trim unknown,
+        rent2buy, model dummies].
 
         Model-year dummies rather than a linear age: the first-year drop is
         a cliff, and a straight line through 2024-2026 priced a 2025 above
         its MSRP. `trim_tier` is the make's own ladder, so Audi's "Premium"
-        (its base) and Mazda's (its third rung) no longer share a value.
+        (its base) and Mazda's (its third rung) no longer share a value. A
+        car with no trim label at all gets the missing-label indicator: 30
+        of Hertz's 72 Highlanders are unlabelled Rent2Buy units at a median
+        $36k against $40.7k for the labelled LE/XSE lot cars, and reading
+        them as mid-ladder made every one of them a 15% "bargain".
         """
         if listing.odometer is None or not listing.year:
             return None
         odo = listing.odometer / 10000.0
         row = [1.0, odo, odo * odo]
         row.extend(1.0 if listing.year == y else 0.0 for y in self.year_keys)
-        row.append(trim_tier(listing.trim, listing.make))
+        tier = trim_tier(listing.trim, listing.make)
+        row.append(tier)
+        row.append(1.0 if tier == TRIM_UNKNOWN else 0.0)
         row.append(1.0 if listing.is_rent2buy else 0.0)
         key = _normalize_model(listing)
         row.extend(1.0 if key == mk else 0.0 for mk in self.model_keys)

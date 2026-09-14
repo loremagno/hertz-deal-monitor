@@ -1,8 +1,8 @@
 {
- "seeded_at": "2026-09-14T00:23:22",
+ "seeded_at": "2026-09-14T04:23:22",
  "curves": {
-  "market_curve:volvo-xc60:y2024": {
-   "fetched_at": "2026-09-14T00:23:22",
+  "market_curve:volvo-xc60:y2024:v2": {
+   "fetched_at": "2026-09-14T04:23:22",
    "year_min": 2024,
    "curve": {
     "intercept": 10.842814842359706,
@@ -22,8 +22,8 @@
     "per_certified": 0.03860664270514086
    }
   },
-  "market_curve:mazda-cx_70:y2024": {
-   "fetched_at": "2026-09-14T00:23:22",
+  "market_curve:mazda-cx_70:y2024:v2": {
+   "fetched_at": "2026-09-14T04:23:22",
    "year_min": 2024,
    "curve": {
     "intercept": 10.616092613213336,

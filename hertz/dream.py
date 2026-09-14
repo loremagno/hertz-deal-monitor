@@ -253,9 +253,9 @@ def to_json(board: DreamBoard) -> dict:
     seed out-ranks the runner's cache, and it must live in the file because
     a fresh checkout resets every mtime.
     """
-    from datetime import datetime
+    from . import clock
     return {
-        "seeded_at": datetime.now().isoformat(timespec="seconds"),
+        "seeded_at": clock.now_iso(),
         "counts": board.counts,
         "skipped": board.skipped,
         "rows": [

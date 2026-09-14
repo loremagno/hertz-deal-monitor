@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 from . import autocheck as autocheck_mod
 from . import benchmark as bm
 from . import carmax as carmax_mod
-from . import geo, ingest, score
+from . import clock, geo, ingest, score
 from .config import Config
 from .models import Listing, Scored
 from .store import Store
@@ -52,7 +52,9 @@ def market_curve_targets(cfg: Config) -> dict:
 def _curve_cache_key(slug: str, year_min: int) -> str:
     # The year is part of the key so a curve fitted on the unfiltered
     # market is never reused once the filter changes.
-    return f"market_curve:{slug}:y{year_min or 'all'}"
+    # v2: the trim tier moved to the make ladders' 0-3 scale, and a curve
+    # fitted on the old 0-2 scale mispredicts by a rung.
+    return f"market_curve:{slug}:y{year_min or 'all'}:v2"
 
 
 def _curve_payload(text: str | None) -> dict | None:
@@ -110,7 +112,7 @@ def market_curves(session, cfg: Config, store: Store, max_age_hours: float = 24.
         cache_key = _curve_cache_key(slug, year_min)
         cached = _curve_payload(store.get_meta(cache_key))
         if cached is not None:
-            age = datetime.now() - datetime.fromisoformat(cached["fetched_at"])
+            age = clock.now() - datetime.fromisoformat(cached["fetched_at"])
             if age < timedelta(hours=max_age_hours):
                 curves[model_key] = bm.MarketCurve(**cached["curve"])
                 logger.info("Market curve for %s: cached (n=%d, %.0f h old)",
@@ -130,7 +132,7 @@ def market_curves(session, cfg: Config, store: Store, max_age_hours: float = 24.
             continue
         curves[model_key] = curve
         store.set_meta(cache_key, json.dumps({
-            "fetched_at": datetime.now().isoformat(timespec="seconds"),
+            "fetched_at": clock.now_iso(),
             "year_min": year_min,
             "curve": curve.__dict__,
         }))
@@ -149,7 +151,7 @@ def refresh_market_curves(cfg: Config, store: Store, pause_seconds: float = 45.0
     prediction by two points; three pages is 70-odd cars and a steadier
     curve. A model that fails keeps its previous seed entry.
     """
-    now = datetime.now().isoformat(timespec="seconds")
+    now = clock.now_iso()
     seed: dict = {"seeded_at": now, "curves": {}}
     first = True
     for (make, slug), (model_key, year_min) in market_curve_targets(cfg).items():
@@ -292,7 +294,7 @@ def _entry_due(store: Store, entry) -> bool:
     if not last:
         return True
     try:
-        elapsed = datetime.now() - datetime.fromisoformat(last)
+        elapsed = clock.now() - datetime.fromisoformat(last)
     except ValueError:
         return True
     # A 15-minute tolerance: the cron fires at a fixed minute and the window
@@ -302,7 +304,7 @@ def _entry_due(store: Store, entry) -> bool:
 
 
 def _mark_entry_polled(store: Store, entry) -> None:
-    store.set_meta(_poll_key(entry), datetime.now().isoformat(timespec="seconds"))
+    store.set_meta(_poll_key(entry), clock.now_iso())
 
 
 @dataclass
@@ -524,7 +526,7 @@ def run(cfg: Config, dry_run: bool = False, force: bool = False) -> RunResult:
             # run records the baseline silently; arrivals count from the next.
             first_sweep = sweeps and not store.get_meta("sweep_baseline_at")
             if sweeps and first_sweep:
-                store.set_meta("sweep_baseline_at", datetime.now().isoformat(timespec="seconds"))
+                store.set_meta("sweep_baseline_at", clock.now_iso())
                 logger.info("First sweep: recording the model baseline, no new-model push")
             if sweeps and not seeding and not first_sweep:
                 known = store.known_models("hertz")

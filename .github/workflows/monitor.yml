@@ -119,8 +119,17 @@ jobs:
             echo "No inventory changes to record."
           else
             git commit -m "Record inventory snapshot $(date -u '+%Y-%m-%d %H:%M UTC') [skip ci]"
-            git pull --rebase --autostash origin "${GITHUB_REF_NAME}"
-            git push
+            # Two runs close together both commit the binary database and
+            # the board, and a plain rebase then stops on a conflict that no
+            # one is there to resolve (run 34807668912 lost a full sweep that
+            # way). This run's snapshot is the later and fuller one, so on a
+            # conflict it wins: "theirs" is our own commit during a rebase.
+            for attempt in 1 2 3; do
+              git pull --rebase --autostash -X theirs origin "${GITHUB_REF_NAME}" && git push && break
+              echo "push attempt $attempt failed; retrying"
+              git rebase --abort 2>/dev/null || true
+              sleep 20
+            done
           fi
 
       - name: Report a dead run
