@@ -196,13 +196,22 @@ missing" lost to an empty `{"rows": []}` cache; "adopt when the cache has
 no rows" lost to a stale 26-row uncapped cache. Both are reproduced in
 the commit messages.
 
+**Empty-fetch retry** (`ingest.fetch_model_nationwide`): an empty page is
+retried once after 20 s before being reported. The CX-50 Hybrid came back 0
+twice in eight cloud runs while every other model answered; the guard held
+both times, but a retry recovers the common case instead of only
+protecting against it.
+
 ## Pending / Next Steps
-- [ ] **Lorenzo, as `loremagno`**: make the repo public and enable Pages
-      (Settings → Pages → branch `main`, folder `/docs`). Both returned 404
-      to the collaborator token. URL will be
-      `https://loremagno.github.io/hertz-deal-monitor/`. Until then the
-      page can be previewed locally: `python -m http.server 8765 --directory docs`
-      (`.claude/launch.json` has it as `docs`).
+- [x] **Site is public and live**: `https://loremagno.github.io/hertz-deal-monitor/`
+      (Lorenzo did both admin clicks as `loremagno`, 2026-09-13). Four tabs:
+      CX-50 Hybrid / Other Hertz finds / SUV watch / Station wagons.
+- [ ] The broad-finds list is a first guess at "cars Lorenzo would want";
+      many of its 24 models matched nothing at Hertz (A4, A6, Q5, GLC, X3,
+      3 Series, CR-V/Camry/Sorento/Sportage Hybrid, Forester, CX-90 PHEV).
+      Prune or extend on his say-so. Each costs one page load per 48 h.
+- [ ] CX-70 rule works but currently admits nothing: Hertz's two are
+      Preferred (excluded), Byers Mazda has none. It will fire on arrival.
 - [x] Zero-fetch guard verified live: a later run hit `Atlas=0` (throttled
       page) and total listings held at 512 instead of 119 Atlases being
       marked sold.
