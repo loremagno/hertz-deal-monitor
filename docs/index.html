@@ -153,9 +153,11 @@
   <section role="tabpanel" id="tab-suv" hidden>
     <div class="note warn"><b>Volvo XC60</b>: Plus only, 2024&ndash;25, from Byers (certified), CarMax,
       Hertz and Cars.com within 300 mi. <b>Mazda CX-70</b>: 3.3 turbo, Premium or better, from Hertz
-      and Byers Mazda, plus every CX-70 on Cars.com within 300 mi (Cars.com abbreviates trims, so the
-      Premium rule cannot be applied there). Cars.com rows carry no colour or history and "landed"
-      there is the asking price alone. A
+      and Byers Mazda, plus the CX-70 on Cars.com within 300 mi: Premium and Premium Plus, Turbo and
+      Turbo S, Preferred dropped. Some dealers list only an abbreviation ("PR", "PF") that cannot be
+      read; those rows stay, marked <span class="chip warn">trim?</span>, so open the listing before
+      trusting them. Cars.com rows carry no colour or history and "landed" there is the asking price
+      alone. A
       <span class="chip brown">brown interior</span> chip marks the interiors you like; "light brown"
       marks the blond/beige ones you don't. Clear "Away" for the whole country.</div>
     <div class="controls" id="suv-controls"></div>
@@ -321,7 +323,10 @@
     return { update(newRows) { rows = newRows; render(); } };
   }
   const cond = (v, r) => `<span class="${r.condition_kind === 'clean' ? 'good' : r.condition_kind === 'bad' ? 'badv' : 'dim'}">${esc(v)}</span>`;
-  const veh = (v, r) => `<a href="${esc(r.url)}">${esc(r.year)} ${esc(r.make)} ${esc(r.model)}</a>` +
+  // Every listing link opens in a new tab: the wagon tab already did, the
+  // other three tables did not, and losing the board on each click is the
+  // wrong default for a page you scan.
+  const veh = (v, r) => `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.year)} ${esc(r.make)} ${esc(r.model)}</a>` +
       (r.tier === 'A' ? ' <span class="chip pass">A</span>' : '') +
       (r.type === 'certified' ? ' <span class="chip pass">cert</span>' : r.type === 'rent2buy' ? ' <span class="chip r2b">R2B</span>' : '') +
       (r.fit >= 3 ? ' <span class="chip pass">fit</span>' : '') +
@@ -400,7 +405,7 @@
           <div style="display:flex;flex-direction:column;gap:10px">
             <ul class="why">${r.reasons.map(x => `<li>${esc(x)}</li>`).join('')}</ul>
             ${r.type === 'rent2buy' ? '<div class="note warn">Still in the rental fleet: mileage and price are estimates, the car may be out on rent, and you collect it at the branch.</div>' : ''}
-            <a class="cta" href="${esc(r.url)}">Open listing · ${esc(r.vin.slice(-6))}</a>
+            <a class="cta" href="${esc(r.url)}" target="_blank" rel="noopener">Open listing · ${esc(r.vin.slice(-6))}</a>
           </div>
         </div>
       </div>`).join('') +
@@ -446,7 +451,9 @@
 
   // ---- SUV tab ---------------------------------------------------------------
   const SUV_COLS = [
-    {key:'label', label:'Vehicle', fmt: veh, cls:'veh'},
+    {key:'label', label:'Vehicle', fmt: (v, r) => veh(v, r) +
+        (r.trim_status === 'unknown' ? ' <span class="chip warn" title="Dealer abbreviation; open the listing to read the trim">trim?</span>' : '') +
+        (r.source === 'cars.com' && r.trim_status === 'ok' ? ' <span class="chip pass">Premium</span>' : ''), cls:'veh'},
     {key:'source', label:'Source'},
     {key:'color', label:'Colour'},
     {key:'interior', label:'Interior', fmt: (v, r) => r.interior_tier === 'mid'
@@ -470,7 +477,11 @@
     const m = /^(\S+)\s+(.+?)\s*\(Cars\.com\)$/.exec(r.model || '') || [null, 'Cars.com', r.model];
     return {
     vin: 'CARSCOM-' + (r.url || '').split('/').filter(Boolean).pop(),
-    label: `${r.year} ${r.title}`, year: r.year, make: m[1], model: m[2], trim: r.title,
+    label: `${r.year} ${r.title}`, year: r.year, make: m[1], model: m[2],
+    // An unreadable dealer abbreviation ("PR", "PF") is shown as such, not
+    // passed off as a trim the rule verified.
+    trim: r.trim_status === 'unknown' ? `${r.title} — trim unreadable` : r.title,
+    trim_status: r.trim_status || '',
     source: 'cars.com', type: 'lot', color: '', interior: '', interior_tier: null,
     lot: [r.city, r.state].filter(Boolean).join(', ') || 'Cars.com', distance: r.distance,
     miles: r.mileage, price: r.price, delivery: 0, landed: r.price,

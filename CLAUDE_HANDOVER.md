@@ -155,6 +155,16 @@ tracking query string is stripped, and the page links the vehicle cell.
   −10.2%. Rule: a watch whose whole point is "only if very discounted" must
   never list a car that is not.
 
+- **Every listing link opens in a new tab.** The wagon tab already did; the
+  shared `veh` renderer (three tables) and the cleared-panel CTA did not.
+- **CX-70 on Cars.com: Premium and Premium Plus, Turbo and Turbo S.**
+  `DreamModel.trim_markers=("premium",)` / `trim_reject=("preferred",)`,
+  whole-word. Cars.com exposes **no trim facet** (probed), and 4 of 7 rows
+  carried only a dealer abbreviation ("PR", "PF") that cannot be resolved,
+  so those rows are **kept as `trim_status="unknown"` and flagged `trim?`**
+  on the page rather than dropped: dropping them would hide half the
+  market, and "PR" is likely Premium. Verified on all seven real titles.
+
 **Tab reorganisation (Lorenzo, 2026-09-13).** Every watch carries a
 `group`: `primary` (CX-50 Hybrid), `hertz` (Other Hertz finds: the named
 upgrade list daily, plus a curated **Broad Hertz finds** list every 48 h at

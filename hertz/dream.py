@@ -38,6 +38,12 @@ class DreamModel:
     year_min: int = 2022
     # Substrings, any of which marks the body style wanted. Empty = all.
     body_markers: tuple[str, ...] = ()
+    # Trim rule for models whose titles carry a real trim. Titles that match
+    # `trim_markers` pass; titles matching `trim_reject` are dropped; titles
+    # matching NEITHER are dealer abbreviations ("PR", "PF") that cannot be
+    # read, so they are kept and flagged rather than silently thrown away.
+    trim_markers: tuple[str, ...] = ()
+    trim_reject: tuple[str, ...] = ()
     odometer_max: int = 60000
     # Lorenzo's ceiling for a dream car. Applied at fetch time so the
     # per-model curve is fitted on cars he would actually consider, not on
@@ -70,8 +76,12 @@ SUV_MODELS = [
     # on its result cards and blocks its detail pages, so these rows cannot be
     # colour- or trim-checked (Cars.com abbreviates trims to "PF"/"PR"), and
     # the page says so. Within driving range, capped like the rest.
+    # Lorenzo: Premium and Premium Plus, for both 3.3 Turbo and Turbo S.
+    # "premium" as a whole word covers "3.3 Turbo Premium", "Turbo Premium
+    # Plus", "Turbo S Premium", "S Premium Plus"; Preferred is rejected.
     DreamModel("Mazda CX-70 (Cars.com)", "mazda", "mazda-cx_70", year_min=2024,
-               radius_miles=300, odometer_max=35000),
+               radius_miles=300, odometer_max=35000,
+               trim_markers=("premium",), trim_reject=("preferred",)),
 ]
 
 DREAM_MODELS = [
@@ -140,6 +150,22 @@ def _fetch_model(cfg, model: DreamModel) -> list[MarketComp]:
                         for m in model.body_markers)]
     comps = [c for c in comps if c.year >= model.year_min
              and c.mileage <= model.odometer_max and c.price <= model.price_max]
+
+    # Trim rule. A title that names a rejected trim is dropped; one that
+    # names a wanted trim is kept as "ok"; one that names neither is a dealer
+    # abbreviation ("PR", "PF") Cars.com passes through unparsed. Those are
+    # kept as "unknown" and flagged on the page: 4 of 7 CX-70s within 300 mi
+    # were abbreviated, and dropping them would hide half the market.
+    if model.trim_markers or model.trim_reject:
+        kept = []
+        for c in comps:
+            title = (c.title or "").lower()
+            words = set(re.findall(r"[a-z0-9.]+", title))
+            if any(r in words for r in model.trim_reject):
+                continue
+            c.trim = "ok" if any(m in words for m in model.trim_markers) else "unknown"
+            kept.append(c)
+        comps = kept
 
     # The same car often appears twice, listed through two dealer channels
     # with the dealer name blank on one. Price, mileage and year together
@@ -223,6 +249,9 @@ def to_json(board: DreamBoard) -> dict:
                 "city": r.comp.city, "state": r.comp.state, "distance": r.comp.distance,
                 "dealer": r.comp.dealer, "rating": r.rating, "url": r.comp.url,
                 "market_pct": None if r.market_pct is None else round(r.market_pct, 1),
+                # "ok" = named a wanted trim; "unknown" = dealer abbreviation
+                # the title could not be read from; "" = no trim rule.
+                "trim_status": r.comp.trim if r.comp.trim in ("ok", "unknown") else "",
             }
             for r in board.rows
         ],
