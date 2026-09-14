@@ -586,7 +586,11 @@ def qualifies(scored: Scored, cfg: Config) -> tuple[bool, list[str]]:
         # cannot be independently read. Certification is a stronger condition
         # signal than a clean AutoCheck, so it passes -- labelled as such,
         # never as a clean report we did not actually see.
+        seller = (scored.listing.source or "").lower()
         reasons.append(
+            "Enterprise certified (109-point inspection, 12-month/12k powertrain warranty, "
+            "7-day repurchase); history not independently read"
+            if seller == "enterprise" else
             "Certified pre-owned by the franchise dealer (inspection + CPO warranty); "
             "no AutoCheck link on the page, so history was not independently read"
         )

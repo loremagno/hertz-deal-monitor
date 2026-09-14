@@ -15,7 +15,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 CONFIG_PATH = BASE_DIR / "config.toml"
 
 
-_BODY_WORDS = {"suv", "sedan", "hatchback", "wagon", "coupe", "convertible", "van",
+_BODY_WORDS = {"suv", "crossover", "sedan", "hatchback", "wagon", "coupe", "convertible", "van",
                "minivan", "truck", "pickup"}
 
 
@@ -103,9 +103,14 @@ class WatchEntry:
     def matches(self, listing) -> bool:
         model = (listing.model or "").lower()
         make = (listing.make or "").lower()
+        # Models, when named, decide; makes alone match a whole marque. An
+        # Enterprise watch names both: the makes drive its API sweep and the
+        # models say which of those cars it is actually about.
         by_model = any(m.strip().lower() in model for m in self.models)
         by_make = any(m.strip().lower() == make for m in self.makes)
-        if not (by_model or by_make):
+        if self.models and not by_model:
+            return False
+        if not self.models and not by_make:
             return False
         if listing.year and self.year_min and listing.year < self.year_min:
             return False

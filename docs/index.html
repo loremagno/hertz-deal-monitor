@@ -566,6 +566,7 @@
       (r.tier === 'A' ? ' <span class="chip pass">A</span>' : '') +
       (r.type === 'certified' ? ' <span class="chip pass">cert</span>' : r.type === 'rent2buy' ? ' <span class="chip r2b">R2B</span>' : '') +
       (r.source === 'avis' ? ' <span class="chip dim" title="Avis Car Sales">Avis</span>' : '') +
+      (r.source === 'enterprise' ? ' <span class="chip dim" title="Enterprise Car Sales: inspected, 12-month powertrain warranty, 7-day return">Enterprise</span>' : '') +
       (r.history_url ? ` <a class="chip warn" href="${esc(r.history_url)}" target="_blank" rel="noopener" title="Carfax the seller links; the monitor could not read it">Carfax ↗</a>` : '') +
       (r.fit >= 3 ? ' <span class="chip pass">fit</span>' : '') +
       (r.interior_tier === 'mid' ? ' <span class="chip brown" title="' + esc(r.interior) + '">brown interior</span>'

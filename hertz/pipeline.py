@@ -16,6 +16,7 @@ from datetime import datetime, timedelta
 from . import autocheck as autocheck_mod
 from . import benchmark as bm
 from . import carmax as carmax_mod
+from . import enterprise as enterprise_mod
 from . import clock, geo, ingest, score
 from .config import Config
 from .models import Listing, Scored
@@ -241,6 +242,42 @@ def collect_carmax(cfg: Config, store: Store) -> list[Listing]:
     return out
 
 
+def collect_enterprise(cfg: Config, store: Store) -> list[Listing]:
+    """Sweep Enterprise Car Sales through its API, in its own browser.
+
+    One entry per make list: every due watch with `source = "enterprise"`
+    contributes its makes (or the makes of its models are unknown, so a
+    watch on this source must name `makes`), and the tightest mileage cap
+    and model-year floor among them are applied at the API.
+    """
+    entries = [w for w in cfg.watch if w.source == "enterprise" and _entry_due(store, w)]
+    if not entries:
+        return []
+    makes: list[str] = []
+    for w in entries:
+        for m in w.makes:
+            if m not in makes:
+                makes.append(m)
+    if not makes:
+        logger.warning("Enterprise watches must name makes; nothing to sweep")
+        return []
+    odometer_max = min(w.odometer_max for w in entries)
+    year_min = min((w.year_min for w in entries if w.year_min), default=0)
+    radius = max((cfg.alert_radius_miles,) + tuple(w.max_pages * 0 + cfg.alert_radius_miles for w in entries))
+    home = geo.parse_coordinates(cfg.coordinates)
+    out: list[Listing] = []
+    try:
+        with ingest.BrowserSession(headless=True, postal_code=cfg.zip,
+                                   city_state=cfg.city_state, coordinates=cfg.coordinates) as session:
+            cars = enterprise_mod.fetch(session, makes, home, radius, odometer_max, year_min)
+        out = [c for c in cars if any(w.matches(c) for w in entries)]
+        logger.info("Enterprise: %d of %d cars match a watch", len(out), len(cars))
+    except Exception as exc:
+        logger.warning("Enterprise sweep skipped: %s", exc)
+        return []
+    return out
+
+
 def _normalize_key(entry) -> str:
     """Match `score._normalize_model`: "make|model", lowercased."""
     model = (entry.models[0] if entry.models else "").strip().lower()
@@ -363,7 +400,10 @@ def collect(
         # reader. Falling through to Hertz here issued a phantom Hertz query
         # for the CarMax entry's model on every run, logged as carmax:XC60=0.
         if entry.source not in cfg.sources:
-            polled_entries.append(entry)
+            # CarMax and Enterprise have their own passes, which mark their
+            # entries polled only when the sweep returned cars.
+            if entry.source not in ("carmax", "enterprise"):
+                polled_entries.append(entry)
             continue
         source = cfg.sources[entry.source]
         polled_sources.add(entry.source)
@@ -510,8 +550,10 @@ def run(cfg: Config, dry_run: bool = False, force: bool = False) -> RunResult:
     run_id = store.start_run()
 
     try:
-        # CarMax runs first, in its own real-Chrome browser.
+        # CarMax runs first, in its own real-Chrome browser; Enterprise in its
+        # own too, since its token lives in a page context.
         carmax_listings = collect_carmax(cfg, store)
+        enterprise_listings = collect_enterprise(cfg, store)
 
         with ingest.BrowserSession(
             headless=True,
@@ -555,6 +597,13 @@ def run(cfg: Config, dry_run: bool = False, force: bool = False) -> RunResult:
                 # result (Chrome missing, block) must not "sell" its rows.
                 polled_sources.add("carmax")
                 polled_models.update(c.model.lower() for c in carmax_listings)
+            listings.extend(enterprise_listings)
+            if enterprise_listings:
+                polled_sources.add("enterprise")
+                polled_models.update(c.model.lower() for c in enterprise_listings)
+                for w in cfg.watch:
+                    if w.source == "enterprise" and _entry_due(store, w):
+                        polled_entries.append(w)
             curves = market_curves(session, cfg, store)
             result.curves = curves
             result.fetched = len(listings)

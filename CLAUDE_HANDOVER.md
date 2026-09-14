@@ -442,7 +442,7 @@ new source is a silent baseline (`known_sources` in `run()`), so the first
 Avis poll stores 29 CX-50 Hybrids without 29 pushes.
 
 ## Pending / Next Steps
-- [ ] Enterprise Car Sales: measured and parked. Its search API is fully
+- [x] Enterprise Car Sales: built as a low-mileage lane (see above). Was: Its search API is fully
       replayable through Playwright's request API with the page's own headers
       (anonymous bearer token from `generate-anonymous-access-token` with the
       public `ehi-api-key`; POST `inventory/search/template` with
@@ -454,6 +454,16 @@ Avis poll stores 29 CX-50 Hybrids without 29 pushes.
       cars, median 54,396 mi, 5% under 25k; 62 Mazdas, median 43k, no CX-50
       Hybrid. Lorenzo's read ("Enterprise only sells high-mileage cars") holds.
       Build a reader only if a low-mileage-only lane ever seems worth it.
+      -> Lorenzo asked ("Nothing done on Enterprise?"), so built as a
+      low-mileage lane: `hertz/enterprise.py` + `pipeline.collect_enterprise`
+      (own browser pass beside CarMax; entries marked polled only when the
+      sweep returns cars), watches "Mazda CX-50 Hybrid (Enterprise)" (tier A,
+      makes=Mazda + models=CX-50 Hybrid; `matches()` now lets models take
+      precedence over makes) and "Low-mileage Enterprise finds" (tier B, 12
+      makes, 2024+, <=25k, $22-40k, SUV/Crossover/Sedan/Wagon, base trims
+      out, board at -6%/-2sigma). Enterprise cars are stored certified; the
+      qualifies() wording names the 109-point inspection, 12/12 warranty and
+      7-day repurchase. Distances from the postal code.
 - [ ] The hazard's leaving rate is honest only for fully swept models; the
       CX-50 Hybrid is; the pooled table is a lower bound on survival.
 - [x] Issues enabled on `loremagno/hertz-deal-monitor` (Lorenzo, 2026-09-14);
