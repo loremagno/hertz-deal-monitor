@@ -29,7 +29,7 @@ SEARCH = (
     "?makes[]={make}&models[]={slug}&zip={zip}&maximum_distance={distance}"
     "&stock_type=used&page_size=100&year_min={year_min}&list_price_max={price_max}{extra}"
 )
-BLOCKED_JS = "() => /you have been blocked|attention required/i.test(document.body.innerText.slice(0, 500))"
+BLOCKED_JS = "() => /you have been blocked|attention required|just a moment/i.test(document.body.innerText.slice(0, 500))"
 
 
 @dataclass

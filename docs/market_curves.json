@@ -1,0 +1,43 @@
+{
+ "seeded_at": "2026-09-13T23:47:38",
+ "curves": {
+  "market_curve:volvo-xc60:y2024": {
+   "fetched_at": "2026-09-13T23:47:38",
+   "year_min": 2024,
+   "curve": {
+    "intercept": 10.841805047622971,
+    "per_10k_miles": -0.03462321381929698,
+    "per_year": -0.11425277342476112,
+    "per_trim_tier": 0.12457748207582285,
+    "n": 24,
+    "rmse": 0.07336303516470156,
+    "median_price": 38179,
+    "median_mileage": 19068,
+    "trim_counts": {
+     "mid": 15,
+     "top": 2,
+     "base": 7
+    }
+   }
+  },
+  "market_curve:mazda-cx_70:y2024": {
+   "fetched_at": "2026-09-13T23:47:38",
+   "year_min": 2024,
+   "curve": {
+    "intercept": 10.712933050065388,
+    "per_10k_miles": -0.03261678309461643,
+    "per_year": -0.14978522919870926,
+    "per_trim_tier": 0.15312056803668184,
+    "n": 24,
+    "rmse": 0.057407268285363355,
+    "median_price": 36534,
+    "median_mileage": 28011,
+    "trim_counts": {
+     "top": 7,
+     "mid": 9,
+     "base": 8
+    }
+   }
+  }
+ }
+}

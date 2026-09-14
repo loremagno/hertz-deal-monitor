@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
@@ -23,17 +24,17 @@ from .store import Store
 logger = logging.getLogger(__name__)
 
 
-def market_curves(session, cfg: Config, store: Store, max_age_hours: float = 24.0) -> dict:
-    """Fit one Cars.com price curve per model that asks for it.
+# Committed market curves, produced locally by `python -m hertz --curves`.
+# The runner is Cloudflare-challenged on Cars.com more often than not, and a
+# run without a curve scores the XC60 on a model dummy over nine of our own
+# rows. Same idea as the dream seed: a residential connection fills it, the
+# committed file out-ranks an older cache, and a failed live fetch falls
+# back to whatever curve is cached rather than to nothing.
+CURVE_SEED = "market_curves.json"
 
-    This is the benchmark for models where our own data is too thin for the
-    pooled hedonic to say anything: with two XC60s in inventory, the model's
-    own dummy fits its level almost exactly and the residual is arithmetic.
-    A curve fitted on the open market for the same model is real evidence.
 
-    Cached for a day. Cars.com blocks a second page request, so each model
-    costs exactly one page load.
-    """
+def market_curve_targets(cfg: Config) -> dict:
+    """{(make, slug): (model_key, year_min)} for every watch that asks for a curve."""
     wanted: dict = {}
     for w in cfg.watch:
         if not (w.market_slug and w.market_make):
@@ -45,30 +46,87 @@ def market_curves(session, cfg: Config, store: Store, max_age_hours: float = 24.
         if key in wanted:
             year_min = min(year_min, wanted[key][1]) if year_min and wanted[key][1] else 0
         wanted[key] = (_normalize_key(w), year_min)
+    return wanted
+
+
+def _curve_cache_key(slug: str, year_min: int) -> str:
+    # The year is part of the key so a curve fitted on the unfiltered
+    # market is never reused once the filter changes.
+    return f"market_curve:{slug}:y{year_min or 'all'}"
+
+
+def _curve_payload(text: str | None) -> dict | None:
+    """A cached/seeded curve, or None if the text is missing or malformed."""
+    if not text:
+        return None
+    try:
+        payload = json.loads(text)
+        datetime.fromisoformat(payload["fetched_at"])
+        bm.MarketCurve(**payload["curve"])
+        return payload
+    except Exception:
+        return None
+
+
+def adopt_curve_seed(cfg: Config, store: Store) -> int:
+    """Copy committed curves into the cache when they are newer than it."""
+    path = cfg.base_dir / "docs" / CURVE_SEED
+    if not path.exists():
+        return 0
+    try:
+        seed = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        logger.warning("Market curve seed unreadable: %s", exc)
+        return 0
+    adopted = 0
+    for key, payload in (seed.get("curves") or {}).items():
+        if _curve_payload(json.dumps(payload)) is None:
+            continue
+        cached = _curve_payload(store.get_meta(key))
+        if cached is None or payload["fetched_at"] > cached["fetched_at"]:
+            store.set_meta(key, json.dumps(payload))
+            adopted += 1
+    if adopted:
+        logger.info("Market curves: adopted %d from the committed seed", adopted)
+    return adopted
+
+
+def market_curves(session, cfg: Config, store: Store, max_age_hours: float = 24.0) -> dict:
+    """Fit one Cars.com price curve per model that asks for it.
+
+    This is the benchmark for models where our own data is too thin for the
+    pooled hedonic to say anything: with two XC60s in inventory, the model's
+    own dummy fits its level almost exactly and the residual is arithmetic.
+    A curve fitted on the open market for the same model is real evidence.
+
+    Cached for a day, seeded from the committed file, and a failed refresh
+    keeps the cached curve however old: prices drift by the month, and the
+    alternative is a model dummy on a dozen of our own rows.
+    """
+    adopt_curve_seed(cfg, store)
     curves: dict = {}
 
-    for (make, slug), (model_key, year_min) in wanted.items():
-        # The year is part of the key so a curve fitted on the unfiltered
-        # market is never reused once the filter changes.
-        cache_key = f"market_curve:{slug}:y{year_min or 'all'}"
-        cached = store.get_meta(cache_key)
-        if cached:
-            try:
-                payload = json.loads(cached)
-                fetched = datetime.fromisoformat(payload["fetched_at"])
-                if datetime.now() - fetched < timedelta(hours=max_age_hours):
-                    curves[model_key] = bm.MarketCurve(**payload["curve"])
-                    logger.info("Market curve for %s: cached (n=%d)",
-                                slug, payload["curve"]["n"])
-                    continue
-            except Exception:
-                pass
+    for (make, slug), (model_key, year_min) in market_curve_targets(cfg).items():
+        cache_key = _curve_cache_key(slug, year_min)
+        cached = _curve_payload(store.get_meta(cache_key))
+        if cached is not None:
+            age = datetime.now() - datetime.fromisoformat(cached["fetched_at"])
+            if age < timedelta(hours=max_age_hours):
+                curves[model_key] = bm.MarketCurve(**cached["curve"])
+                logger.info("Market curve for %s: cached (n=%d, %.0f h old)",
+                            slug, cached["curve"]["n"], age.total_seconds() / 3600)
+                continue
 
         comps = bm.fetch_comps(session, make, slug, cfg.zip, "all",
                                year_min=year_min or None)
         curve = bm.fit_curve(comps)
         if curve is None:
-            logger.warning("No market curve for %s (%d comps)", slug, len(comps))
+            if cached is not None:
+                curves[model_key] = bm.MarketCurve(**cached["curve"])
+                logger.warning("No fresh market curve for %s (%d comps); keeping the one "
+                               "fitted %s", slug, len(comps), cached["fetched_at"])
+            else:
+                logger.warning("No market curve for %s (%d comps)", slug, len(comps))
             continue
         curves[model_key] = curve
         store.set_meta(cache_key, json.dumps({
@@ -78,6 +136,46 @@ def market_curves(session, cfg: Config, store: Store, max_age_hours: float = 24.
         }))
 
     return curves
+
+
+def refresh_market_curves(cfg: Config, store: Store, pause_seconds: float = 45.0) -> dict:
+    """Refit every market curve, one fresh browser per model, and write the
+    committed seed. Meant to run locally: a residential connection gets
+    through where the runner is challenged. A model that fails keeps its
+    previous seed entry."""
+    now = datetime.now().isoformat(timespec="seconds")
+    seed: dict = {"seeded_at": now, "curves": {}}
+    for i, ((make, slug), (model_key, year_min)) in enumerate(market_curve_targets(cfg).items()):
+        if i:
+            time.sleep(pause_seconds)
+        try:
+            with ingest.BrowserSession(headless=True, min_delay=1.0, max_delay=1.5,
+                                       postal_code=cfg.zip, city_state=cfg.city_state,
+                                       coordinates=cfg.coordinates) as session:
+                comps = bm.fetch_comps(session, make, slug, cfg.zip, "all",
+                                       year_min=year_min or None)
+        except Exception as exc:
+            logger.warning("Market curve for %s not refreshed: %s", slug, exc)
+            continue
+        curve = bm.fit_curve(comps)
+        if curve is None:
+            logger.warning("Market curve for %s not refreshed (%d comps)", slug, len(comps))
+            continue
+        payload = {"fetched_at": now, "year_min": year_min, "curve": curve.__dict__}
+        key = _curve_cache_key(slug, year_min)
+        store.set_meta(key, json.dumps(payload))
+        seed["curves"][key] = payload
+        logger.info("Market curve for %s refitted: n=%d, RMSE %.3f", slug, curve.n, curve.rmse)
+
+    path = cfg.base_dir / "docs" / CURVE_SEED
+    if path.exists():
+        try:
+            for key, payload in (json.loads(path.read_text(encoding="utf-8")).get("curves") or {}).items():
+                seed["curves"].setdefault(key, payload)
+        except Exception:
+            pass
+    path.write_text(json.dumps(seed, indent=1), encoding="utf-8")
+    return seed
 
 
 def collect_carmax(cfg: Config, store: Store) -> list[Listing]:
@@ -267,7 +365,7 @@ def collect(
                     years = list(range(entry.year_min, top + 1))
                 listings = ingest.fetch_model_nationwide(
                     session, model, entry.max_pages, source, years,
-                    expected=store.active_count(model))
+                    expected=store.active_count(model, entry.source))
                 per_model[key] = len(listings)
                 polled.add(model.lower())
                 for listing in listings:

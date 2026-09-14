@@ -304,12 +304,32 @@ Ultra 3}; CX-70 2024+ national (428) −2.4%/10k, −13.6%/yr, +16.7%/step, RMSE
 0.062. Residuals against them: CarMax XC60 B5 Plus rows −9.2, −7.8, −5.8,
 −2.9, −1.5, +0.5% (were −16.6 … −5.5); Byers 2024 Plus Dark Theme −2.5%;
 Byers 2024 Core +9.5% (priced like a Plus); Byers 2025 Ultra −3.8%; the two
-Hertz CX-70 Preferreds −2.1% and +2.3%. Cloud confirmation: see "Last cloud
-run" once the forced run lands.
+Hertz CX-70 Preferreds −2.1% and +2.3%.
+
+**Cloud run 34802725706 (forced, 2026-09-14 03:28 UTC, green).** 982
+vehicles, 0 new, 0 alerts. Follow: `enabled: true`, 0 issues yet (Lorenzo
+enabled Issues during the session). SUV tab: 14 Cars.com rows adopted from
+the seed (9 XC60 Plus, 5 CX-70 gray/brown-beige Turbo S Premium Plus, 161 to
+998 mi). Wagons: 47 rows; V90 CC and V60 CC re-swept on the runner, A6/A4/
+E-Class challenged and kept from the seed. BUT the runner's XC60 curve
+request was Cloudflare-blocked (the CX-70 one seconds later was not), so the
+live XC60 rows were scored on the internal model (benchmark "hertz", 9
+comps: −5.9 … +4.4%). Fixed after the run with a committed curve seed
+(`python -m hertz --curves` → `docs/market_curves.json`, adopted when newer,
+stale curve kept on a failed refresh), a per-source retry guard (the Hertz
+XC60/CX-70 queries retried twice for nothing because CarMax/Byers rows
+counted), and "just a moment" recognised as a challenge.
 
 ## Pending / Next Steps
-- [ ] **Lorenzo: enable Issues on `loremagno/hertz-deal-monitor`** (Settings →
-      General → Features → Issues). Until then follow is device-only.
+- [x] Issues enabled on `loremagno/hertz-deal-monitor` (Lorenzo, 2026-09-14);
+      the run reports `follow.enabled: true`. Nothing followed yet: the first
+      ☆ on the board creates the first issue.
+- [ ] Refit the market-curve seed every week or two: `python -m hertz --curves`
+      locally, commit `docs/market_curves.json`. The board's `benchmark`
+      column reading "hertz" for the XC60 means the seed is stale or missing.
+- [ ] Cars.com "best match" gives 24 of 102 XC60 Plus within 300 mi and 24
+      of 167 V60 CC nationwide; paging needs a fresh browser per page and is
+      not done. Fine for a curve, thin for a shopping list.
 - [x] **Site is public and live**: `https://loremagno.github.io/hertz-deal-monitor/`
       (Lorenzo did both admin clicks as `loremagno`, 2026-09-13). Four tabs:
       CX-50 Hybrid / Other Hertz finds / SUV watch / Station wagons.

@@ -333,12 +333,19 @@ class Store:
         )
         self.conn.commit()
 
-    def active_count(self, model: str) -> int:
-        """Active rows for one model, case-insensitive. Feeds the zero-fetch guard."""
-        row = self.conn.execute(
-            "SELECT COUNT(*) AS n FROM listings WHERE active = 1 AND LOWER(model) = ?",
-            (model.lower(),),
-        ).fetchone()
+    def active_count(self, model: str, source: str | None = None) -> int:
+        """Active rows for one model, case-insensitive, optionally for one source.
+
+        Feeds the zero-fetch guard and the empty-fetch retry. The retry must
+        be per source: keyed on every source it fired, twice, for Hertz XC60s
+        and CX-70s that only CarMax and Byers stock.
+        """
+        sql = "SELECT COUNT(*) AS n FROM listings WHERE active = 1 AND LOWER(model) = ?"
+        params: list = [model.lower()]
+        if source:
+            sql += " AND source = ?"
+            params.append(source)
+        row = self.conn.execute(sql, params).fetchone()
         return int(row["n"]) if row else 0
 
     def reactivate(self, model: str) -> int:

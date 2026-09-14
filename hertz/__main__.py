@@ -94,10 +94,18 @@ def main(argv: list[str] | None = None) -> int:
                         help="refresh the dream-car tab now, ignoring its 12-hour cache")
     parser.add_argument("--force", action="store_true",
                         help="re-poll every watch now, ignoring poll windows")
+    parser.add_argument("--curves", action="store_true",
+                        help="refit the Cars.com market curves and write docs/market_curves.json, "
+                             "then exit (run locally; the runner is usually challenged)")
     args = parser.parse_args(argv)
 
     cfg = config.load()
     setup_logging(cfg)
+    if args.curves:
+        with Store(cfg.db_path) as store:
+            seed = pipeline.refresh_market_curves(cfg, store)
+        print(f"{len(seed['curves'])} market curve(s) in docs/{pipeline.CURVE_SEED}")
+        return 0
     logger.info("=== Hertz deal monitor starting ===")
 
     result = pipeline.run(cfg, dry_run=args.dry_run, force=args.force)

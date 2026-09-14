@@ -37,7 +37,8 @@ SEARCH = (
     "&stock_type=used&page_size=100&page={page}{extra}"
 )
 
-BLOCKED = re.compile(r"you have been blocked|security service to protect", re.I)
+# Cloudflare's two faces: the outright block and the "Just a moment" challenge.
+BLOCKED = re.compile(r"you have been blocked|security service to protect|just a moment|attention required", re.I)
 
 # Trim ladders, base < mid < top. Hertz stocks only Premium Plus CX-50s
 # while the open market is mostly Preferred, so a curve that ignores trim

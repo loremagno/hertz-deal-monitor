@@ -139,6 +139,17 @@ a handful expose text: the card reader saw 6 of 24. The fetcher now reads the
 page's vehicle array (`benchmark.read_results`) and the cache key carries the
 year filter, so the old curve is never reused.
 
+**The curves are seeded, like the Cars.com tabs.** The runner is
+Cloudflare-challenged on Cars.com more often than not (the first forced run
+after the fix lost the XC60 curve and scored the XC60 on a model dummy over
+nine of our own rows). `python -m hertz --curves`, run locally, refits every
+curve with a fresh browser per model and writes `docs/market_curves.json`;
+`pipeline.adopt_curve_seed` copies a committed curve into the cache whenever
+it is newer than what is cached, and a failed live refresh keeps the cached
+curve however old rather than dropping to the internal fallback. Refit the
+seed every week or two, or whenever the board's `benchmark` column shows
+"hertz" for the XC60.
+
 **Alerts fire on two independent events**: value (residual below the tier
 threshold) and arrival (`alert_on_new`). Condition is never waived — except that
 CarMax cars, having no readable history report, are explicitly labelled
@@ -200,6 +211,11 @@ score and render without sending anything.
 - **CarMax from a datacenter IP serves a different page variant** than a
   desktop browser; the parser now scans for the title line rather than
   assuming it is first. Confirm on a scheduled run.
+- **Cars.com from the runner is challenged per request, not per session**:
+  on run 34802725706 the XC60 curve request was blocked and the CX-70 one,
+  made seconds later in the same session, went through. Hence the committed
+  curve seed and the seeded Cars.com tabs; the runner's own sweeps are a
+  bonus when they land.
 - **Cars.com clamps page size to 24**, whatever is asked, so a market curve
   is fitted on the 24 "best match" listings for the year filter. Paging would
   need a fresh browser per page (the second request in a session is blocked)
