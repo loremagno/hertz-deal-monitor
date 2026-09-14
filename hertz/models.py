@@ -174,7 +174,11 @@ class Listing:
             price=to_int(raw.get("internetPrice") or raw.get("askingPrice")),
             no_haggle_price=to_int(raw.get("msrp")),
             odometer=to_int(raw.get("odometer")),
-            geodist=to_float(raw.get("geodist")),
+            # Never the site's own figure: Avis's dataLayer carries a distance
+            # from some default point (Orlando read as 2,429 mi from Columbus,
+            # Houston 1,787). Every distance is computed locally from the
+            # postal code in geo.annotate_distances.
+            geodist=None,
             lot=str(address.get("accountName") or "").strip(),
             city=str(address.get("city") or "").strip(),
             state=str(address.get("state") or "").strip(),
