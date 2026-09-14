@@ -432,6 +432,14 @@ Enterprise: its search API needs a bearer token from `generate-anonymous-
 access-token` (public `ehi-api-key` in the page); the search body was not
 captured on the second probe (the /list/ page 404s; the home page makes the
 call). Parked until Avis proves useful.
+Avis detail pages carry no AutoCheck but a dealer-paid Carfax link; the
+Carfax page renders nothing to headless Chromium (0 chars). So: the VDP
+reader now returns `carfax_url`, `Scored.history_url` keeps it, the board
+shows "Carfax linked, not read" and a link chip, and an ARRIVAL alert may
+fire on such a car with the unread-history caveat in the text; value alerts
+still need a clean AutoCheck or a certification. The first sweep of any
+new source is a silent baseline (`known_sources` in `run()`), so the first
+Avis poll stores 29 CX-50 Hybrids without 29 pushes.
 
 ## Pending / Next Steps
 - [ ] Enterprise Car Sales: capture the inventory search POST body from the

@@ -488,6 +488,8 @@ def enrich(session: ingest.BrowserSession, store: Store, candidates: list[Scored
         if details.get("delivery_quote") is not None:
             listing.delivery_quote = details["delivery_quote"]
             store.upsert(listing)
+        if details.get("carfax_url"):
+            scored.history_url = details["carfax_url"]
 
         if cached is None:
             report = autocheck_mod.fetch_autocheck(session, details.get("autocheck_url", ""), listing.vin)
@@ -596,12 +598,22 @@ def run(cfg: Config, dry_run: bool = False, force: bool = False) -> RunResult:
                 polled_models = {m for m in polled_models
                                  if not (store.active_count(m) >= 5 and counts_now.get(m, 0) == 0)}
 
+            # A source polled for the first time is a baseline, not a wave
+            # of arrivals: the first Avis sweep would otherwise push 29 new
+            # CX-50 Hybrids at once. VINs from a source the store has never
+            # held are stored without counting as new.
+            known_sources = {r["source"] for r in store.conn.execute(
+                "SELECT DISTINCT source FROM listings").fetchall()}
+            source_of = {l.vin: (l.source or "hertz") for l in listings}
             seen: set[str] = set()
             for listing in listings:
                 change = store.upsert(listing)
                 seen.add(listing.vin)
-                if change["is_new"]:
+                if change["is_new"] and (listing.source or "hertz") in known_sources:
                     result.new_vins.append(listing.vin)
+                elif change["is_new"]:
+                    logger.info("  %s: first sweep of source %r, stored as baseline",
+                                listing.vin, listing.source)
                 delta = change["price_delta"]
                 if delta and delta < 0:
                     result.price_drops.append((listing.vin, -delta))
@@ -676,6 +688,14 @@ def run(cfg: Config, dry_run: bool = False, force: bool = False) -> RunResult:
                     reasons.append("AutoCheck clean: no accidents, clean title, no odometer flags")
                 elif report is not None:
                     reasons = [f"Newly listed, but AutoCheck: {'; '.join(report.concerns)}"]
+                elif scored.history_url:
+                    # No AutoCheck on this seller's pages but a Carfax the
+                    # monitor cannot read (Avis). An arrival is still worth
+                    # hearing about; the alert says the history is unread.
+                    ok = True
+                    reasons = [f"Newly listed at {scored.listing.lot}",
+                               "Carfax linked on the page but NOT read by the monitor: "
+                               f"open it before trusting this car: {scored.history_url}"]
 
             scored.reasons = reasons
             if not ok:

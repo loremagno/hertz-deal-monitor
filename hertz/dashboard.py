@@ -26,7 +26,8 @@ def _row(s, cfg: Config, groups: dict | None = None, extra: dict | None = None) 
     report = s.autocheck
     if report is None:
         condition, condition_kind = ("certified, not independently read" if l.certified
-                                     else "not checked"), ("cert" if l.certified else "none")
+                                     else ("Carfax linked, not read" if s.history_url else "not checked")), \
+                                    ("cert" if l.certified else "none")
     elif report.is_clean:
         condition, condition_kind = (f"clean · {report.score}" if report.score else "clean"), "clean"
     else:
@@ -70,6 +71,7 @@ def _row(s, cfg: Config, groups: dict | None = None, extra: dict | None = None) 
         "warranty": market.warranty_left(l),
         "wait": extra.get("wait"),
         "days_on_sale": extra.get("days_on_sale"),
+        "history_url": s.history_url,
     }
 
 

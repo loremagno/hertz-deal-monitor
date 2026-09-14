@@ -464,6 +464,8 @@ VDP_DETAILS = """
     const deliveryMatch = text.match(/\\$([\\d,]+)\\s*Estimated Delivery/i);
     const link = document.querySelector('a.autocheck-link, a[href*="autocheck"]');
     let autocheckUrl = link ? link.getAttribute('href') : null;
+    const cf = document.querySelector('a[href*="carfax.com/vehiclehistory"], a[href*="carfax.com/VehicleHistory"]');
+    const carfaxUrl = cf ? cf.getAttribute('href') : null;
     if (autocheckUrl) {
         try {
             const u = new URL(autocheckUrl, location.origin);
@@ -474,6 +476,7 @@ VDP_DETAILS = """
     return {
         delivery: deliveryMatch ? deliveryMatch[1].replace(/,/g, '') : null,
         autocheckUrl,
+        carfaxUrl,
         freePickup: /Free Pickup/i.test(text),
     };
 }
@@ -496,5 +499,9 @@ def fetch_vdp_details(session: BrowserSession, url: str) -> dict:
     return {
         "delivery_quote": to_int(details.get("delivery")),
         "autocheck_url": details.get("autocheckUrl") or "",
+        # Avis links a dealer-paid Carfax instead of an AutoCheck; its page
+        # renders nothing to a headless browser, so the link is kept for the
+        # buyer and the report stays unread.
+        "carfax_url": details.get("carfaxUrl") or "",
         "free_pickup": bool(details.get("freePickup")),
     }

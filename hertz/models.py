@@ -294,6 +294,7 @@ class Scored:
     matched_label: str = ""
     price_drop_30d: int | None = None
     autocheck: AutoCheck | None = None
+    history_url: str = ""                  # a Carfax the seller links, unread
     reasons: list[str] = field(default_factory=list)
 
     @property
