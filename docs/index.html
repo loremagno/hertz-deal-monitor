@@ -115,6 +115,14 @@
   button.x{appearance:none; border:1px solid var(--line); background:var(--surface); color:var(--muted);
     border-radius:5px; width:26px; height:24px; cursor:pointer; font-size:14px; line-height:1}
   button.x:hover{color:var(--flag); border-color:var(--flag)}
+  td.act{white-space:nowrap}
+  button.x.star{margin-right:4px; font-size:15px}
+  button.x.star:hover{color:var(--accent); border-color:var(--accent)}
+  button.x.star.on{color:var(--accent); border-color:var(--accent); background:var(--accent-soft)}
+  #toast{position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:var(--ink); color:var(--paper);
+    padding:10px 14px; border-radius:8px; font-size:13px; line-height:1.45; box-shadow:var(--shadow);
+    max-width:min(92vw,560px); z-index:9}
+  #toast a{color:var(--accent-soft)}
   .good{color:var(--pass); font-weight:600} .badv{color:var(--flag); font-weight:600} .dim{color:var(--muted)}
   .empty{color:var(--muted); font-size:14px; padding:18px}
   footer{font-size:12px; color:var(--muted); line-height:1.6; border-top:1px solid var(--line); padding-top:14px;
@@ -152,14 +160,16 @@
 
   <section role="tabpanel" id="tab-suv" hidden>
     <div class="note warn"><b>Volvo XC60</b>: Plus only, 2024&ndash;25, from Byers (certified), CarMax,
-      Hertz and Cars.com within 300 mi. <b>Mazda CX-70</b>: 3.3 turbo, Premium or better, from Hertz
-      and Byers Mazda, plus the CX-70 on Cars.com within 300 mi: Premium and Premium Plus, Turbo and
-      Turbo S, Preferred dropped. Some dealers list only an abbreviation ("PR", "PF") that cannot be
-      read; those rows stay, marked <span class="chip warn">trim?</span>, so open the listing before
-      trusting them. Cars.com rows carry no colour or history and "landed" there is the asking price
-      alone. A
-      <span class="chip brown">brown interior</span> chip marks the interiors you like; "light brown"
-      marks the blond/beige ones you don't. Clear "Away" for the whole country.</div>
+      Hertz and Cars.com within 300 mi. <b>Mazda CX-70</b>: 3.3 turbo, Premium or Premium Plus (Turbo
+      and Turbo S, Preferred dropped) and <b>only gray or blue outside with a brown-family interior</b>,
+      from Hertz, Byers Mazda and Cars.com within 500 mi. Cars.com is asked for those colours up front
+      (its own buckets: gray/blue exterior, brown/beige interior), because it names each car's exterior
+      bucket but never its interior; a dealer who files Mazda's Tan as "beige" is caught, one who files
+      nothing is missed. Some dealers list only a trim abbreviation ("PR", "PF") that cannot be read;
+      those rows stay, marked <span class="chip warn">trim?</span>. Cars.com rows carry no history and
+      "landed" there is the asking price alone. A <span class="chip brown">brown interior</span> chip
+      marks the interiors you like; "light brown" marks the blond/beige ones you don't. Clear "Away"
+      for the whole country.</div>
     <div class="controls" id="suv-controls"></div>
     <div class="scroll"><table id="suv-table"></table></div>
   </section>
@@ -177,6 +187,11 @@
     <div class="scroll"><table id="dream-table"></table></div>
   </section>
 
+  <section role="tabpanel" id="tab-follow" hidden>
+    <div class="note warn" id="follow-note"></div>
+    <div class="scroll"><table id="follow-table"></table></div>
+  </section>
+
   <section role="tabpanel" id="tab-about" hidden>
     <div class="panel" id="about"></div>
   </section>
@@ -192,6 +207,10 @@
       it is remembered across refreshes here but not on another device, and it never affects the
       alerts or the price model. Each table's footer shows how many are hidden and can show them
       again; ↺ restores one.</div>
+    <div><b>Following</b> a car (the ☆ at the end of its row) opens a pre-filled GitHub issue on the
+      monitor's repo; creating it is what makes the monitor watch that car. Every run then comments on the
+      issue and sends a push when its price, mileage, listing status or AutoCheck changes. Close the issue to
+      stop. The star is also remembered in this browser, so the Followed tab shows it at once.</div>
     <div><b>Condition</b> is Experian AutoCheck where the seller links one. A reported accident, branded title or
       odometer flag blocks an alert. Franchise-certified cars pass on the certification and say so. A clean report is
       not a substitute for a pre-purchase inspection.</div>
@@ -231,6 +250,64 @@
     ` · <b>${listings.filter(near).length}</b> watched cars in range · model n=${data.model.n}, log-RMSE ${data.model.log_rmse.toFixed(3)}` +
     (data.skipped_sources.length ? ` · <span class="stale">skipped: ${esc(data.skipped_sources.join(', '))}</span>` : '');
 
+  // ---- following -------------------------------------------------------
+  // "Follow" needs a home both this page and the scheduled run can reach,
+  // and the page has no server. A GitHub issue on the repo is that home: the
+  // star pre-fills one, creating it is the act of following, closing it is
+  // the act of stopping. The run reads the open issues, compares each car
+  // with what it saw last time, and comments (GitHub emails that) and pushes
+  // on any change. The star is ALSO kept in this browser so the Followed tab
+  // reflects it immediately, before the next run has read the issue.
+  const FOLLOW_KEY = 'carwatch.followed.v1';
+  const loadFollowed = () => { try { return JSON.parse(localStorage.getItem(FOLLOW_KEY) || '{}') || {}; } catch (e) { return {}; } };
+  const saveFollowed = m => { try { localStorage.setItem(FOLLOW_KEY, JSON.stringify(m)); } catch (e) {} };
+  let followed = loadFollowed();          // key -> {title, url, source, price, miles, lot, at}
+  const followCfg = data.follow || {enabled: false, rows: [], reason: 'no follow data', new_issue_url: ''};
+  const serverFollow = new Map((followCfg.rows || []).map(r => [r.key, r]));
+  const isFollowed = k => !!followed[k] || serverFollow.has(k);
+  const followCount = () => new Set([...Object.keys(followed), ...serverFollow.keys()]).size;
+  const ROWS = new Map();                 // key -> the row object last rendered under it
+  const followInfo = r => ({
+    key: r.vin || r.url,
+    title: r.make ? `${r.year} ${r.make} ${r.model} ${r.trim || ''}`.replace(/\s+/g, ' ').trim() : `${r.year} ${r.title}`,
+    url: r.url || '', source: r.source || 'cars.com', price: r.price ?? null,
+    miles: r.miles ?? r.mileage ?? null,
+    lot: r.lot || [r.city, r.state].filter(Boolean).join(', '),
+  });
+  const issueUrl = info => {
+    const body = [
+      `key: ${info.key}`, `url: ${info.url}`, `title: ${info.title}`, `source: ${info.source}`,
+      `price: ${info.price ?? ''}`, `miles: ${info.miles ?? ''}`, `lot: ${info.lot}`, '',
+      'Created from the deal board. Keep this issue open to keep following; close it to stop.',
+      'The monitor comments here when the price, mileage, listing status or AutoCheck changes.',
+    ].join('\n');
+    return `${followCfg.new_issue_url}?labels=follow&title=${encodeURIComponent('Follow: ' + info.title)}&body=${encodeURIComponent(body)}`;
+  };
+  let toastTimer = null;
+  function toast(html) {
+    let el = $('#toast'); if (!el) { el = document.createElement('div'); el.id = 'toast'; document.body.appendChild(el); }
+    el.innerHTML = html; el.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, 9000);
+  }
+  function followRow(k) {
+    const r = ROWS.get(k); if (!r) return;
+    const info = followInfo(r);
+    followed[k] = {...info, at: new Date().toISOString()}; saveFollowed(followed);
+    if (followCfg.enabled && followCfg.new_issue_url) {
+      window.open(issueUrl(info), '_blank', 'noopener');
+      toast(`<b>${esc(info.title)}</b> starred. Create the issue in the tab that just opened; the monitor picks it up on its next run and reports every change there and by push.`);
+    } else {
+      toast(`<b>${esc(info.title)}</b> starred in this browser only. Alerts need GitHub Issues on the repo${followCfg.repo ? ` (<a href="https://github.com/${esc(followCfg.repo)}/settings" target="_blank" rel="noopener">Settings → General → Features → Issues</a>)` : ''}: ${esc(followCfg.reason || '')}`);
+    }
+    rerenders.forEach(f => f());
+  }
+  function unfollowRow(k) {
+    delete followed[k]; saveFollowed(followed);
+    const sv = serverFollow.get(k);
+    if (sv) toast(`Un-starred here, but the monitor still follows it: <a href="${esc(sv.issue_url)}" target="_blank" rel="noopener">close issue #${sv.number}</a> to stop the alerts.`);
+    rerenders.forEach(f => f());
+  }
+
   // ---- tabs -----------------------------------------------------------
   // Four tabs, one per group. "group" comes from the watch entry in
   // config.toml; the wagons come from the dream module, not from watches.
@@ -240,6 +317,7 @@
     ['watch', 'Other Hertz finds', byGroup('hertz').filter(near).length],
     ['suv', 'SUV watch', byGroup('suv').filter(near).length],
     ['dream', 'Station wagons', data.dream.rows.length],
+    ['follow', 'Followed', followCount()],
     ['about', 'About', null],
   ];
   const tabs = $('#tabs');
@@ -280,6 +358,8 @@
   function dismiss(key) { dismissed.add(key); saveDismissed(dismissed); rerenders.forEach(f => f()); }
   function restore(key) { dismissed.delete(key); saveDismissed(dismissed); rerenders.forEach(f => f()); }
   document.addEventListener('click', e => {
+    const f = e.target.closest('button[data-follow]'); if (f) { e.preventDefault(); followRow(f.dataset.follow); return; }
+    const uf = e.target.closest('button[data-unfollow]'); if (uf) { e.preventDefault(); unfollowRow(uf.dataset.unfollow); return; }
     const b = e.target.closest('button[data-dismiss]'); if (b) { e.preventDefault(); dismiss(b.dataset.dismiss); return; }
     const u = e.target.closest('button[data-restore]'); if (u) { e.preventDefault(); restore(u.dataset.restore); }
   });
@@ -301,9 +381,13 @@
         '<th></th></tr></thead><tbody>' +
         (sorted.length ? sorted.map(r => {
           const k = dismissKey(r), isOut = dismissed.has(k);
+          ROWS.set(k, r);
+          const star = isFollowed(k)
+            ? `<button class="x star on" data-unfollow="${esc(k)}" title="Following — click to un-star on this device">★</button>`
+            : `<button class="x star" data-follow="${esc(k)}" title="Follow: be told when its price or status changes">☆</button>`;
           return `<tr class="${opts.rowClass ? opts.rowClass(r) : ''}${isOut ? ' out' : ''}">` +
             cols.map(c => `<td class="${c.right ? 'r num' : ''} ${c.cls || ''}">${c.fmt ? c.fmt(r[c.key], r) : esc(r[c.key])}</td>`).join('') +
-            `<td class="r">${isOut
+            `<td class="r act">${star}${opts.noDismiss ? '' : isOut
               ? `<button class="x" data-restore="${esc(k)}" title="Bring this car back">↺</button>`
               : `<button class="x" data-dismiss="${esc(k)}" title="Hide this car for good (this browser)">×</button>`}</td></tr>`;
         }).join('')
@@ -417,7 +501,7 @@
       </div>`).join('') : '') +
     (!cleared.length && !flagged.length ? '<div class="note warn">No CX-50 Hybrid within range has cleared both gates yet.</div>' : '');
 
-  const targetTable = table($('#target-table'), target, LISTING_COLS, {sortKey:'landed', rowClass});
+  const targetTable = table($('#target-table'), target, LISTING_COLS, {sortKey:'residual_pct', rowClass});
   controls($('#target-controls'), target, [
     {type:'select', key:'color', label:'Colour'},
     {type:'select', key:'type', label:'Type'},
@@ -440,7 +524,7 @@
     {key:'condition', label:'Condition', fmt: cond},
   ];
   const hertzRows = byGroup('hertz');
-  const watchTable = table($('#watch-table'), hertzRows, WATCH_COLS, {sortKey:'landed', rowClass});
+  const watchTable = table($('#watch-table'), hertzRows, WATCH_COLS, {sortKey:'residual_pct', rowClass});
   controls($('#watch-controls'), hertzRows, [
     {type:'select', key:'model', label:'Model'},
     {type:'select', key:'type', label:'Type'},
@@ -476,22 +560,29 @@
   const suvMarket = (data.suv_market?.rows || []).map(r => {
     const m = /^(\S+)\s+(.+?)\s*\(Cars\.com\)$/.exec(r.model || '') || [null, 'Cars.com', r.model];
     return {
-    vin: 'CARSCOM-' + (r.url || '').split('/').filter(Boolean).pop(),
+    vin: r.vin || ('CARSCOM-' + (r.url || '').split('/').filter(Boolean).pop()),
     label: `${r.year} ${r.title}`, year: r.year, make: m[1], model: m[2],
     // An unreadable dealer abbreviation ("PR", "PF") is shown as such, not
     // passed off as a trim the rule verified.
     trim: r.trim_status === 'unknown' ? `${r.title} — trim unreadable` : r.title,
     trim_status: r.trim_status || '',
-    source: 'cars.com', type: 'lot', color: '', interior: '', interior_tier: null,
-    lot: [r.city, r.state].filter(Boolean).join(', ') || 'Cars.com', distance: r.distance,
+    // Colour is Cars.com's bucket ("gray"), read from the page's vehicle
+    // array; the interior is the bucket the search demanded, shown as the
+    // brown chip because that is the only way a Cars.com row gets one.
+    source: 'cars.com', type: r.certified ? 'certified' : 'lot',
+    color: r.color ? r.color[0].toUpperCase() + r.color.slice(1) : '',
+    interior: r.interior ? `${r.interior} (Cars.com bucket)` : '',
+    interior_tier: r.interior ? 'mid' : null,
+    lot: [r.city, r.state].filter(Boolean).join(', ') || r.dealer || 'Cars.com', distance: r.distance,
     miles: r.mileage, price: r.price, delivery: 0, landed: r.price,
     residual_pct: r.market_pct, residual_sigma: null, benchmark: 'market', comps: 0,
     tier: 'A', watch: r.model, group: 'suv',
-    condition: 'not checked (Cars.com)', condition_kind: 'none', fit: 0, misses: [],
+    condition: r.certified ? 'certified per Cars.com, not read' : 'not checked (Cars.com)',
+    condition_kind: r.certified ? 'cert' : 'none', fit: 0, misses: [],
     days_on_lot: null, price_drop_30d: null, cleared: false, reasons: [], url: r.url, image: '',
   }; });
   const suvRows = byGroup('suv').concat(suvMarket);
-  const suvTable = table($('#suv-table'), suvRows, SUV_COLS, {sortKey:'landed', rowClass});
+  const suvTable = table($('#suv-table'), suvRows, SUV_COLS, {sortKey:'residual_pct', rowClass});
   controls($('#suv-controls'), suvRows, [
     {type:'select', key:'model', label:'Model'},
     {type:'select', key:'source', label:'Source'},
@@ -506,6 +597,7 @@
         ? `<a href="${esc(r.url)}" target="_blank" rel="noopener"><b>${esc(r.year)}</b> ${esc(v)}</a>`
         : `<b>${esc(r.year)}</b> ${esc(v)} <span class="dim">(no link)</span>`},
     {key:'model', label:'Model'},
+    {key:'color', label:'Colour', fmt: v => v ? esc(v[0].toUpperCase() + v.slice(1)) : '<span class="dim">—</span>'},
     {key:'mileage', label:'Miles', right:true, fmt: int},
     {key:'price', label:'Price', right:true, fmt: money},
     {key:'market_pct', label:'vs curve', right:true, fmt: resid},
@@ -525,6 +617,59 @@
   ], rows => dreamTable.update(rows));
   if (data.dream.skipped.length)
     $('#tab-dream').insertAdjacentHTML('afterbegin', `<div class="note flag">Not refreshed this run: ${esc(data.dream.skipped.join(', '))}.</div>`);
+
+  // ---- followed tab ---------------------------------------------------------
+  // The run's view (from the issues) first, then stars kept only in this
+  // browser, with the board's own current price when the car is still on it.
+  function followRows() {
+    const out = [], seen = new Set();
+    for (const r of (followCfg.rows || [])) {
+      seen.add(r.key);
+      out.push({...r, vin: r.key, synced: true,
+        status: r.found ? (r.listed ? 'listed' : 'gone') : 'not seen',
+        delta: (r.price_now != null && r.price_at_follow != null) ? r.price_now - r.price_at_follow : null,
+        last_text: r.log && r.log.length ? r.log[r.log.length - 1].text : ''});
+    }
+    for (const [k, v] of Object.entries(followed)) {
+      if (seen.has(k)) continue;
+      const cur = ROWS.get(k);
+      const priceNow = cur ? cur.price : null;
+      out.push({key: k, vin: k, title: v.title, url: v.url, source: v.source, since: (v.at || '').slice(0, 10),
+        price_at_follow: v.price, price_now: priceNow, miles_now: cur ? (cur.miles ?? cur.mileage) : v.miles,
+        listed: !!cur, found: !!cur, status: cur ? 'listed' : 'not on board', synced: false,
+        delta: (cur && v.price != null && priceNow != null) ? priceNow - v.price : null,
+        last_text: '', issue_url: '', number: null, lot: v.lot, log: [], _info: v});
+    }
+    return out;
+  }
+  const FOLLOW_COLS = [
+    {key:'title', label:'Vehicle', cls:'veh', fmt: (v, r) => (r.url
+        ? `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(v)}</a>` : esc(v)) +
+        (r.status === 'gone' ? ' <span class="chip flag">gone</span>'
+         : r.status === 'not seen' || r.status === 'not on board' ? ` <span class="chip dim">${esc(r.status)}</span>` : '') +
+        (r.synced ? '' : ' <span class="chip warn" title="Starred in this browser; the monitor does not know yet">device only</span>')},
+    {key:'source', label:'Source'},
+    {key:'since', label:'Since', fmt: v => v ? `<span class="num">${esc(v)}</span>` : '<span class="dim">—</span>'},
+    {key:'price_at_follow', label:'Then', right:true, fmt: money},
+    {key:'price_now', label:'Now', right:true, fmt: v => `<b>${money(v)}</b>`},
+    {key:'delta', label:'Δ', right:true, fmt: v => v == null ? '<span class="dim">—</span>'
+        : `<span class="${v < 0 ? 'good' : v > 0 ? 'badv' : 'dim'}">${v > 0 ? '+' : ''}${money(v)}</span>`},
+    {key:'miles_now', label:'Miles', right:true, fmt: int},
+    {key:'lot', label:'Lot'},
+    {key:'last_text', label:'Last change', fmt: (v, r) => v ? `<span title="${esc(r.last_change || '')}">${esc(v)}</span>` : '<span class="dim">—</span>'},
+    {key:'number', label:'Issue', fmt: (v, r) => r.issue_url
+        ? `<a href="${esc(r.issue_url)}" target="_blank" rel="noopener">#${esc(v)}</a>`
+        : (followCfg.enabled && followCfg.new_issue_url && r._info
+           ? `<a href="${issueUrl(r._info)}" target="_blank" rel="noopener">create</a>` : '<span class="dim">—</span>')},
+  ];
+  const followTable = table($('#follow-table'), followRows(), FOLLOW_COLS, {sortKey:'delta', noDismiss:true});
+  rerenders.push(() => {
+    followTable.update(followRows());
+    const n = $('#tabs button[data-tab="follow"] .n'); if (n) n.textContent = followCount();
+  });
+  $('#follow-note').innerHTML = followCfg.enabled
+    ? `Cars you starred. Each is an open <a href="https://github.com/${esc(followCfg.repo)}/issues?q=is%3Aissue+is%3Aopen+label%3Afollow" target="_blank" rel="noopener">follow issue</a> on the repo; the monitor comments there and pushes when the price, mileage, listing status or AutoCheck changes. Close an issue to stop following. "Then" is the price when you starred it.`
+    : `Stars are kept in this browser for now. <b>Alerts on followed cars are off</b>: ${esc(followCfg.reason || 'the monitor could not reach GitHub')}. ${followCfg.repo ? `Enable Issues under <a href="https://github.com/${esc(followCfg.repo)}/settings" target="_blank" rel="noopener">the repo's settings</a> (General → Features → Issues), then star the cars again to create their issues.` : ''}`;
 
   // ---- about tab ---------------------------------------------------------------
   const lr = data.last_run;

@@ -44,6 +44,12 @@ per_mile = 2.00
 # dearer than this is not worth the freight.
 max_shipping = 499
 
+[github]
+# Followed listings live as open issues labelled "follow" on this repo; the
+# board's star button pre-fills one, closing it un-follows. Issues must be
+# enabled on the repo for this to work.
+repo = "loremagno/hertz-deal-monitor"
+
 [preferences]
 # Soft preferences, not filters. A car that misses them still appears on the
 # board and can still alert; the board and the alert say how it differs.
@@ -290,6 +296,13 @@ label = "CX-70 (Hertz)"
 source = "hertz"
 models = ["CX-70"]
 require_trims = ["Premium"]   # any-of: "Premium Sport", "Premium Plus", "S Premium"; excludes Preferred
+# Only these colour combinations (2026-09-13): gray or blue outside, brown
+# family inside. Exterior is a substring match ("Polymetal Gray Metallic",
+# "Machine Gray", "Deep Crystal Blue Mica"); interior is whole-word.
+require_exterior = ["gray", "grey", "graphite", "machine", "polymetal", "blue"]
+require_interior = ["tan", "brown", "cognac", "caramel", "saddle", "terracotta", "russet",
+                    "mocha", "chestnut", "hazel", "amber", "tobacco", "nougat", "walnut",
+                    "sienna", "camel", "toffee", "maple"]
 market_make = "mazda"
 market_slug = "mazda-cx_70"
 threshold_pct = -2.0
@@ -307,6 +320,13 @@ label = "CX-70 (Byers Mazda)"
 source = "byers-mazda"
 models = ["CX-70"]
 require_trims = ["Premium"]   # any-of: "Premium Sport", "Premium Plus", "S Premium"; excludes Preferred
+# Only these colour combinations (2026-09-13): gray or blue outside, brown
+# family inside. Exterior is a substring match ("Polymetal Gray Metallic",
+# "Machine Gray", "Deep Crystal Blue Mica"); interior is whole-word.
+require_exterior = ["gray", "grey", "graphite", "machine", "polymetal", "blue"]
+require_interior = ["tan", "brown", "cognac", "caramel", "saddle", "terracotta", "russet",
+                    "mocha", "chestnut", "hazel", "amber", "tobacco", "nougat", "walnut",
+                    "sienna", "camel", "toffee", "maple"]
 market_make = "mazda"
 market_slug = "mazda-cx_70"
 threshold_pct = -2.0

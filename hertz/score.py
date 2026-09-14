@@ -77,6 +77,11 @@ def landed_cost(listing: Listing, cfg: Config) -> tuple[float, float, float, flo
 # Hedonic price model
 # ---------------------------------------------------------------------------
 
+# Below this many same-model rows of our own, a Cars.com curve for the
+# model (when one exists) is the benchmark. See score_listing.
+MARKET_PREFERRED_BELOW = 30
+
+
 def _normalize_model(listing: Listing) -> str:
     return f"{listing.make.strip().lower()}|{listing.model.strip().lower()}"
 
@@ -377,7 +382,12 @@ def score_listing(
     internal_comps = hedonic.comps_for(listing) if hedonic else 0
     curve = (market_curves or {}).get(key)
 
-    if curve is not None and internal_comps < cfg.min_comps and listing.price:
+    # A same-model curve on ~100 open-market cars beats a model dummy fitted
+    # on a dozen of our own rows, most of them one dealer's uniform pricing.
+    # The CX-50 Hybrid, with hundreds of Hertz rows, keeps the within-Hertz
+    # benchmark, which is the question its alerts were built to answer.
+    if (curve is not None and listing.price
+            and internal_comps < max(cfg.min_comps, MARKET_PREFERRED_BELOW)):
         from .benchmark import market_gap
         gap = market_gap(listing, curve)
         if gap is not None:

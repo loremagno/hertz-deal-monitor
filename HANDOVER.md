@@ -18,7 +18,7 @@ Primary target a 2025+ Mazda CX-50 Hybrid; several secondary watches.
 | Hertz Car Sales | **works** | Dealer.com `window.DDC.dataLayer.vehicles`, headless Chromium |
 | Byers Volvo (certified) | **works** | same Dealer.com reader, different base URL |
 | Byers Mazda | **works** | same; zero CX-70 stock at time of writing |
-| Cars.com (search) | **works** | `fuse-card` result tiles, one deep page only |
+| Cars.com (search) | **works** | listings read from the page's own `<search-provider data-vehicle-array>` JSON (trim as written, VIN, price, mileage, exterior-colour bucket, seller zip, CPO flag); page size clamped to 24; one request per browser session; colour facets (`exterior_color_slugs[]`, `interior_color_slugs[]`) filter server-side |
 | CarMax | **works, real Chrome only** | `.kmx-car-tile__content` tiles |
 | Cars.com (detail pages) | **blocked** | Cloudflare "Attention Required" |
 | CarMax (detail pages) | **blocked** | per-page Akamai check, even in real Chrome |
@@ -115,18 +115,51 @@ samples are truncated from above by the page cap, biasing those models' fitted
 level downward. No colour, options or condition controls. Asking prices, not
 transaction prices. No standard errors; residuals are not studentized.
 
-**Thin-model fallback.** With two XC60s, that model's own dummy fits its level
-almost exactly and the residual is arithmetic rather than evidence. Watch
-entries carrying `market_make`/`market_slug` therefore take their benchmark from
-a Cars.com curve for the same model (`benchmark.fit_curve`, cached 24h). The
-curve controls for trim — omitting that flipped the sign of the Hertz-vs-market
-comparison from "5–9% over" to "3–6% under", because Hertz stocks only Premium
-Plus while the open market is mostly Preferred.
+**Thin-model fallback and the market curve.** Watch entries carrying
+`market_make`/`market_slug` take their benchmark from a Cars.com curve for the
+same model (`benchmark.fit_curve`, cached 24h) whenever the model has fewer than
+30 rows of our own (`score.MARKET_PREFERRED_BELOW`): a same-model curve on the
+open market beats a model dummy fitted on a dozen rows, most of them one
+dealer's uniform pricing. The CX-50 Hybrid, with hundreds of Hertz rows, keeps
+the within-Hertz benchmark. The curve is fitted on the years the watch wants
+(`year_min` goes to Cars.com) and on a whole-word trim ladder (Mazda: Preferred
+< Premium < Premium Plus; Volvo: Core < Plus < Ultra). The trim term matters:
+omitting it once flipped the Hertz-vs-market comparison from "5–9% over" to
+"3–6% under", because Hertz stocks only Premium Plus CX-50s while the open
+market is mostly Preferred.
+
+Three defects made the first version of this curve wrong, found on
+2026-09-13 when every CarMax XC60 showed −7% to −17% "vs model" while being
+priced like every other XC60. The sample was unfiltered: 11 cars, median 2021,
+42k miles, $32k, and a log-linear −10%/yr age term extrapolated a 2025 B5 Plus
+to $48–50k, above its MSRP. The card parser cut trims at the word "Hybrid", so
+every non-hybrid comp had an empty trim and sat in the middle tier. And the
+sample was 11 because Cars.com renders its result cards in shadow DOM and only
+a handful expose text: the card reader saw 6 of 24. The fetcher now reads the
+page's vehicle array (`benchmark.read_results`) and the cache key carries the
+year filter, so the old curve is never reused.
 
 **Alerts fire on two independent events**: value (residual below the tier
 threshold) and arrival (`alert_on_new`). Condition is never waived — except that
 CarMax cars, having no readable history report, are explicitly labelled
 unverified and cannot pass the value gate.
+
+---
+
+## Following a car
+
+The board's ☆ pre-fills a GitHub issue on the repo (label `follow`; the body
+carries `key:` = VIN or Cars.com listing URL, `url:`, `price:`, `miles:`).
+Creating the issue is the act of following; closing it stops. Each run
+(`hertz/follow.py`, with the workflow's own `GITHUB_TOKEN` and `issues: write`)
+reads the open follow issues, compares each car with the state saved in `meta`
+(`follow_state:<key>`), and on any change comments on the issue and sends a
+push: price up or down, mileage moved ≥300 mi, gone from the site, back on the
+site, AutoCheck changed. First sight posts a baseline comment. Cars.com cars
+are looked up in the cached sweep (VIN or URL), so their changes surface only
+when a sweep answers. `data.json.follow` carries the set, each car's state and
+a 20-entry log for the Followed tab; the page also stars locally so the tab
+updates before the next run, and marks such rows "device only".
 
 ---
 
@@ -167,6 +200,13 @@ score and render without sending anything.
 - **CarMax from a datacenter IP serves a different page variant** than a
   desktop browser; the parser now scans for the title line rather than
   assuming it is first. Confirm on a scheduled run.
+- **Cars.com clamps page size to 24**, whatever is asked, so a market curve
+  is fitted on the 24 "best match" listings for the year filter. Paging would
+  need a fresh browser per page (the second request in a session is blocked)
+  and is not done; 24 same-model, same-years cars with real trims is enough
+  for a three-parameter curve, and the caveat is on the board.
+- **Following needs Issues enabled on the repo** (`has_issues` was false on
+  2026-09-13). Until then the page keeps stars in the browser and says so.
 - **Cars.com from a datacenter IP allows about one request** before
   Cloudflare blocks. Market curves for thin models will fit intermittently
   and rely on the 24 h cache. A residential IP (local run) fills them in.

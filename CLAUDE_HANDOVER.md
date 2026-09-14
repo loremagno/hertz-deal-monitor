@@ -249,7 +249,67 @@ guard held both times, but a retry recovers the common case. The first,
 unconditional version fired 17 times in one run on models Hertz does not
 stock, recovered nothing, and took the run from 3½ to 9½ minutes.
 
+## Session 2026-09-14: XC60 residuals, Cars.com rewrite, CX-70 colours, Follow
+
+Lorenzo: "something seems off in the price pred model for the XC60, all these
+CarMax ones that are not that cheap with massive negative residuals? Also by
+default order by residual." Then: "the CX-70 is a bit useless, I WANT ONLY
+certain colour/interior combos, how do we get those from Cars.com?" and "I
+want an option to FOLLOW a listing so I get alerted on price drops or other
+changes."
+
+**XC60 residuals, root cause.** Every XC60 was scored on the Cars.com market
+curve (internal comps 11 < min_comps 12). That curve was fitted on 11 comps
+with no year filter (median 2021, 42k mi, $32k); its −10%/yr age term
+extrapolated a 2025 B5 Plus to $48–50k, above MSRP, so a $36k CarMax car read
+−17%. Two more defects underneath: `parse_card` only kept a trim when the
+title contained "Hybrid" (every XC60/CX-70 comp sat in the middle tier), and
+the card reader only saw 6 of 24 cards because Cars.com renders cards in
+shadow DOM. Fixes: `fetch_comps(year_min=)` from the watch; whole-word trim
+ladder incl. Volvo Core/Plus/Ultra; comps carry the full title as trim; cache
+key `market_curve:<slug>:y<year>`; `score.MARKET_PREFERRED_BELOW = 30` so a
+same-model market curve beats a dozen internal rows; default sort on every
+listing table is now `residual_pct` ascending.
+
+**Cars.com, the real find.** The results page carries
+`<search-provider data-vehicle-array="[...]">`: per listing trim as the
+dealer wrote it, VIN, year, price, mileage, `exteriorColor` bucket, seller
+name + zip, listingId, cpoIndicator. `benchmark.read_results(page)` reads it
+(cards are the fallback). Page size is clamped to 24 regardless of
+`page_size`. `interior_color_slugs[]` / `exterior_color_slugs[]` filter
+server-side (verified: CX-70 2024+ gray|blue × brown|beige = 10 nationwide);
+the array names the exterior bucket but never the interior. Distances come
+from the seller zip via `geo.coordinates_for_zip`. Rows now carry `vin`,
+`color`, `interior` (the bucket asked for), `certified`; the page keys them by
+VIN.
+
+**CX-70 combos.** Cars.com CX-70 sweep: 500 mi (Lorenzo's original radius
+for this car), gray|blue exterior, brown|beige interior (Mazda's Tan is filed
+under either). Hertz/Byers CX-70 watches now REQUIRE `require_exterior`
+(gray/grey/graphite/machine/polymetal/blue, substring) and `require_interior`
+(the brown family, whole-word). The SUV note on the page says all this.
+
+**Follow.** `hertz/follow.py`: GitHub issues labelled `follow` are the
+followed set (Issues were DISABLED on the repo at the time; the label was
+created via API; Lorenzo must flip Settings → General → Features → Issues).
+Workflow: `issues: write`, `GITHUB_TOKEN` env. Page: ☆/★ on every row,
+Followed tab (server rows + device-only stars), pre-filled new-issue URL,
+toasts. State in `meta` (`follow_state:<key>`, `follow_log:<key>`); dry runs
+never advance it.
+
+**Local verification (2026-09-13, residential IP).** Filtered curves from
+the vehicle array, 24 comps each: XC60 2024+ national (site reports 1,605)
+−4.7%/10k mi, −9.7%/yr, +13.1%/trim step, RMSE 0.073, tiers {Core 6, Plus 15,
+Ultra 3}; CX-70 2024+ national (428) −2.4%/10k, −13.6%/yr, +16.7%/step, RMSE
+0.062. Residuals against them: CarMax XC60 B5 Plus rows −9.2, −7.8, −5.8,
+−2.9, −1.5, +0.5% (were −16.6 … −5.5); Byers 2024 Plus Dark Theme −2.5%;
+Byers 2024 Core +9.5% (priced like a Plus); Byers 2025 Ultra −3.8%; the two
+Hertz CX-70 Preferreds −2.1% and +2.3%. Cloud confirmation: see "Last cloud
+run" once the forced run lands.
+
 ## Pending / Next Steps
+- [ ] **Lorenzo: enable Issues on `loremagno/hertz-deal-monitor`** (Settings →
+      General → Features → Issues). Until then follow is device-only.
 - [x] **Site is public and live**: `https://loremagno.github.io/hertz-deal-monitor/`
       (Lorenzo did both admin clicks as `loremagno`, 2026-09-13). Four tabs:
       CX-50 Hybrid / Other Hertz finds / SUV watch / Station wagons.
@@ -257,8 +317,10 @@ stock, recovered nothing, and took the run from 3½ to 9½ minutes.
       many of its 24 models matched nothing at Hertz (A4, A6, Q5, GLC, X3,
       3 Series, CR-V/Camry/Sorento/Sportage Hybrid, Forester, CX-90 PHEV).
       Prune or extend on his say-so. Each costs one page load per 48 h.
-- [ ] CX-70 rule works but currently admits nothing: Hertz's two are
-      Preferred (excluded), Byers Mazda has none. It will fire on arrival.
+- [ ] CX-70 at Hertz/Byers now requires gray/blue outside and a brown-family
+      interior on top of Premium-or-better; Hertz's two are Preferred, Byers
+      has none, so the lane fires on arrival. Cars.com carries the combos
+      (colour facets) within 500 mi.
 - [x] Zero-fetch guard verified live: a later run hit `Atlas=0` (throttled
       page) and total listings held at 512 instead of 119 Atlases being
       marked sold.

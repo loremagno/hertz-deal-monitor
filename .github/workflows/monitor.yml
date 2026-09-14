@@ -33,6 +33,8 @@ concurrency:
 
 permissions:
   contents: write
+  # Followed listings are issues; the run comments on them when a car changes.
+  issues: write
 
 jobs:
   monitor:
@@ -92,6 +94,7 @@ jobs:
           HERTZ_SMTP_PASSWORD: ${{ secrets.HERTZ_SMTP_PASSWORD }}
           HERTZ_EMAIL_TO: ${{ secrets.HERTZ_EMAIL_TO }}
           HERTZ_NTFY_TOPIC: ${{ secrets.HERTZ_NTFY_TOPIC }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # In CI the database belongs inside the repo so price history is
           # committed. Locally it defaults outside Dropbox, which corrupts
           # SQLite by syncing the -wal/-shm sidecars independently.

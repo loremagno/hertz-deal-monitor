@@ -34,14 +34,23 @@ def market_curves(session, cfg: Config, store: Store, max_age_hours: float = 24.
     Cached for a day. Cars.com blocks a second page request, so each model
     costs exactly one page load.
     """
-    wanted = {
-        (w.market_make, w.market_slug): _normalize_key(w)
-        for w in cfg.watch if w.market_slug and w.market_make
-    }
+    wanted: dict = {}
+    for w in cfg.watch:
+        if not (w.market_slug and w.market_make):
+            continue
+        key = (w.market_make, w.market_slug)
+        # The oldest model year any watch on this slug accepts. The curve is
+        # fitted on those years only, so it never extrapolates from older cars.
+        year_min = w.year_min or 0
+        if key in wanted:
+            year_min = min(year_min, wanted[key][1]) if year_min and wanted[key][1] else 0
+        wanted[key] = (_normalize_key(w), year_min)
     curves: dict = {}
 
-    for (make, slug), model_key in wanted.items():
-        cache_key = f"market_curve:{slug}"
+    for (make, slug), (model_key, year_min) in wanted.items():
+        # The year is part of the key so a curve fitted on the unfiltered
+        # market is never reused once the filter changes.
+        cache_key = f"market_curve:{slug}:y{year_min or 'all'}"
         cached = store.get_meta(cache_key)
         if cached:
             try:
@@ -55,7 +64,8 @@ def market_curves(session, cfg: Config, store: Store, max_age_hours: float = 24.
             except Exception:
                 pass
 
-        comps = bm.fetch_comps(session, make, slug, cfg.zip, "all")
+        comps = bm.fetch_comps(session, make, slug, cfg.zip, "all",
+                               year_min=year_min or None)
         curve = bm.fit_curve(comps)
         if curve is None:
             logger.warning("No market curve for %s (%d comps)", slug, len(comps))
@@ -63,6 +73,7 @@ def market_curves(session, cfg: Config, store: Store, max_age_hours: float = 24.
         curves[model_key] = curve
         store.set_meta(cache_key, json.dumps({
             "fetched_at": datetime.now().isoformat(timespec="seconds"),
+            "year_min": year_min,
             "curve": curve.__dict__,
         }))
 

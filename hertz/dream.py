@@ -18,7 +18,9 @@ import re
 import time
 from dataclasses import dataclass, field
 
-from .benchmark import CARD_TEXT_LINKS, MarketComp, MarketCurve, fit_curve, parse_card
+from . import geo
+from .benchmark import (MarketComp, MarketCurve, annotate_distances, fit_curve, read_results,
+                        trim_tier)
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +58,12 @@ class DreamModel:
     # Miles from home, or None for nationwide. Cars.com accepts a numeric
     # maximum_distance, so this is a server-side filter, not a post-hoc one.
     radius_miles: int | None = None
+    # Cars.com colour buckets, applied server-side (exterior_color_slugs[],
+    # interior_color_slugs[]; several values OR together). The results page
+    # names each car's exterior bucket but NOT its interior, so an interior
+    # requirement can only be met by asking Cars.com for it up front.
+    exterior_colors: tuple[str, ...] = ()
+    interior_colors: tuple[str, ...] = ()
 
 
 # Station wagons, every one. Cars.com's own body-style filter keeps sedans
@@ -79,9 +87,15 @@ SUV_MODELS = [
     # Lorenzo: Premium and Premium Plus, for both 3.3 Turbo and Turbo S.
     # "premium" as a whole word covers "3.3 Turbo Premium", "Turbo Premium
     # Plus", "Turbo S Premium", "S Premium Plus"; Preferred is rejected.
+    # Colours are the point of this watch: gray or blue outside, brown or
+    # beige inside, in Cars.com's buckets. The CX-70's only non-black
+    # interior below the red Nappa is Mazda's Tan, which dealers file as
+    # either bucket, so both are asked for. With colours this narrow the
+    # net is 500 miles, Lorenzo's original radius for this car.
     DreamModel("Mazda CX-70 (Cars.com)", "mazda", "mazda-cx_70", year_min=2024,
-               radius_miles=300, odometer_max=35000,
-               trim_markers=("premium",), trim_reject=("preferred",)),
+               radius_miles=500, odometer_max=35000,
+               trim_markers=("premium",), trim_reject=("preferred",),
+               exterior_colors=("gray", "blue"), interior_colors=("brown", "beige")),
 ]
 
 DREAM_MODELS = [
@@ -104,6 +118,7 @@ class DreamRow:
     comp: MarketComp
     market_pct: float | None = None     # negative = below the model's own curve
     rating: str = ""
+    interior: str = ""                  # the interior buckets the search asked for
 
 
 @dataclass
@@ -117,10 +132,13 @@ class DreamBoard:
 def _fetch_model(cfg, model: DreamModel) -> list[MarketComp]:
     """One model, one fresh browser. Cars.com's tolerance is per session."""
     from . import ingest
+    extra = model.extra_query
+    extra += "".join(f"&exterior_color_slugs[]={c}" for c in model.exterior_colors)
+    extra += "".join(f"&interior_color_slugs[]={c}" for c in model.interior_colors)
     url = SEARCH.format(make=model.make, slug=model.slug, zip=cfg.zip,
                         distance=model.radius_miles if model.radius_miles else "all",
                         year_min=model.year_min, price_max=model.price_max,
-                        extra=model.extra_query)
+                        extra=extra)
     with ingest.BrowserSession(headless=True, min_delay=1.0, max_delay=1.5,
                                postal_code=cfg.zip, city_state=cfg.city_state,
                                coordinates=cfg.coordinates) as session:
@@ -129,19 +147,10 @@ def _fetch_model(cfg, model: DreamModel) -> list[MarketComp]:
             page.wait_for_timeout(5000)
             if page.evaluate(BLOCKED_JS):
                 raise RuntimeError("Cars.com served a Cloudflare challenge")
-            cards = page.evaluate(CARD_TEXT_LINKS)
-
-    comps = []
-    for card in cards:
-        comp = parse_card(card.get("text") or "")
-        if comp is None:
-            continue
-        href = card.get("href") or ""
-        if href.startswith("/"):
-            href = "https://www.cars.com" + href
-        # Cars.com appends tracking parameters; the listing id is the path.
-        comp.url = href.split("?")[0] if href else ""
-        comps.append(comp)
+            comps, total = read_results(page)
+    logger.info("Cars.com %s: %d listings on the page, site reports %s matching",
+                model.label, len(comps), total)
+    annotate_distances(comps, geo.parse_coordinates(cfg.coordinates))
     if model.body_markers:
         # Whole-word: the XC60 marker "plus" must not match "Premium Plus"
         # and "wagon" must not match "Wagoneer".
@@ -163,17 +172,18 @@ def _fetch_model(cfg, model: DreamModel) -> list[MarketComp]:
             words = set(re.findall(r"[a-z0-9.]+", title))
             if any(r in words for r in model.trim_reject):
                 continue
-            c.trim = "ok" if any(m in words for m in model.trim_markers) else "unknown"
+            # A separate field: the trim itself stays readable for the curve.
+            c.trim_status = "ok" if any(m in words for m in model.trim_markers) else "unknown"
             kept.append(c)
         comps = kept
 
     # The same car often appears twice, listed through two dealer channels
     # with the dealer name blank on one. Price, mileage and year together
     # identify a physical car well enough for a ranked tab.
-    seen: set[tuple] = set()
+    seen: set = set()
     unique: list[MarketComp] = []
     for c in comps:
-        key = (c.year, c.price, c.mileage)
+        key = c.vin or (c.year, c.price, c.mileage)
         if key in seen:
             continue
         seen.add(key)
@@ -213,12 +223,15 @@ def build(cfg, pause_seconds: float = 45.0, models: list[DreamModel] | None = No
         logger.info("Dream tab: %s -> %d listings%s", model.label, len(comps),
                     f", curve n={curve.n}" if curve else ", no curve")
 
+        interior = "/".join(model.interior_colors)
         for c in comps:
             pct = None
             if curve:
-                predicted = curve.predict(c.mileage, c.age_years, 1)
+                # The curve was fitted with each comp's own trim tier, so
+                # predict with it too; a Premium Plus is not priced as a Premium.
+                predicted = curve.predict(c.mileage, c.age_years, trim_tier(c.trim))
                 pct = 100.0 * (c.price - predicted) / predicted
-            board.rows.append(DreamRow(model.label, c, pct, c.rating))
+            board.rows.append(DreamRow(model.label, c, pct, c.rating, interior))
 
     # Cheapest against its own model's curve first; unpriced-by-curve last.
     board.rows.sort(key=lambda r: (r.market_pct is None, r.market_pct or 0.0, r.comp.price))
@@ -248,10 +261,16 @@ def to_json(board: DreamBoard) -> dict:
                 "price": r.comp.price, "mileage": r.comp.mileage,
                 "city": r.comp.city, "state": r.comp.state, "distance": r.comp.distance,
                 "dealer": r.comp.dealer, "rating": r.rating, "url": r.comp.url,
+                # From the page's vehicle array: the VIN keys the row like a
+                # dealer car; the colour is Cars.com's bucket, not the paint
+                # name; the interior is what the search demanded, since the
+                # array does not carry it.
+                "vin": r.comp.vin, "color": r.comp.exterior, "interior": r.interior,
+                "certified": r.comp.certified,
                 "market_pct": None if r.market_pct is None else round(r.market_pct, 1),
                 # "ok" = named a wanted trim; "unknown" = dealer abbreviation
                 # the title could not be read from; "" = no trim rule.
-                "trim_status": r.comp.trim if r.comp.trim in ("ok", "unknown") else "",
+                "trim_status": r.comp.trim_status,
             }
             for r in board.rows
         ],

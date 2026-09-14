@@ -61,7 +61,33 @@ LOT_COORDINATES: dict[str, tuple[float, float]] = {
 }
 
 LOOKUP_URL = "https://api.zippopotam.us/us/{zip}"
-_runtime_cache: dict[str, tuple[float, float] | None] = {}
+# zip -> (coordinates or None, (city, state) or None), one network call each.
+_lookup_cache: dict[str, tuple[tuple[float, float] | None, tuple[str, str] | None]] = {}
+
+
+def _lookup(postal_code: str) -> tuple[tuple[float, float] | None, tuple[str, str] | None]:
+    if postal_code in _lookup_cache:
+        return _lookup_cache[postal_code]
+    coords = place = None
+    try:
+        response = requests.get(LOOKUP_URL.format(zip=postal_code), timeout=10)
+        response.raise_for_status()
+        entry = (response.json().get("places") or [{}])[0]
+        coords = (float(entry["latitude"]), float(entry["longitude"]))
+        place = (str(entry.get("place name") or ""), str(entry.get("state abbreviation") or ""))
+        logger.info("Geocoded postal code %s -> %s, %s", postal_code, coords, place)
+    except Exception as exc:
+        logger.warning("Could not geocode postal code %s: %s", postal_code, exc)
+    _lookup_cache[postal_code] = (coords, place)
+    return coords, place
+
+
+def place_for_zip(postal_code: str) -> tuple[str, str] | None:
+    """(city, state) for a zip. Cars.com gives a seller zip and nothing else."""
+    postal_code = (postal_code or "").strip()[:5]
+    if not postal_code:
+        return None
+    return _lookup(postal_code)[1]
 
 
 def haversine_miles(a: tuple[float, float], b: tuple[float, float]) -> float:
@@ -87,23 +113,9 @@ def coordinates_for_zip(postal_code: str, allow_lookup: bool = True) -> tuple[fl
         return None
     if postal_code in LOT_COORDINATES:
         return LOT_COORDINATES[postal_code]
-    if postal_code in _runtime_cache:
-        return _runtime_cache[postal_code]
-    if not allow_lookup:
+    if not allow_lookup and postal_code not in _lookup_cache:
         return None
-
-    try:
-        response = requests.get(LOOKUP_URL.format(zip=postal_code), timeout=10)
-        response.raise_for_status()
-        place = (response.json().get("places") or [{}])[0]
-        coords = (float(place["latitude"]), float(place["longitude"]))
-        logger.info("Geocoded new lot postal code %s -> %s", postal_code, coords)
-    except Exception as exc:
-        logger.warning("Could not geocode postal code %s: %s", postal_code, exc)
-        coords = None
-
-    _runtime_cache[postal_code] = coords
-    return coords
+    return _lookup(postal_code)[0]
 
 
 def annotate_distances(

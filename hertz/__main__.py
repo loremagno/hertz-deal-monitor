@@ -268,9 +268,18 @@ def main(argv: list[str] | None = None) -> int:
                 logger.warning("SUV sweep not refreshed: %s", exc)
                 suv_doc = json.loads(suv_cached) if suv_cached else None
 
+        # Followed cars: read the repo's open "follow" issues, report what
+        # changed on each, and hand the set to the page. Never fatal.
+        follow_doc = None
+        try:
+            from . import follow
+            follow_doc = follow.run(cfg, store, dream_doc, suv_doc, dry_run=args.dry_run)
+        except Exception as exc:
+            logger.warning("Follow check skipped: %s", exc)
+
         # One JSON document drives the published dashboard (docs/index.html).
         try:
-            doc = dashboard.build(result, cfg, dream_doc, store, suv_doc)
+            doc = dashboard.build(result, cfg, dream_doc, store, suv_doc, follow_doc)
             dashboard.write(doc, cfg.base_dir / "docs" / "data.json")
             logger.info("Dashboard data written: %d listings, %d dream rows",
                         len(doc["listings"]), len(doc["dream"]["rows"]))

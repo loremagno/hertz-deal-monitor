@@ -64,7 +64,8 @@ def _row(s, cfg: Config, groups: dict | None = None) -> dict:
     }
 
 
-def build(result, cfg: Config, dream: dict | None, store, suv: dict | None = None) -> dict:
+def build(result, cfg: Config, dream: dict | None, store, suv: dict | None = None,
+          follow: dict | None = None) -> dict:
     """Assemble the document the page renders."""
     scored = [s for s in result.all_scored if s.listing.price]
     watched = [s for s in scored if s.tier]
@@ -113,6 +114,9 @@ def build(result, cfg: Config, dream: dict | None, store, suv: dict | None = Non
         # Cars.com rows for the SUV tab. No colour, no history, no VIN: the
         # page marks them as Cars.com and never shows them as clean.
         "suv_market": suv or {"rows": [], "counts": {}, "skipped": []},
+        # Followed cars (GitHub issues) with their current state and change log.
+        "follow": follow or {"enabled": False, "repo": cfg.github_repo, "new_issue_url": "",
+                             "reason": "not checked this run", "rows": []},
     }
 
 

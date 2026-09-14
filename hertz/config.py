@@ -171,6 +171,10 @@ class Config:
     watch: list[WatchEntry] = field(default_factory=list)
     sources: dict = field(default_factory=dict)
 
+    # "owner/name" of the repo whose issues hold followed listings. On
+    # Actions the runner's GITHUB_REPOSITORY overrides it.
+    github_repo: str = ""
+
     # secrets, from the environment
     smtp_user: str = ""
     smtp_password: str = ""
@@ -303,6 +307,7 @@ def load(path: Path = CONFIG_PATH) -> Config:
         cfg.sources = {"hertz": Source("hertz")}
 
     cfg.db_path = _resolve_db_path(raw.get("paths", {}))
+    cfg.github_repo = str(raw.get("github", {}).get("repo", ""))
 
     cfg.smtp_user = os.environ.get("HERTZ_SMTP_USER", "")
     cfg.smtp_password = os.environ.get("HERTZ_SMTP_PASSWORD", "")
