@@ -385,9 +385,19 @@ def fetch_model_nationwide(
     listings = fetch_all(session, params, max_pages=max_pages, source=source)
 
     if not listings:
+        # An empty page from Hertz is far more often a throttled page than an
+        # empty market: the target model came back 0 twice in eight cloud
+        # runs while every other model answered. One retry after a pause
+        # recovers the common case cheaply; the per-model zero-fetch guard in
+        # the pipeline still catches the rest.
+        logger.warning("Model %r returned no vehicles; retrying once after a pause", model)
+        time.sleep(20)
+        listings = fetch_all(session, params, max_pages=max_pages, source=source)
+
+    if not listings:
         logger.warning(
-            "Model %r returned no vehicles. Either none are in stock or the "
-            "model string does not match Hertz's vocabulary.", model,
+            "Model %r returned no vehicles on retry. Either none are in stock or "
+            "the model string does not match Hertz's vocabulary.", model,
         )
 
     # Distances are computed locally in `geo`, not read from the response:
