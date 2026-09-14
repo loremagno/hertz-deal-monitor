@@ -141,17 +141,21 @@
   </section>
 
   <section role="tabpanel" id="tab-watch" hidden>
-    <div class="note warn">The named upgrade list at Hertz (Atlas, GV70/80, Highlander Hybrid, CX-90,
-      Palisade 2026, V60), polled daily, cheapest page per model. Alerts only on an exceptional
-      discount. Clear "Away" for the whole country.</div>
+    <div class="note warn">The named upgrade list at Hertz (Atlas, GV70/80, CX-90 above Preferred,
+      Palisade 2026, V60 Cross Country, Sorento/Santa Fe above base, Mercedes C/GLA/GLB/GLE) polled
+      daily, a broad list every two days, and a <b>very discounted, any trim</b> lane that shows a car
+      only at 10% or more below prediction. Alerts only on an exceptional discount. Clear "Away" for
+      the whole country.</div>
     <div class="controls" id="watch-controls"></div>
     <div class="scroll"><table id="watch-table"></table></div>
   </section>
 
   <section role="tabpanel" id="tab-suv" hidden>
     <div class="note warn"><b>Volvo XC60</b>: Plus only, 2024&ndash;25, from Byers (certified), CarMax,
-      Hertz and Cars.com within 300 mi (Cars.com rows carry no colour or history; "landed" there is
-      the asking price alone). <b>Mazda CX-70</b>: 3.3 turbo, Premium or better, from Hertz and Byers Mazda. A
+      Hertz and Cars.com within 300 mi. <b>Mazda CX-70</b>: 3.3 turbo, Premium or better, from Hertz
+      and Byers Mazda, plus every CX-70 on Cars.com within 300 mi (Cars.com abbreviates trims, so the
+      Premium rule cannot be applied there). Cars.com rows carry no colour or history and "landed"
+      there is the asking price alone. A
       <span class="chip brown">brown interior</span> chip marks the interiors you like; "light brown"
       marks the blond/beige ones you don't. Clear "Away" for the whole country.</div>
     <div class="controls" id="suv-controls"></div>
@@ -161,8 +165,8 @@
   <section role="tabpanel" id="tab-dream" hidden>
     <div class="note warn">Aspirational, not gated: open-market listings from Cars.com, 2022 or
       newer, <b>$47,000 or less</b>, ranked within each model against a curve fitted on that model's
-      listings under the same cap. Station wagons, plus the CX-70 within 300 mi (the A4 allroad is
-      also 300 mi; the rest nationwide). Nothing here has a history report and nothing here alerts
+      listings under the same cap. Station wagons only (the A4 allroad within 300 mi; the rest
+      nationwide). Nothing here has a history report and nothing here alerts
       &mdash; Cars.com blocks its detail pages, so <b>colour and accident history are unknown for
       every row</b>; a standout price here is as likely to be a bad history as a bargain. "vs curve"
       is cheapness within the same model; Cars.com's own deal rating is alongside. Click a vehicle
@@ -458,17 +462,23 @@
   ];
   // Cars.com XC60 rows join the SUV tab in the same shape as a listing row,
   // with source "cars.com", no interior, and a condition that says so.
-  const suvMarket = (data.suv_market?.rows || []).map(r => ({
+  // The model name comes from the row's own label ("Volvo XC60 (Cars.com)",
+  // "Mazda CX-70 (Cars.com)"), so adding a model to SUV_MODELS needs no page
+  // change. Title text like "Mazda CX-70 3.3 Turbo Premium Plus" is kept as
+  // the trim so the sort and filter columns still work.
+  const suvMarket = (data.suv_market?.rows || []).map(r => {
+    const m = /^(\S+)\s+(.+?)\s*\(Cars\.com\)$/.exec(r.model || '') || [null, 'Cars.com', r.model];
+    return {
     vin: 'CARSCOM-' + (r.url || '').split('/').filter(Boolean).pop(),
-    label: `${r.year} ${r.title}`, year: r.year, make: 'Volvo', model: 'XC60', trim: r.title,
+    label: `${r.year} ${r.title}`, year: r.year, make: m[1], model: m[2], trim: r.title,
     source: 'cars.com', type: 'lot', color: '', interior: '', interior_tier: null,
     lot: [r.city, r.state].filter(Boolean).join(', ') || 'Cars.com', distance: r.distance,
     miles: r.mileage, price: r.price, delivery: 0, landed: r.price,
     residual_pct: r.market_pct, residual_sigma: null, benchmark: 'market', comps: 0,
-    tier: 'A', watch: 'Cars.com XC60', group: 'suv',
+    tier: 'A', watch: r.model, group: 'suv',
     condition: 'not checked (Cars.com)', condition_kind: 'none', fit: 0, misses: [],
     days_on_lot: null, price_drop_30d: null, cleared: false, reasons: [], url: r.url, image: '',
-  }));
+  }; });
   const suvRows = byGroup('suv').concat(suvMarket);
   const suvTable = table($('#suv-table'), suvRows, SUV_COLS, {sortKey:'landed', rowClass});
   controls($('#suv-controls'), suvRows, [

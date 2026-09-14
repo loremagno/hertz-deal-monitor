@@ -69,6 +69,18 @@ def build(result, cfg: Config, dream: dict | None, store, suv: dict | None = Non
     scored = [s for s in result.all_scored if s.listing.price]
     watched = [s for s in scored if s.tier]
 
+    # A watch whose whole point is "only if very discounted" must not put
+    # every car it matches on the board. The first cut of the lane showed
+    # 237 rows, most priced ABOVE prediction. Rows from such a lane are kept
+    # only when they clear the lane's own bar; the alert path already does
+    # this, the board did not.
+    bars = {w.label: w.threshold_pct for w in cfg.watch if w.label.lower().startswith("very discounted")}
+    watched = [
+        s for s in watched
+        if s.matched_label not in bars
+        or (s.residual_pct is not None and s.residual_pct <= bars[s.matched_label])
+    ]
+
     last_run = store.conn.execute(
         "SELECT started_at, finished_at, ok, fetched, new_vins, price_drops, alerts_sent "
         "FROM runs WHERE ok = 1 ORDER BY id DESC LIMIT 1"

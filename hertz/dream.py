@@ -65,15 +65,16 @@ WAGON = "&body_style_slugs[]=wagon"
 SUV_MODELS = [
     DreamModel("Volvo XC60 (Cars.com)", "volvo", "volvo-xc60", year_min=2024,
                radius_miles=300, odometer_max=35000, body_markers=("plus",)),
+    # The CX-70 is an SUV and belongs beside the Hertz/Byers CX-70 watch, not
+    # on the wagon tab. Cars.com adds the wider market but carries NO colour
+    # on its result cards and blocks its detail pages, so these rows cannot be
+    # colour- or trim-checked (Cars.com abbreviates trims to "PF"/"PR"), and
+    # the page says so. Within driving range, capped like the rest.
+    DreamModel("Mazda CX-70 (Cars.com)", "mazda", "mazda-cx_70", year_min=2024,
+               radius_miles=300, odometer_max=35000),
 ]
 
 DREAM_MODELS = [
-    # The CX-70 is also a Hertz/Byers watch with a grey-outside/brown-inside
-    # rule. Cars.com adds the wider market but carries NO colour on its result
-    # cards and blocks its detail pages, so these rows cannot be colour-checked
-    # and the page says so. Within driving range, capped like the rest.
-    DreamModel("Mazda CX-70 (Cars.com)", "mazda", "mazda-cx_70", radius_miles=300,
-               odometer_max=35000),
     DreamModel("Audi A6 allroad", "audi", "audi-a6_allroad"),
     DreamModel("Audi A4 allroad", "audi", "audi-a4_allroad", radius_miles=300),
     DreamModel("Volvo V90 Cross Country", "volvo", "volvo-v90_cross_country"),
