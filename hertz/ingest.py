@@ -361,6 +361,7 @@ def fetch_all(session: BrowserSession, params: dict, max_pages: int = MAX_PAGES,
 def fetch_model_nationwide(
     session: BrowserSession, model: str, max_pages: int = MAX_PAGES,
     source: Source = HERTZ, years: list[int] | None = None,
+    expected: int = 0,
 ) -> list[Listing]:
     """Every US unit of one model, with distance from the session's origin.
 
@@ -384,20 +385,23 @@ def fetch_model_nationwide(
                 f" (years {years})" if years else "")
     listings = fetch_all(session, params, max_pages=max_pages, source=source)
 
-    if not listings:
-        # An empty page from Hertz is far more often a throttled page than an
-        # empty market: the target model came back 0 twice in eight cloud
-        # runs while every other model answered. One retry after a pause
-        # recovers the common case cheaply; the per-model zero-fetch guard in
-        # the pipeline still catches the rest.
-        logger.warning("Model %r returned no vehicles; retrying once after a pause", model)
+    if not listings and expected > 0:
+        # An empty page for a model that HAD cars is far more often a
+        # throttled page than an empty market: the target model came back 0
+        # twice in eight cloud runs while every other model answered. One
+        # retry after a pause recovers that case. `expected` is the caller's
+        # prior count, and it matters: an unconditional retry fired 17 times
+        # in one run on models Hertz simply does not stock, recovered nothing,
+        # and tripled the run time.
+        logger.warning("Model %r returned no vehicles (had %d); retrying once after a pause",
+                       model, expected)
         time.sleep(20)
         listings = fetch_all(session, params, max_pages=max_pages, source=source)
 
     if not listings:
         logger.warning(
-            "Model %r returned no vehicles on retry. Either none are in stock or "
-            "the model string does not match Hertz's vocabulary.", model,
+            "Model %r returned no vehicles. Either none are in stock or the "
+            "model string does not match Hertz's vocabulary.", model,
         )
 
     # Distances are computed locally in `geo`, not read from the response:

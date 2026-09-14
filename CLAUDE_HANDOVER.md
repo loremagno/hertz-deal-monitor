@@ -196,11 +196,13 @@ missing" lost to an empty `{"rows": []}` cache; "adopt when the cache has
 no rows" lost to a stale 26-row uncapped cache. Both are reproduced in
 the commit messages.
 
-**Empty-fetch retry** (`ingest.fetch_model_nationwide`): an empty page is
-retried once after 20 s before being reported. The CX-50 Hybrid came back 0
-twice in eight cloud runs while every other model answered; the guard held
-both times, but a retry recovers the common case instead of only
-protecting against it.
+**Empty-fetch retry** (`ingest.fetch_model_nationwide`, `expected=`): an
+empty page is retried once after 20 s **only when the model had cars in the
+database** (the caller passes `store.active_count`). The CX-50 Hybrid came
+back 0 twice in eight cloud runs while every other model answered; the
+guard held both times, but a retry recovers the common case. The first,
+unconditional version fired 17 times in one run on models Hertz does not
+stock, recovered nothing, and took the run from 3½ to 9½ minutes.
 
 ## Pending / Next Steps
 - [x] **Site is public and live**: `https://loremagno.github.io/hertz-deal-monitor/`

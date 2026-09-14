@@ -255,7 +255,8 @@ def collect(
                     top = min(entry.year_max, entry.year_min + 4)
                     years = list(range(entry.year_min, top + 1))
                 listings = ingest.fetch_model_nationwide(
-                    session, model, entry.max_pages, source, years)
+                    session, model, entry.max_pages, source, years,
+                    expected=store.active_count(model))
                 per_model[key] = len(listings)
                 polled.add(model.lower())
                 for listing in listings:
