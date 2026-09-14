@@ -271,6 +271,12 @@ def collect_enterprise(cfg: Config, store: Store) -> list[Listing]:
                                    city_state=cfg.city_state, coordinates=cfg.coordinates) as session:
             cars = enterprise_mod.fetch(session, makes, home, radius, odometer_max, year_min)
         out = [c for c in cars if any(w.matches(c) for w in entries)]
+        # This pass runs outside collect(), which geocodes its own rows, so
+        # distances are resolved here; without them the cars sat behind the
+        # board's radius filter and could never alert.
+        if out and home:
+            _, discovered = geo.annotate_distances(out, home, store.load_geocache())
+            store.save_geocache(discovered)
         logger.info("Enterprise: %d of %d cars match a watch", len(out), len(cars))
     except Exception as exc:
         logger.warning("Enterprise sweep skipped: %s", exc)
