@@ -23,6 +23,7 @@ import re
 from dataclasses import dataclass
 
 from . import geo
+from .trims import trim_tier
 
 logger = logging.getLogger(__name__)
 
@@ -39,31 +40,6 @@ SEARCH = (
 
 # Cloudflare's two faces: the outright block and the "Just a moment" challenge.
 BLOCKED = re.compile(r"you have been blocked|security service to protect|just a moment|attention required", re.I)
-
-# Trim ladders, base < mid < top. Hertz stocks only Premium Plus CX-50s
-# while the open market is mostly Preferred, so a curve that ignores trim
-# compares Hertz's top trim against everyone else's base trim and makes
-# Hertz look expensive. Volvo's ladder is Core < Plus < Ultra. Whole-word,
-# and "premium plus" before "plus", so a Premium Plus is never read as a
-# Volvo Plus. Unknown trims sit in the middle.
-TRIM_TIERS = (
-    ("premium plus", 2),
-    ("premium", 1),
-    ("preferred", 0),
-    ("ultra", 2),
-    ("plus", 1),
-    ("core", 0),
-)
-_TIER_RE = [(re.compile(rf"\b{re.escape(needle)}\b"), tier) for needle, tier in TRIM_TIERS]
-
-
-def trim_tier(trim: str) -> int:
-    """0 base, 1 mid, 2 top, on either ladder. Unknown trims sit in the middle."""
-    text = (trim or "").strip().lower()
-    for pattern, tier in _TIER_RE:
-        if pattern.search(text):
-            return tier
-    return 1
 
 # One results card, as rendered text. Example:
 #   $38,548 / 6,736 mi. / Est. $710/mo
@@ -123,6 +99,7 @@ class MarketComp:
     distance: int | None = None
     rating: str = ""
     url: str = ""
+    make: str = ""
     vin: str = ""
     exterior: str = ""       # Cars.com's colour bucket ("gray"), not the paint name
     seller_zip: str = ""
@@ -177,6 +154,7 @@ def parse_card(text: str) -> MarketComp | None:
         mileage=int(mileage.group(1).replace(",", "")),
         year=year,
         title=full_title,
+        make=full_title.split(" ")[0] if full_title else "",
         # The whole title. It used to be cut at "Hybrid", which left every
         # non-hybrid comp with an empty trim and put all XC60s and CX-70s in
         # the middle tier, so the curve never saw a trim step.
@@ -224,6 +202,7 @@ def parse_vehicle_array(raw: str) -> list[MarketComp]:
         listing_id = v.get("listingId") or ""
         out.append(MarketComp(
             price=price, mileage=mileage, year=year, title=title, trim=trim,
+            make=(v.get("make") or "").strip(),
             dealer=(seller.get("dealerName") or "").strip(),
             url=f"https://www.cars.com/vehicledetail/{listing_id}/" if listing_id else "",
             vin=(v.get("vin") or "").strip().upper(),
@@ -286,7 +265,8 @@ def read_results(page) -> tuple[list[MarketComp], int | None]:
 
 def fetch_comps(session, make: str, model: str, zip_code: str,
                 radius: str | int = "all", max_pages: int = 1,
-                year_min: int | None = None, extra: str = "") -> list[MarketComp]:
+                year_min: int | None = None, extra: str = "",
+                start_page: int = 1) -> list[MarketComp]:
     """Collect market listings for one model. `radius` accepts "all".
 
     `year_min` is applied server-side and matters more than it looks. An
@@ -303,7 +283,7 @@ def fetch_comps(session, make: str, model: str, zip_code: str,
     if year_min:
         extra = f"&year_min={int(year_min)}{extra}"
 
-    for page in range(1, max_pages + 1):
+    for page in range(start_page, start_page + max_pages):
         url = SEARCH.format(make=make, model=model, zip=zip_code, radius=radius,
                             page=page, extra=extra)
         try:
@@ -342,11 +322,13 @@ def fetch_comps(session, make: str, model: str, zip_code: str,
 
 @dataclass
 class MarketCurve:
-    """log(price) = a + b*(mileage/10k) + c*age + d*trim_tier, on market listings.
+    """log(price) = a + b*(mileage/10k) + c*age + d*trim_tier + e*certified.
 
     The trim term matters more than it looks: Hertz stocks only Premium Plus
     while the open market is mostly Preferred, so omitting it would price
-    Hertz's top trim against everyone else's base trim.
+    Hertz's top trim against everyone else's base trim. The certified term
+    keeps CPO asking prices from lifting the curve against non-certified
+    cars; the vehicle array carries the flag.
     """
 
     intercept: float
@@ -358,13 +340,16 @@ class MarketCurve:
     median_price: int
     median_mileage: int
     trim_counts: dict
+    per_certified: float = 0.0
 
-    def predict(self, mileage: int, age_years: float, tier: int = 2) -> float:
+    def predict(self, mileage: int, age_years: float, tier: float = 1.5,
+                certified: bool = False) -> float:
         return math.exp(
             self.intercept
             + self.per_10k_miles * (mileage / 10000.0)
             + self.per_year * age_years
             + self.per_trim_tier * tier
+            + (self.per_certified if certified else 0.0)
         )
 
 
@@ -381,9 +366,9 @@ def fit_curve(comps: list[MarketComp], min_n: int = 10) -> MarketCurve | None:
                        len(usable), min_n)
         return None
 
-    rows = [(1.0, c.mileage / 10000.0, c.age_years, float(trim_tier(c.trim)),
-             math.log(c.price)) for c in usable]
-    k = 4
+    rows = [(1.0, c.mileage / 10000.0, c.age_years, trim_tier(c.trim, c.make),
+             1.0 if c.certified else 0.0, math.log(c.price)) for c in usable]
+    k = 5
     xtx = [[0.0] * k for _ in range(k)]
     xty = [0.0] * k
     for r in rows:
@@ -409,26 +394,32 @@ def fit_curve(comps: list[MarketComp], min_n: int = 10) -> MarketCurve | None:
 
     counts: dict = {}
     for c in usable:
-        key = ("base", "mid", "top")[trim_tier(c.trim)]
+        key = f"tier {trim_tier(c.trim, c.make):g}"
         counts[key] = counts.get(key, 0) + 1
+    certified = sum(1 for c in usable if c.certified)
 
     logger.info(
         "Market curve on %d Cars.com listings: %.1f%% per 10k miles, %.1f%% per year, "
-        "%.1f%% per trim step, RMSE %.3f, trims %s",
+        "%.1f%% per trim step, %.1f%% certified (%d of %d), RMSE %.3f, trims %s",
         len(usable), 100 * (math.exp(beta[1]) - 1), 100 * (math.exp(beta[2]) - 1),
-        100 * (math.exp(beta[3]) - 1), rmse, counts,
+        100 * (math.exp(beta[3]) - 1), 100 * (math.exp(beta[4]) - 1), certified, len(usable),
+        rmse, counts,
     )
     return MarketCurve(beta[0], beta[1], beta[2], beta[3], len(usable), rmse,
-                       prices[len(prices) // 2], miles[len(miles) // 2], counts)
+                       prices[len(prices) // 2], miles[len(miles) // 2], counts, beta[4])
 
 
 def market_gap(listing, curve: MarketCurve | None) -> tuple[float, float] | None:
-    """(dollars below market, percent below market) for one Hertz listing."""
+    """(dollars below market, percent below market) for one listing, on the
+    pre-doc price: Cars.com asking prices exclude the doc fee, Hertz's
+    quoted price includes it."""
     if curve is None or not listing.price or listing.odometer is None:
         return None
     age = listing.age_years
     if age is None:
         return None
-    predicted = curve.predict(listing.odometer, age, trim_tier(listing.trim))
-    gap = predicted - float(listing.price)
+    predicted = curve.predict(listing.odometer, age, trim_tier(listing.trim, listing.make),
+                              bool(getattr(listing, "certified", False)))
+    price = float(listing.no_haggle_price or listing.price)
+    gap = predicted - price
     return gap, 100.0 * gap / predicted

@@ -59,6 +59,15 @@ class Source:
 HERTZ = Source("hertz")
 MAX_PAGES = 60  # 1,440 vehicles; a safety stop, not an expected limit
 
+# Capped sweeps are sorted by MILEAGE, not price. A sweep that keeps the
+# cheapest pages truncates the price model's sample on the outcome, which
+# biases every capped model's fitted level downward; truncating on mileage,
+# a regressor, does not bias OLS at all. It also matches what the buyer
+# wants: the low-mileage end of every model, with the mileage cap applied
+# locally afterwards.
+SORT_ASC = "odometer asc"
+SORT_DESC = "odometer desc"
+
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"
@@ -299,7 +308,7 @@ def fetch_all(session: BrowserSession, params: dict, max_pages: int = MAX_PAGES,
     """Page through a search until every matching vehicle is collected.
 
     Stops at `max_pages` and says so. A capped sweep is fine when results are
-    sorted cheapest-first, but it must never look like full coverage.
+    sorted lowest-mileage-first, but it must never look like full coverage.
     """
     collected: dict[str, Listing] = {}
     total = None
@@ -334,8 +343,8 @@ def fetch_all(session: BrowserSession, params: dict, max_pages: int = MAX_PAGES,
     result = list(collected.values())
     if truncated:
         logger.warning(
-            "TRUNCATED: took the %d cheapest of %d matching vehicles (page cap %d). "
-            "Anything above that price is not being watched.",
+            "TRUNCATED: took the %d lowest-mileage of %d matching vehicles (page cap %d). "
+            "Anything above that mileage is not being watched.",
             len(result), total, max_pages,
         )
     elif total and len(result) < total:
@@ -343,7 +352,7 @@ def fetch_all(session: BrowserSession, params: dict, max_pages: int = MAX_PAGES,
         # tie, so a full ascending sweep can come up one short -- and locally
         # the missing car was a candidate. One page from the other end of the
         # sort closes the gap cheaply.
-        tail, _ = fetch_page(session, {**params, "sortBy": "internetPrice desc"}, source)
+        tail, _ = fetch_page(session, {**params, "sortBy": SORT_DESC}, source)
         before = len(collected)
         collected.update({l.vin: l for l in tail})
         result = list(collected.values())
@@ -373,12 +382,11 @@ def fetch_model_nationwide(
     an order of magnitude fewer page loads, it guarantees the price model
     same-model comparables, and it still surfaces a bargain parked far away.
     """
-    params = {"model": model, "sortBy": "internetPrice asc"}
+    params = {"model": model, "sortBy": SORT_ASC}
     if years:
-        # Filter server-side, not after the fact. Sweeps are capped and sorted
-        # cheapest-first, so a year restriction applied locally would silently
-        # never see newer cars: they sit past the price cap. Hertz accepts a
-        # repeated `year` parameter.
+        # Filter server-side, not after the fact. Sweeps are capped, so a
+        # year restriction applied locally would silently never see cars
+        # past the cap. Hertz accepts a repeated `year` parameter.
         params["year"] = years
 
     logger.info("Fetching %r from %s%s", model, source.name,
@@ -412,19 +420,31 @@ def fetch_model_nationwide(
 
 def fetch_make_nationwide(
     session: BrowserSession, make: str, max_pages: int = MAX_PAGES,
-    source: Source = HERTZ
+    source: Source = HERTZ, years: list[int] | None = None,
+    price_band: tuple[int, int] | None = None, odometer_max: int | None = None,
+    body_styles: list[str] | None = None,
 ) -> list[Listing]:
-    """Every US unit of one make.
+    """Every US unit of one make, within the filters Hertz applies itself.
 
     Useful for a marque you would consider broadly, or where the model you
     want is not in stock today: a make query needs no exact model string and
-    will pick the car up whenever it arrives.
+    will pick the car up whenever it arrives. Dealer.com honours `year`,
+    `internetPrice=lo-hi`, `odometer=lo-hi` and `bodyStyle` (verified
+    2026-09-14: 1,043 model-year-2026 Mazdas became 876 in the $25-35k
+    band, 862 under 25k miles, 849 SUVs), so the filters cost no pages.
     """
-    logger.info("Fetching make %r from %s", make, source.name)
-    listings = fetch_all(
-        session, {"make": make, "sortBy": "internetPrice asc"},
-        max_pages=max_pages, source=source,
-    )
+    params: dict = {"make": make, "sortBy": SORT_ASC}
+    if years:
+        params["year"] = years
+    if price_band:
+        params["internetPrice"] = f"{int(price_band[0])}-{int(price_band[1])}"
+    if odometer_max:
+        params["odometer"] = f"0-{int(odometer_max)}"
+    if body_styles:
+        params["bodyStyle"] = list(body_styles)
+    logger.info("Fetching make %r from %s (%s)", make, source.name,
+                ", ".join(f"{k}={v}" for k, v in params.items() if k not in ("make", "sortBy")) or "no filters")
+    listings = fetch_all(session, params, max_pages=max_pages, source=source)
     if not listings:
         logger.warning("Make %r returned no vehicles", make)
     return listings

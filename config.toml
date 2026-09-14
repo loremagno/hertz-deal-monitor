@@ -65,6 +65,10 @@ min_comps = 12
 # A car must be at least this many dollars below prediction before the
 # percentage test is even considered, to avoid alerting on rounding noise.
 min_abs_discount = 400
+# When a Cars.com curve exists for a model, the within-inventory fit gets
+# weight n / (n + K) and the curve the rest: nine XC60s -> 31% inventory,
+# 69% market; sixty CX-50 Hybrids -> 75% inventory.
+market_blend_k = 20
 
 [alerts]
 enable_email = true
@@ -217,11 +221,49 @@ label = "Very discounted, any trim"
 source = "hertz"
 models = ["Highlander", "CX-90", "Atlas", "GV80", "Palisade", "Sienna", "RAV4 Hybrid", "CX-50", "CX-5"]
 threshold_pct = -10.0
+board_max_residual_pct = -10.0   # the board shows this lane only past its bar
+min_sigma = -2.0                 # ...and only two of the model's own sigmas below
 national = false
 year_min = 2024
 odometer_max = 35000
 poll_hours = 24
 max_pages = 3
+alert_on_new = false
+new_max_residual_pct = 0.0
+
+# ---------------------------------------------------------------------------
+# Hertz 2026 sweep (2026-09-14). No model list: every 2026 car of these
+# makes that Hertz prices between $25k and $35k, under 25k miles, as an
+# SUV, sedan or wagon. Hertz applies the band, the mileage cap and the
+# body styles server-side; the make's own trim ladder (hertz/trims.py)
+# drops base trims (a Palisade SEL stays, an Audi Premium goes). The board
+# shows a sweep car only at 6% or more below its benchmark; an alert needs
+# 8% and a clean AutoCheck; and any make|model Hertz has never sold before
+# gets one quiet push the run it appears. Sorted by mileage, capped per
+# make, so the low-mileage end is what gets seen. Add or drop makes freely.
+# ---------------------------------------------------------------------------
+
+[[watch]]
+tier = "B"
+group = "hertz"
+label = "Hertz 2026 sweep"
+source = "hertz"
+sweep = true
+makes = ["Audi", "Mazda", "Volvo", "Mercedes-Benz", "Volkswagen", "Honda", "Toyota",
+         "Genesis", "Lexus", "Subaru", "Hyundai", "Kia"]
+year_min = 2026
+year_max = 2026
+price_min = 25000
+price_max = 35000
+odometer_max = 25000
+body_styles = ["SUV", "Sedan", "Wagon"]
+exclude_base_trims = true
+threshold_pct = -8.0
+board_max_residual_pct = -6.0
+min_sigma = -2.0
+national = false
+poll_hours = 48
+max_pages = 12
 alert_on_new = false
 new_max_residual_pct = 0.0
 

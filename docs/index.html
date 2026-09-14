@@ -151,9 +151,12 @@
   <section role="tabpanel" id="tab-watch" hidden>
     <div class="note warn">The named upgrade list at Hertz (Atlas, GV70/80, CX-90 above Preferred,
       Palisade 2026, V60 Cross Country, Sorento/Santa Fe above base, Mercedes C/GLA/GLB/GLE) polled
-      daily, a broad list every two days, and a <b>very discounted, any trim</b> lane that shows a car
-      only at 10% or more below prediction. Alerts only on an exceptional discount. Clear "Away" for
-      the whole country.</div>
+      daily, a broad list every two days, a <b>very discounted, any trim</b> lane that shows a car
+      only at 10% or more below prediction, and the <b>Hertz 2026 sweep</b>: every 2026 Audi, Mazda,
+      Volvo, Mercedes, VW, Honda, Toyota, Genesis, Lexus, Subaru, Hyundai or Kia priced $25&ndash;35k
+      under 25k miles as an SUV, sedan or wagon, base trims dropped, shown only at 6% or more below
+      its benchmark. A model Hertz has never sold before sends one push the run it appears. Alerts
+      only on an exceptional discount. Clear "Away" for the whole country.</div>
     <div class="controls" id="watch-controls"></div>
     <div class="scroll"><table id="watch-table"></table></div>
   </section>
@@ -200,9 +203,11 @@
     <div><b>Landed</b> = price (doc fee included) + delivery + <span id="tax"></span>% Franklin County tax + title
       and registration. Delivery is the seller's own per-car quote where readable; Rent2Buy cars are collected in
       person at zero delivery.</div>
-    <div><b>vs model</b> is the residual from a hedonic fit of log price on mileage, age, trim tier and a Rent2Buy
-      indicator with model fixed effects, across every watched vehicle; thin models fall back to a Cars.com curve for
-      the same model. It measures cheapness within a model, on asking prices.</div>
+    <div><b>vs model</b> is a leave-one-out residual: the car's own row is taken out of a fit of log
+      pre-doc-fee price on mileage, model year, the make's trim ladder and a Rent2Buy indicator with model fixed
+      effects across every watched vehicle, and, where a Cars.com curve exists for the model, that prediction is
+      blended in with weight rising in the number of same-model cars we hold ourselves. It measures cheapness
+      within a model, on asking prices.</div>
     <div><b>Dismissing</b> a car (the × at the end of its row) hides it for good in this browser only;
       it is remembered across refreshes here but not on another device, and it never affects the
       alerts or the price model. Each table's footer shows how many are hidden and can show them

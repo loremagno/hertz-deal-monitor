@@ -138,25 +138,41 @@ def market_curves(session, cfg: Config, store: Store, max_age_hours: float = 24.
     return curves
 
 
-def refresh_market_curves(cfg: Config, store: Store, pause_seconds: float = 45.0) -> dict:
-    """Refit every market curve, one fresh browser per model, and write the
-    committed seed. Meant to run locally: a residential connection gets
-    through where the runner is challenged. A model that fails keeps its
-    previous seed entry."""
+def refresh_market_curves(cfg: Config, store: Store, pause_seconds: float = 45.0,
+                          pages: int = 3) -> dict:
+    """Refit every market curve and write the committed seed.
+
+    Meant to run locally: a residential connection gets through where the
+    runner is challenged. Cars.com serves 24 listings a page and blocks the
+    second request in a session, so each page gets its own browser, with a
+    pause between. Two different 24-car "best match" pages moved the XC60
+    prediction by two points; three pages is 70-odd cars and a steadier
+    curve. A model that fails keeps its previous seed entry.
+    """
     now = datetime.now().isoformat(timespec="seconds")
     seed: dict = {"seeded_at": now, "curves": {}}
-    for i, ((make, slug), (model_key, year_min)) in enumerate(market_curve_targets(cfg).items()):
-        if i:
-            time.sleep(pause_seconds)
-        try:
-            with ingest.BrowserSession(headless=True, min_delay=1.0, max_delay=1.5,
-                                       postal_code=cfg.zip, city_state=cfg.city_state,
-                                       coordinates=cfg.coordinates) as session:
-                comps = bm.fetch_comps(session, make, slug, cfg.zip, "all",
-                                       year_min=year_min or None)
-        except Exception as exc:
-            logger.warning("Market curve for %s not refreshed: %s", slug, exc)
-            continue
+    first = True
+    for (make, slug), (model_key, year_min) in market_curve_targets(cfg).items():
+        comps: list = []
+        seen: set = set()
+        for page in range(1, pages + 1):
+            if not first:
+                time.sleep(pause_seconds)
+            first = False
+            try:
+                with ingest.BrowserSession(headless=True, min_delay=1.0, max_delay=1.5,
+                                           postal_code=cfg.zip, city_state=cfg.city_state,
+                                           coordinates=cfg.coordinates) as session:
+                    found = bm.fetch_comps(session, make, slug, cfg.zip, "all",
+                                           year_min=year_min or None, start_page=page)
+            except Exception as exc:
+                logger.warning("Market curve for %s: page %d not fetched: %s", slug, page, exc)
+                break
+            fresh = [c for c in found if (c.vin or c.url) not in seen]
+            seen.update(c.vin or c.url for c in fresh)
+            comps.extend(fresh)
+            if not fresh:
+                break
         curve = bm.fit_curve(comps)
         if curve is None:
             logger.warning("Market curve for %s not refreshed (%d comps)", slug, len(comps))
@@ -306,6 +322,7 @@ class RunResult:
     hedonic_rmse: float = 0.0
     curves: dict = field(default_factory=dict)
     failed_entries: list = field(default_factory=list)   # (label, error) skipped this run
+    new_models: list = field(default_factory=list)       # (make, model, count, min price) first seen this run
 
 
 def collect(
@@ -373,12 +390,24 @@ def collect(
 
             # Make-level queries catch a model that is not in inventory today
             # but might appear later, without guessing its exact model string.
+            # A sweep entry passes its band, mileage cap and body styles to
+            # Hertz, which applies them server-side.
             for make in entry.makes:
                 key = f"{entry.source}:make:{make}"
                 if key in per_model:
                     continue
-                listings = ingest.fetch_make_nationwide(session, make, entry.max_pages, source)
+                years = None
+                if entry.year_min:
+                    years = list(range(entry.year_min, min(entry.year_max, entry.year_min + 4) + 1))
+                listings = ingest.fetch_make_nationwide(
+                    session, make, entry.max_pages, source, years=years,
+                    price_band=((entry.price_min, entry.price_max)
+                                if entry.price_min or entry.price_max else None),
+                    odometer_max=(entry.odometer_max if entry.odometer_max < 10**8 else None),
+                    body_styles=entry.body_styles or None)
                 per_model[key] = len(listings)
+                # A capped make sweep must not "sell" the models it did not
+                # reach: only models it actually returned count as polled.
                 polled.update(l.model.lower() for l in listings)
                 for listing in listings:
                     by_vin.setdefault(listing.vin, listing)
@@ -486,6 +515,33 @@ def run(cfg: Config, dry_run: bool = False, force: bool = False) -> RunResult:
             (listings, polled_models, polled_sources,
              polled_entries, failed_entries) = collect(session, cfg, store)
             result.failed_entries = failed_entries
+
+            # New at Hertz: a make|model the store has never held, arriving
+            # through a sweep. Computed before the upsert makes it known.
+            # "Hertz has started selling X" is the event the sweep exists for.
+            sweeps = [w for w in cfg.watch if w.sweep]
+            # The first sweep ever would call every 2026 model "new". That
+            # run records the baseline silently; arrivals count from the next.
+            first_sweep = sweeps and not store.get_meta("sweep_baseline_at")
+            if sweeps and first_sweep:
+                store.set_meta("sweep_baseline_at", datetime.now().isoformat(timespec="seconds"))
+                logger.info("First sweep: recording the model baseline, no new-model push")
+            if sweeps and not seeding and not first_sweep:
+                known = store.known_models("hertz")
+                arrivals: dict[str, list] = {}
+                for l in listings:
+                    if (l.source or "hertz") != "hertz":
+                        continue
+                    k = f"{l.make.strip().lower()}|{l.model.strip().lower()}"
+                    if k in known or not any(w.matches(l) for w in sweeps):
+                        continue
+                    arrivals.setdefault(k, []).append(l)
+                result.new_models = sorted(
+                    (ls[0].make, ls[0].model, len(ls), min(l.price for l in ls if l.price))
+                    for ls in arrivals.values() if any(l.price for l in ls))
+                if result.new_models:
+                    logger.info("New models at Hertz this run: %s",
+                                "; ".join(f"{mk} {md} x{n} from ${p:,}" for mk, md, n, p in result.new_models))
             listings.extend(carmax_listings)
             if carmax_listings:
                 # Only when the sweep actually returned cars: an empty CarMax

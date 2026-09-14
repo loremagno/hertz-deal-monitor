@@ -348,6 +348,15 @@ class Store:
         row = self.conn.execute(sql, params).fetchone()
         return int(row["n"]) if row else 0
 
+    def known_models(self, source: str = "hertz") -> set[str]:
+        """Every make|model this source has ever listed, active or not.
+        Feeds the new-model detector: a pair absent here is a model Hertz
+        has started selling since the store began."""
+        rows = self.conn.execute(
+            "SELECT DISTINCT LOWER(make) || '|' || LOWER(model) AS k FROM listings WHERE source = ?",
+            (source,)).fetchall()
+        return {r["k"] for r in rows}
+
     def reactivate(self, model: str) -> int:
         """Undo a wrongful mark-sold for one model (used once, by hand)."""
         cur = self.conn.execute(

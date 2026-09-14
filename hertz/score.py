@@ -24,6 +24,7 @@ from dataclasses import dataclass
 
 from .config import Config, WatchEntry
 from .models import AutoCheck, Listing, Scored
+from .trims import trim_tier
 
 logger = logging.getLogger(__name__)
 
@@ -77,78 +78,124 @@ def landed_cost(listing: Listing, cfg: Config) -> tuple[float, float, float, flo
 # Hedonic price model
 # ---------------------------------------------------------------------------
 
-# Below this many same-model rows of our own, a Cars.com curve for the
-# model (when one exists) is the benchmark. See score_listing.
-MARKET_PREFERRED_BELOW = 30
-
-
 def _normalize_model(listing: Listing) -> str:
     return f"{listing.make.strip().lower()}|{listing.model.strip().lower()}"
 
 
-# An ordinal trim ladder, coarse on purpose. Manufacturers name trims
-# differently, but almost all of them stack roughly base -> mid -> loaded, and
-# a single ordinal term removes most of the trim variation that would
-# otherwise sit in the error term and masquerade as a bargain.
-_TRIM_LADDER = (
-    (("plus ultimate", "premium plus", "ultra", "signature", "platinum",
-      "calligraphy", "type s", "grand touring"), 3),
-    (("premium", "plus", "limited", "sel premium", "touring", "xle", "ultimate"), 2),
-    (("preferred", "select", "sel", "core", "sport", "s ", "le", "se"), 1),
-)
+def typical_doc_fee(listings) -> int:
+    """The median Hertz doc fee in the sample (Hertz Price minus No Haggle)."""
+    fees = sorted(l.doc_fee for l in listings
+                  if (l.source or "hertz") == "hertz" and l.doc_fee and 0 < l.doc_fee < 2000)
+    return int(fees[len(fees) // 2]) if fees else 0
 
 
-def trim_tier(trim: str) -> int:
-    """0 unknown/base, rising to 3 for a marque's loaded trim."""
-    text = f" {(trim or '').strip().lower()} "
-    for needles, tier in _TRIM_LADDER:
-        if any(n in text for n in needles):
-            return tier
-    return 0
+def fit_price(listing: Listing, doc_fee: int = 0) -> float | None:
+    """The price every model is fitted on: pre-doc-fee, whatever the seller.
+
+    Hertz's quoted price includes its doc fee ($387 OH, $649 AZ); CarMax,
+    Byers and every Cars.com asking price exclude theirs. Fitting the two
+    together put a tilt of about 1.5% against Hertz into every residual.
+    Hertz lot cars carry the pre-doc "No Haggle Price"; Rent2Buy cars omit
+    it, so the sample's typical Hertz doc fee comes off instead.
+    """
+    if not listing.price:
+        return None
+    if (listing.source or "hertz") == "hertz":
+        if listing.no_haggle_price:
+            return float(listing.no_haggle_price)
+        return float(listing.price) - doc_fee
+    return float(listing.price)
 
 
 @dataclass
 class Hedonic:
-    """Fitted log-price surface plus the bookkeeping needed to apply it."""
+    """Fitted log-price surface plus what is needed to judge one car by it.
+
+    The residual a car is judged on is LEAVE-ONE-OUT: the car's own row is
+    taken out of the fit before it is predicted. Without that, a model with
+    two rows has its dummy fitted through them and the residual is
+    arithmetic, not evidence. With the hat matrix kept from the fit, the
+    exact LOO residual is e / (1 - h), no refit needed.
+    """
 
     coefficients: list[float]
     model_keys: list[str]
+    year_keys: list[int]
     counts: dict[str, int]
     n_obs: int
-    rmse: float
+    rmse: float                       # leave-one-out (PRESS) log-RMSE, pooled
+    xtx_inv: list[list[float]]        # (X'X + ridge)^-1, for hat values
+    fitted_vins: set[str]
+    sigma_by_model: dict[str, float]  # LOO residual SD per model with >= 20 rows
+    doc_fee: int
 
     def features(self, listing: Listing) -> list[float] | None:
-        """Design row: [1, odo, odo^2, age, trim_tier, rent2buy, model dummies].
+        """Design row: [1, odo, odo^2, model-year dummies, trim tier, rent2buy, model dummies].
 
-        `trim_tier` and `rent2buy` were added after inspecting the residuals.
-        Without a trim control, a loaded Palisade reads as overpriced and a
-        base one as a bargain, purely because trim sat in the error term.
-        Without a Rent2Buy indicator, two different products -- an
-        inspectable lot car and a car still out on rent whose mileage is an
-        estimate -- were pooled as if they were the same good.
+        Model-year dummies rather than a linear age: the first-year drop is
+        a cliff, and a straight line through 2024-2026 priced a 2025 above
+        its MSRP. `trim_tier` is the make's own ladder, so Audi's "Premium"
+        (its base) and Mazda's (its third rung) no longer share a value.
         """
-        if listing.odometer is None or listing.age_years is None:
+        if listing.odometer is None or not listing.year:
             return None
         odo = listing.odometer / 10000.0
-        row = [
-            1.0,
-            odo,
-            odo * odo,
-            listing.age_years,
-            float(trim_tier(listing.trim)),
-            1.0 if listing.is_rent2buy else 0.0,
-        ]
+        row = [1.0, odo, odo * odo]
+        row.extend(1.0 if listing.year == y else 0.0 for y in self.year_keys)
+        row.append(trim_tier(listing.trim, listing.make))
+        row.append(1.0 if listing.is_rent2buy else 0.0)
         key = _normalize_model(listing)
         row.extend(1.0 if key == mk else 0.0 for mk in self.model_keys)
         return row
 
-    def predict(self, listing: Listing) -> float | None:
+    def leverage(self, row: list[float]) -> float:
+        k = len(row)
+        h = 0.0
+        for i in range(k):
+            if row[i]:
+                h += row[i] * sum(self.xtx_inv[i][j] * row[j] for j in range(k) if row[j])
+        return min(max(h, 0.0), 1.0)
+
+    def assess(self, listing: Listing) -> dict | None:
+        """Judge one car: LOO prediction, LOO residual, its own sigma, and n.
+
+        Returns None when the car cannot be placed. `resid` is None when the
+        car's own dummy is the only thing fitting it (a one-row model): no
+        evidence either way.
+        """
         row = self.features(listing)
         if row is None or len(row) != len(self.coefficients):
             return None
-        log_price = sum(x * b for x, b in zip(row, self.coefficients))
+        price = fit_price(listing, self.doc_fee)
+        if not price or price <= 0:
+            return None
+        y = math.log(price)
+        yhat = sum(x * b for x, b in zip(row, self.coefficients))
+        key = _normalize_model(listing)
+        n = self.counts.get(key, 0)
+        if listing.vin in self.fitted_vins:
+            h = self.leverage(row)
+            if h > 0.98:
+                return {"pred_log": yhat, "resid": None, "sigma": None, "n": n, "leverage": h}
+            e = (y - yhat) / (1.0 - h)
+            pred = y - e
+        else:
+            h = 0.0
+            e = y - yhat
+            pred = yhat
+        sigma = self.sigma_by_model.get(key, self.rmse)
+        # The LOO residual's own spread is sigma / sqrt(1 - h): a car in a
+        # thin model is judged against a wider band, as it should be.
+        sigma_i = sigma / math.sqrt(1.0 - h) if sigma else None
+        return {"pred_log": pred, "resid": e, "sigma": sigma_i, "n": n, "leverage": h}
+
+    def predict(self, listing: Listing) -> float | None:
+        """Out-of-sample predicted pre-doc price."""
+        a = self.assess(listing)
+        if a is None:
+            return None
         try:
-            return math.exp(log_price)
+            return math.exp(a["pred_log"])
         except OverflowError:
             return None
 
@@ -180,18 +227,41 @@ def _solve(matrix: list[list[float]], rhs: list[float]) -> list[float] | None:
     return out
 
 
-def fit_hedonic(listings: list[Listing], ridge: float = 1e-3) -> Hedonic | None:
-    """Fit log(price) on mileage, age, and model fixed effects.
+def _invert(matrix: list[list[float]]) -> list[list[float]] | None:
+    """Gauss-Jordan inverse with partial pivoting; None if singular."""
+    n = len(matrix)
+    aug = [row[:] + [1.0 if i == j else 0.0 for j in range(n)] for i, row in enumerate(matrix)]
+    for col in range(n):
+        pivot = max(range(col, n), key=lambda r: abs(aug[r][col]))
+        if abs(aug[pivot][col]) < 1e-12:
+            return None
+        aug[col], aug[pivot] = aug[pivot], aug[col]
+        pv = aug[col][col]
+        aug[col] = [v / pv for v in aug[col]]
+        for row in range(n):
+            if row != col and aug[row][col]:
+                factor = aug[row][col]
+                aug[row] = [a - factor * b for a, b in zip(aug[row], aug[col])]
+    return [row[n:] for row in aug]
 
-    Model fixed effects absorb the level differences between an Elantra and a
-    GV80, so the residual measures cheapness within a model rather than across
-    the catalogue. Thin models get an effect estimated from very few cars, so
-    callers must check ``comps_for`` before trusting a residual.
+
+def fit_hedonic(listings: list[Listing], ridge: float = 1e-6) -> Hedonic | None:
+    """Fit log(pre-doc price) on mileage, model year, trim tier, Rent2Buy and
+    model fixed effects, and keep what leave-one-out judgement needs.
+
+    The ridge is numerical only (1e-6 N). An earlier 1e-3 N shrank every
+    model dummy a little towards the reference model's level, which for a
+    nine-row model with a level 60% above the reference was a 6% bias in
+    exactly the residual that matters. Thin models are handled by the LOO
+    residual and its wider sigma, and by the market blend in
+    `score_listing`, not by pulling their level towards an Elantra's.
     """
-    usable = [
-        l for l in listings
-        if l.price and l.price > 1000 and l.odometer is not None and l.age_years is not None
-    ]
+    doc_fee = typical_doc_fee(listings)
+    usable = []
+    for l in listings:
+        p = fit_price(l, doc_fee)
+        if p and p > 1000 and l.odometer is not None and l.year:
+            usable.append(l)
     if len(usable) < 20:
         logger.warning("Only %d usable rows; skipping hedonic fit", len(usable))
         return None
@@ -199,22 +269,21 @@ def fit_hedonic(listings: list[Listing], ridge: float = 1e-3) -> Hedonic | None:
     counts: dict[str, int] = {}
     for listing in usable:
         counts[_normalize_model(listing)] = counts.get(_normalize_model(listing), 0) + 1
+    # One model and one model year are the reference categories.
+    model_keys = sorted(counts)[1:]
+    year_keys = sorted({l.year for l in usable})[1:]
 
-    # Drop one model as the reference category to keep the design full rank.
-    model_keys = sorted(counts)
-    if model_keys:
-        model_keys = model_keys[1:]
-
-    scratch = Hedonic([], model_keys, counts, 0, 0.0)
+    scratch = Hedonic([], model_keys, year_keys, counts, 0, 0.0, [], set(), {}, doc_fee)
     design: list[list[float]] = []
     target: list[float] = []
+    rows_used: list[Listing] = []
     for listing in usable:
         row = scratch.features(listing)
         if row is None:
             continue
         design.append(row)
-        target.append(math.log(float(listing.price)))
-
+        target.append(math.log(fit_price(listing, doc_fee)))
+        rows_used.append(listing)
     if not design:
         return None
 
@@ -223,7 +292,6 @@ def fit_hedonic(listings: list[Listing], ridge: float = 1e-3) -> Hedonic | None:
         logger.warning("Design is %dx%d; too few rows to fit", len(design), k)
         return None
 
-    # Normal equations with a ridge penalty (intercept left unpenalised).
     xtx = [[0.0] * k for _ in range(k)]
     xty = [0.0] * k
     for row, y in zip(design, target):
@@ -239,22 +307,37 @@ def fit_hedonic(listings: list[Listing], ridge: float = 1e-3) -> Hedonic | None:
         if i:
             xtx[i][i] += ridge * len(design)
 
-    coefficients = _solve(xtx, xty)
-    if coefficients is None:
+    xtx_inv = _invert(xtx)
+    if xtx_inv is None:
         logger.warning("Hedonic normal equations were singular")
         return None
+    coefficients = [sum(xtx_inv[i][j] * xty[j] for j in range(k)) for i in range(k)]
 
-    residuals = [
-        y - sum(x * b for x, b in zip(row, coefficients))
-        for row, y in zip(design, target)
-    ]
-    rmse = math.sqrt(sum(r * r for r in residuals) / len(residuals))
+    fitted = Hedonic(coefficients, model_keys, year_keys, counts, len(design), 0.0,
+                     xtx_inv, {l.vin for l in rows_used}, {}, doc_fee)
+    press: list[float] = []
+    per_model: dict[str, list[float]] = {}
+    for row, y, listing in zip(design, target, rows_used):
+        h = fitted.leverage(row)
+        if h > 0.98:
+            continue                     # a one-row model: its dummy is the row
+        e = (y - sum(x * b for x, b in zip(row, coefficients))) / (1.0 - h)
+        press.append(e * e)
+        per_model.setdefault(_normalize_model(listing), []).append(e)
+    if not press:
+        return None
+    fitted.rmse = math.sqrt(sum(press) / len(press))
+    for key, errs in per_model.items():
+        if len(errs) >= 20:
+            mean = sum(errs) / len(errs)
+            fitted.sigma_by_model[key] = math.sqrt(sum((e - mean) ** 2 for e in errs) / (len(errs) - 1))
 
     logger.info(
-        "Hedonic fitted on %d vehicles across %d models (log-RMSE %.3f)",
-        len(design), len(counts), rmse,
+        "Hedonic fitted on %d vehicles across %d models, %d model years "
+        "(leave-one-out log-RMSE %.3f, doc fee $%d)",
+        len(design), len(counts), len(year_keys) + 1, fitted.rmse, doc_fee,
     )
-    return Hedonic(coefficients, model_keys, counts, len(design), rmse)
+    return fitted
 
 
 # ---------------------------------------------------------------------------
@@ -370,50 +453,60 @@ def score_listing(
         scored.tier = entry.tier.upper()
         scored.matched_label = entry.label
 
-    # Thin models get their benchmark from the open market instead.
+    # Two benchmarks, blended by how much each knows about this model.
     #
-    # The pooled hedonic gives each model its own dummy, so a model with two
-    # observations has its level fitted almost exactly and its residual is
-    # arithmetic rather than evidence. That is not a corner case here: it is
-    # the XC60 and the CX-70, the two models most worth watching. For those,
-    # a curve fitted on Cars.com listings of the same model is a real
-    # benchmark built on real variation.
+    # The within-inventory fit answers "cheap for what Hertz/CarMax/Byers
+    # charge"; a Cars.com curve for the same model answers "cheap for what
+    # everyone charges". With hundreds of CX-50 Hybrids the first is the
+    # sharper instrument; with nine XC60s, most of them one dealer's uniform
+    # pricing, the second is. The weight on the inventory fit is n / (n + K),
+    # K from config, so neither ever switches off abruptly. Both are on the
+    # pre-doc-fee price; the quoted price gets its own doc fee back below.
     key = _normalize_model(listing)
-    internal_comps = hedonic.comps_for(listing) if hedonic else 0
     curve = (market_curves or {}).get(key)
+    internal = hedonic.assess(listing) if hedonic else None
+    price_fit = fit_price(listing, hedonic.doc_fee if hedonic else 0)
+    if not price_fit or price_fit <= 0:
+        return scored
+    y = math.log(price_fit)
+    n = internal["n"] if internal else 0
 
-    # A same-model curve on ~100 open-market cars beats a model dummy fitted
-    # on a dozen of our own rows, most of them one dealer's uniform pricing.
-    # The CX-50 Hybrid, with hundreds of Hertz rows, keeps the within-Hertz
-    # benchmark, which is the question its alerts were built to answer.
-    if (curve is not None and listing.price
-            and internal_comps < max(cfg.min_comps, MARKET_PREFERRED_BELOW)):
-        from .benchmark import market_gap
-        gap = market_gap(listing, curve)
-        if gap is not None:
-            scored.predicted_landed = float(listing.price) + gap[0]
-            scored.residual_pct = -gap[1]
-            scored.residual_sigma = (-gap[1] / 100.0) / curve.rmse if curve.rmse else None
-            scored.comp_n = curve.n
-            scored.benchmark = "market"
-            return scored
+    pred_int = sig_int = None
+    if internal and internal["resid"] is not None and internal["sigma"]:
+        pred_int, sig_int = internal["pred_log"], internal["sigma"]
+    pred_mkt = sig_mkt = None
+    if curve is not None and listing.odometer is not None and listing.age_years is not None:
+        try:
+            pred_mkt = math.log(curve.predict(listing.odometer, listing.age_years,
+                                              trim_tier(listing.trim, listing.make),
+                                              listing.certified))
+            sig_mkt = curve.rmse or None
+        except (ValueError, OverflowError):
+            pred_mkt = None
 
-    if hedonic and listing.price:
-        predicted = hedonic.predict(listing)
-        if predicted:
-            scored.predicted_landed = predicted
-            scored.residual_pct = 100.0 * (listing.price - predicted) / predicted
-            scored.comp_n = hedonic.comps_for(listing)
-            scored.benchmark = "hertz"
-            # How unusual is this residual, in units of the fit's own spread?
-            # A percentage alone is not interpretable: -3% against a 4%
-            # residual SD is under one sigma, i.e. an ordinary car.
-            if hedonic.rmse > 0:
-                import math as _math
-                scored.residual_sigma = (
-                    _math.log(listing.price / predicted) / hedonic.rmse
-                )
+    if pred_int is not None and pred_mkt is not None and sig_mkt:
+        w = n / (n + cfg.market_blend_k)
+        pred = w * pred_int + (1.0 - w) * pred_mkt
+        sigma = math.sqrt(w * sig_int ** 2 + (1.0 - w) * sig_mkt ** 2)
+        scored.benchmark = f"blend {int(round(100 * (1 - w)))}% market"
+        scored.comp_n = n + curve.n
+    elif pred_int is not None:
+        pred, sigma = pred_int, sig_int
+        scored.benchmark = "hertz"
+        scored.comp_n = n
+    elif pred_mkt is not None and sig_mkt:
+        pred, sigma = pred_mkt, sig_mkt
+        scored.benchmark = "market"
+        scored.comp_n = curve.n
+    else:
+        return scored
 
+    e = y - pred
+    # Back on the quoted-price basis: whatever doc fee sits inside the
+    # quoted price is added to the predicted pre-doc price.
+    scored.predicted_landed = math.exp(pred) + (float(listing.price) - price_fit)
+    scored.residual_pct = 100.0 * (math.exp(e) - 1.0)
+    scored.residual_sigma = e / sigma if sigma else None
     return scored
 
 
@@ -448,6 +541,13 @@ def value_gate(scored: Scored, cfg: Config) -> tuple[bool, list[str]]:
             f"{scored.residual_pct:+.1f}% vs predicted, above the "
             f"{threshold:+.1f}% tier-{scored.tier} bar"
         ]
+    if entry and entry.min_sigma is not None:
+        if scored.residual_sigma is None or scored.residual_sigma > entry.min_sigma:
+            return False, [
+                f"{scored.residual_pct:+.1f}% is only "
+                f"{scored.residual_sigma:+.2f} sigma within its model (bar {entry.min_sigma:+.1f})"
+                if scored.residual_sigma is not None else "no sigma for this residual"
+            ]
 
     return True, [
         f"${discount:,.0f} ({scored.residual_pct:+.1f}%) below predicted price, "

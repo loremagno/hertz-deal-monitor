@@ -231,7 +231,8 @@ def build(cfg, pause_seconds: float = 45.0, models: list[DreamModel] | None = No
             if curve:
                 # The curve was fitted with each comp's own trim tier, so
                 # predict with it too; a Premium Plus is not priced as a Premium.
-                predicted = curve.predict(c.mileage, c.age_years, trim_tier(c.trim))
+                predicted = curve.predict(c.mileage, c.age_years, trim_tier(c.trim, c.make),
+                                          c.certified)
                 pct = 100.0 * (c.price - predicted) / predicted
             board.rows.append(DreamRow(model.label, c, pct, c.rating, interior))
 

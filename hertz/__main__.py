@@ -305,6 +305,17 @@ def main(argv: list[str] | None = None) -> int:
             sent = notify.send_deal_alerts(cfg, result.alerts, board_html)
             logger.info("Sent %d deal alert(s)", sent)
 
+            # One quiet push per run for models Hertz has started selling.
+            if result.new_models:
+                lines = [f"{mk} {md}: {n} car{'s' if n != 1 else ''} from ${p:,}"
+                         for mk, md, n, p in result.new_models[:12]]
+                if len(result.new_models) > 12:
+                    lines.append(f"... and {len(result.new_models) - 12} more")
+                notify.send_push(
+                    cfg, "Hertz now sells: " + ", ".join(md for _, md, _, _ in result.new_models[:4])
+                    + ("..." if len(result.new_models) > 4 else ""),
+                    "\n".join(lines), priority="default")
+
             # A source that was skipped is worth one quiet line, not an
             # urgent failure alert: the rest of the run succeeded and the
             # skipped entry retries on its own next run. Only say it once per

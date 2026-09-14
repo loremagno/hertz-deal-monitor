@@ -70,16 +70,20 @@ def build(result, cfg: Config, dream: dict | None, store, suv: dict | None = Non
     scored = [s for s in result.all_scored if s.listing.price]
     watched = [s for s in scored if s.tier]
 
-    # A watch whose whole point is "only if very discounted" must not put
-    # every car it matches on the board. The first cut of the lane showed
-    # 237 rows, most priced ABOVE prediction. Rows from such a lane are kept
-    # only when they clear the lane's own bar; the alert path already does
-    # this, the board did not.
-    bars = {w.label: w.threshold_pct for w in cfg.watch if w.label.lower().startswith("very discounted")}
+    # A watch whose whole point is "only if discounted" must not put every
+    # car it matches on the board: the first cut of the very-discounted lane
+    # showed 237 rows, most priced ABOVE prediction, and the 2026 sweep
+    # would show hundreds. Rows from such a watch are kept only at or below
+    # its board bar (`board_max_residual_pct` in config.toml).
+    bars = {w.label: w.board_max_residual_pct for w in cfg.watch
+            if w.board_max_residual_pct is not None}
+    sigmas = {w.label: w.min_sigma for w in cfg.watch if w.min_sigma is not None}
     watched = [
         s for s in watched
-        if s.matched_label not in bars
-        or (s.residual_pct is not None and s.residual_pct <= bars[s.matched_label])
+        if (s.matched_label not in bars
+            or (s.residual_pct is not None and s.residual_pct <= bars[s.matched_label]))
+        and (s.matched_label not in sigmas
+             or (s.residual_sigma is not None and s.residual_sigma <= sigmas[s.matched_label]))
     ]
 
     last_run = store.conn.execute(

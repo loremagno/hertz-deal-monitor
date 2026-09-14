@@ -93,67 +93,80 @@ but they will re-emerge if the guards are removed.
 
 ## The price model
 
-Pooled OLS, refit every run, in pure Python (`score.fit_hedonic`):
+Pooled OLS on the **pre-doc-fee price**, refit every run, in pure Python
+(`score.fit_hedonic`):
 
 ```
-log(P_i) = α + β₁(odo/10⁴) + β₂(odo/10⁴)² + β₃age + β₄trim + β₅rent2buy
-             + Σ_m δ_m·1[model = m] + ε
+log(P_i) = α + β₁(odo/10⁴) + β₂(odo/10⁴)² + Σ_y γ_y·1[model year = y]
+             + β₃·trim_tier + β₄·rent2buy + Σ_m δ_m·1[model = m] + ε
 ```
 
-Fitted on the **Hertz Price**, not landed cost — landed cost embeds distance and
-would confound "cheap" with "far". Ridge λ = 10⁻³·N on non-intercept terms.
-Typical fit: N ≈ 550, k = 16, log-RMSE ≈ 0.035–0.040.
+Hertz's quoted price includes its doc fee; CarMax, Byers and Cars.com prices
+exclude theirs, so every model is fitted on the pre-doc price (Hertz lot
+cars: the No Haggle Price; Rent2Buy cars: quoted price less the sample's
+median Hertz doc fee, $399 on 2026-09-14). Model-year dummies replace a
+linear age term: the first-year drop is a cliff, and a straight line through
+2024-2026 once priced a 2025 above its MSRP. `trim_tier` is the make's own
+ladder (`hertz/trims.py`: Audi Premium = base, Mazda Premium = third rung,
+Volvo Core/Plus/Ultra, Hyundai SE/SEL/Limited/Calligraphy, ...), 0 to 3,
+1.5 when unrecognised. The ridge is numerical only (10⁻⁶·N): the earlier
+10⁻³·N shrank every model dummy towards the reference model's level, a ~6%
+bias for a nine-row model 60% dearer than the reference. Typical fit on
+2026-09-14: N = 982, 25 models, leave-one-out log-RMSE 0.040; −3.9% per 10k
+miles at the origin, +3.9% for 2025 and +8.4% for 2026 over 2024, +5% per
+trim rung, Rent2Buy +0.8%.
 
-Representative estimates: −6.0% per 10k miles, −9.9% per year. Trim and
-Rent2Buy terms come out near zero, because Hertz appears to price
-algorithmically off mileage, age and model, and there is little within-model
-trim variation in its inventory.
+**The residual is leave-one-out.** The car's own row is removed before it is
+predicted, exactly, from the hat matrix kept at fit time: e_LOO = e/(1−h).
+Without it a two-row model has its dummy fitted through both cars and the
+residual is arithmetic. The reported RMSE is the PRESS RMSE; a car's own
+sigma is its model's LOO residual SD where the model has 20 or more rows,
+else the pooled value, and is widened by 1/√(1−h) for a car in a thin model.
+`residual_sigma` on the board is the studentized residual.
 
-**Known limitations, in order of importance.** It is a *within-Hertz* benchmark:
-model FEs absorb the level, so a residual never says "Hertz is cheap". Tier B
-samples are truncated from above by the page cap, biasing those models' fitted
-level downward. No colour, options or condition controls. Asking prices, not
-transaction prices. No standard errors; residuals are not studentized.
+**Two benchmarks, blended.** Where a Cars.com curve exists for the model
+(`benchmark.fit_curve`: log price on mileage, age, trim rung and a certified
+flag, fitted on the years the watch wants, three "best match" pages per
+model, ~70 cars, seeded from `docs/market_curves.json` by
+`python -m hertz --curves`), the prediction is w·inventory + (1−w)·market
+with w = n/(n+K), K = `market_blend_k` = 20: nine XC60s give the market 69%,
+sixty CX-50 Hybrids give it 25%. The board's `benchmark` column says which
+("hertz", "market", "blend 69% market") and `comps` counts both samples. The
+within-inventory fit answers "cheap for what these sellers charge"; the
+market curve answers "cheap for what everyone charges"; with one dealer's
+uniform pricing behind most thin models, the second is the sharper question.
 
-**Thin-model fallback and the market curve.** Watch entries carrying
-`market_make`/`market_slug` take their benchmark from a Cars.com curve for the
-same model (`benchmark.fit_curve`, cached 24h) whenever the model has fewer than
-30 rows of our own (`score.MARKET_PREFERRED_BELOW`): a same-model curve on the
-open market beats a model dummy fitted on a dozen rows, most of them one
-dealer's uniform pricing. The CX-50 Hybrid, with hundreds of Hertz rows, keeps
-the within-Hertz benchmark. The curve is fitted on the years the watch wants
-(`year_min` goes to Cars.com) and on a whole-word trim ladder (Mazda: Preferred
-< Premium < Premium Plus; Volvo: Core < Plus < Ultra). The trim term matters:
-omitting it once flipped the Hertz-vs-market comparison from "5–9% over" to
-"3–6% under", because Hertz stocks only Premium Plus CX-50s while the open
-market is mostly Preferred.
+**Capped sweeps are sorted by mileage, not price.** Taking the cheapest pages
+of a big model truncates the sample on the outcome and biases that model's
+fitted level down; truncating on mileage, a regressor, does not bias OLS.
 
-Three defects made the first version of this curve wrong, found on
-2026-09-13 when every CarMax XC60 showed −7% to −17% "vs model" while being
-priced like every other XC60. The sample was unfiltered: 11 cars, median 2021,
-42k miles, $32k, and a log-linear −10%/yr age term extrapolated a 2025 B5 Plus
-to $48–50k, above its MSRP. The card parser cut trims at the word "Hybrid", so
-every non-hybrid comp had an empty trim and sat in the middle tier. And the
-sample was 11 because Cars.com renders its result cards in shadow DOM and only
-a handful expose text: the card reader saw 6 of 24. The fetcher now reads the
-page's vehicle array (`benchmark.read_results`) and the cache key carries the
-year filter, so the old curve is never reused.
-
-**The curves are seeded, like the Cars.com tabs.** The runner is
-Cloudflare-challenged on Cars.com more often than not (the first forced run
-after the fix lost the XC60 curve and scored the XC60 on a model dummy over
-nine of our own rows). `python -m hertz --curves`, run locally, refits every
-curve with a fresh browser per model and writes `docs/market_curves.json`;
-`pipeline.adopt_curve_seed` copies a committed curve into the cache whenever
-it is newer than what is cached, and a failed live refresh keeps the cached
-curve however old rather than dropping to the internal fallback. Refit the
-seed every week or two, or whenever the board's `benchmark` column shows
-"hertz" for the XC60.
+**Known limitations.** No colour, options or condition controls. Asking
+prices, not transaction prices. Cars.com curves are a 70-car "best match"
+sample of a market that can be 1,600 deep. No standard errors on the blend
+weight, which is a judgement, not an estimate.
 
 **Alerts fire on two independent events**: value (residual below the tier
-threshold) and arrival (`alert_on_new`). Condition is never waived — except that
-CarMax cars, having no readable history report, are explicitly labelled
+threshold) and arrival (`alert_on_new`). Condition is never waived — except
+that CarMax cars, having no readable history report, are explicitly labelled
 unverified and cannot pass the value gate.
+
+---
+
+## The Hertz 2026 sweep
+
+`[[watch]]` with `sweep = true` and a make list instead of a model list.
+Hertz applies the band, mileage cap, body styles and model year server-side
+(Dealer.com honours `internetPrice=lo-hi`, `odometer=lo-hi`, `bodyStyle`,
+`year`), each make capped at `max_pages` sorted by mileage. Base trims are
+dropped by the make's ladder (`exclude_base_trims`); a Palisade SEL stays,
+an Audi Premium goes, a Lexus with no trim suffix is unknown and stays. The
+board shows a sweep car only at or below `board_max_residual_pct` (−6%) AND
+`min_sigma` (−2 studentized); alerts need `threshold_pct` (−8%), the same
+sigma bar and a clean AutoCheck. The very-discounted lane carries the same
+sigma bar: thirteen unlabelled-trim Rent2Buy Highlanders read −10% to −15%
+at only −1.7 sigma, which is a missing trim label, not a deal. A make|model the
+store has never held for Hertz sends one quiet push the run it appears
+(`RunResult.new_models`, computed before the upsert makes it known).
 
 ---
 

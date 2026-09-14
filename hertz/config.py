@@ -15,6 +15,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 CONFIG_PATH = BASE_DIR / "config.toml"
 
 
+_BODY_WORDS = {"suv", "sedan", "hatchback", "wagon", "coupe", "convertible", "van",
+               "minivan", "truck", "pickup"}
+
+
 @dataclass
 class WatchEntry:
     """One line of the watchlist.
@@ -77,6 +81,25 @@ class WatchEntry:
     # worth telling you about. 0 means "at or below prediction".
     new_max_residual_pct: float = 0.0
 
+    # A sweep: no model list, a make list, and the filters Hertz applies
+    # server-side (price band, mileage cap, body styles, model years). The
+    # point is a model Hertz starts selling that no model list names.
+    sweep: bool = False
+    price_min: int = 0
+    price_max: int = 0
+    body_styles: list[str] = field(default_factory=list)
+    # Drop trims the make's ladder (hertz/trims.py) positively calls base.
+    exclude_base_trims: bool = False
+    # Rows from this watch reach the board only at or below this residual;
+    # None shows every matching car. Alerts use threshold_pct as before.
+    board_max_residual_pct: float | None = None
+    # A studentized-residual bar on top of the percentage, for the board AND
+    # the alert: -2.0 means "two of the model's own sigmas below". Thirteen
+    # Rent2Buy Highlanders with no trim label read -10% to -15% against a
+    # model whose labelled cars are XLE and up, at only -1.7 sigma: not a
+    # deal, a missing label. None applies no sigma bar.
+    min_sigma: float | None = None
+
     def matches(self, listing) -> bool:
         model = (listing.model or "").lower()
         make = (listing.make or "").lower()
@@ -92,7 +115,28 @@ class WatchEntry:
             return False
         if listing.odometer is not None and listing.odometer > self.odometer_max:
             return False
+        if self.price_min and listing.price and listing.price < self.price_min:
+            return False
+        if self.price_max and listing.price and listing.price > self.price_max:
+            return False
+        # Body style, only when the row carries one of the real body words.
+        # Dealer feeds put "AUTO FWD" and "AWD" in that field now and then,
+        # and a car the server already filtered to SUV must not be dropped
+        # for it.
+        if self.body_styles:
+            # Dealer feeds put trim strings, "AWD", "FWD 8-PASSENGER (NATL)"
+            # and "Van Passenger Van" in this field. The first real body
+            # word found decides; a value with none is left alone, since a
+            # car the server already filtered to SUV must not be dropped.
+            words = re.findall(r"[a-z]+", (listing.body_style or "").lower())
+            body = next((w for w in words if w in _BODY_WORDS), "")
+            if body and body not in {b.lower() for b in self.body_styles}:
+                return False
         trim = (listing.trim or "").lower()
+        if self.exclude_base_trims:
+            from .trims import is_base_trim
+            if is_base_trim(listing.trim, listing.make):
+                return False
         if self.require_trims and not any(
             t.strip().lower() in trim for t in self.require_trims
         ):
@@ -157,6 +201,9 @@ class Config:
     # scoring
     min_comps: int = 12
     min_abs_discount: int = 400
+    # Weight on the within-inventory fit is n / (n + market_blend_k) when a
+    # Cars.com curve exists for the model; the rest goes to the curve.
+    market_blend_k: float = 20.0
 
     # alerts
     enable_email: bool = True
@@ -255,6 +302,7 @@ def load(path: Path = CONFIG_PATH) -> Config:
         carmax_max_shipping=int(raw.get("carmax", {}).get("max_shipping", 499)),
         min_comps=int(scoring.get("min_comps", 12)),
         min_abs_discount=int(scoring.get("min_abs_discount", 400)),
+        market_blend_k=float(scoring.get("market_blend_k", 20.0)),
         enable_email=bool(alerts.get("enable_email", True)),
         enable_push=bool(alerts.get("enable_push", True)),
         digest_every_days=int(alerts.get("digest_every_days", 3)),
@@ -289,6 +337,14 @@ def load(path: Path = CONFIG_PATH) -> Config:
             year_max=int(w.get("year_max", 9999)),
             alert_on_new=bool(w.get("alert_on_new", False)),
             new_max_residual_pct=float(w.get("new_max_residual_pct", 0.0)),
+            sweep=bool(w.get("sweep", False)),
+            price_min=int(w.get("price_min", 0)),
+            price_max=int(w.get("price_max", 0)),
+            body_styles=list(w.get("body_styles", [])),
+            exclude_base_trims=bool(w.get("exclude_base_trims", False)),
+            board_max_residual_pct=(None if w.get("board_max_residual_pct") is None
+                                    else float(w.get("board_max_residual_pct"))),
+            min_sigma=(None if w.get("min_sigma") is None else float(w.get("min_sigma"))),
         )
         for w in raw.get("watch", [])
     ]
