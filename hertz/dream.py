@@ -106,8 +106,10 @@ DREAM_MODELS = [
     # Hertz -- the same trap as CX-50 vs CX-50 Hybrid. The plain "volvo-v60"
     # slug with the wagon filter returned zero even uncapped.
     DreamModel("Volvo V60 Cross Country", "volvo", "volvo-v60_cross_country"),
+    # Cars.com's own body-style filter does the wagon selection. A title
+    # marker on top of it dropped 4 of 5 All-Terrains once titles came from
+    # the vehicle array, where dealers write "E 450 4MATIC" and no more.
     DreamModel("Mercedes E-Class All-Terrain", "mercedes_benz", "mercedes_benz-e_class",
-               body_markers=("wagon", "all-terrain", "all terrain", "estate"),
                extra_query=WAGON),
 ]
 

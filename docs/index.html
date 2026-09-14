@@ -315,7 +315,9 @@
   const TABS = [
     ['target', 'CX-50 Hybrid', target.filter(near).length],
     ['watch', 'Other Hertz finds', byGroup('hertz').filter(near).length],
-    ['suv', 'SUV watch', byGroup('suv').filter(near).length],
+    // The Cars.com rows are part of this tab, so they are part of its count.
+    ['suv', 'SUV watch', byGroup('suv').filter(near).length +
+        (data.suv_market?.rows || []).filter(r => r.distance != null && r.distance <= data.home.radius_miles).length],
     ['dream', 'Station wagons', data.dream.rows.length],
     ['follow', 'Followed', followCount()],
     ['about', 'About', null],
@@ -422,7 +424,7 @@
     {key:'label', label:'Vehicle', fmt: veh, cls:'veh'},
     {key:'color', label:'Colour'},
     {key:'lot', label:'Lot'},
-    {key:'distance', label:'Away', right:true, fmt: int},
+    {key:'distance', label:'Away', right:true, fmt: (v, r) => r.source === 'carmax' ? '<span class="dim" title="Shipped to you; the shipping quote is in the landed cost">ships</span>' : int(v)},
     {key:'miles', label:'Miles', right:true, fmt: int},
     {key:'price', label:'Price', right:true, fmt: money},
     {key:'landed', label:'Landed', right:true, fmt: v => `<b>${money(v)}</b>`},
@@ -516,7 +518,7 @@
     {key:'watch', label:'Watch'},
     {key:'color', label:'Colour'},
     {key:'lot', label:'Lot'},
-    {key:'distance', label:'Away', right:true, fmt: int},
+    {key:'distance', label:'Away', right:true, fmt: (v, r) => r.source === 'carmax' ? '<span class="dim" title="Shipped to you; the shipping quote is in the landed cost">ships</span>' : int(v)},
     {key:'miles', label:'Miles', right:true, fmt: int},
     {key:'price', label:'Price', right:true, fmt: money},
     {key:'landed', label:'Landed', right:true, fmt: v => `<b>${money(v)}</b>`},
@@ -544,7 +546,7 @@
         ? `<span class="chip brown">${esc(v)}</span>` : r.interior_tier === 'light'
         ? `<span class="chip dim">${esc(v)}</span>` : (v ? esc(v) : '<span class="dim">—</span>')},
     {key:'lot', label:'Lot'},
-    {key:'distance', label:'Away', right:true, fmt: int},
+    {key:'distance', label:'Away', right:true, fmt: (v, r) => r.source === 'carmax' ? '<span class="dim" title="Shipped to you; the shipping quote is in the landed cost">ships</span>' : int(v)},
     {key:'miles', label:'Miles', right:true, fmt: int},
     {key:'price', label:'Price', right:true, fmt: money},
     {key:'landed', label:'Landed', right:true, fmt: v => `<b>${money(v)}</b>`},
@@ -602,7 +604,7 @@
     {key:'price', label:'Price', right:true, fmt: money},
     {key:'market_pct', label:'vs curve', right:true, fmt: resid},
     {key:'rating', label:'Cars.com', fmt: v => v ? `<span class="${/great/i.test(v) ? 'good' : 'dim'}">${esc(v)}</span>` : '<span class="dim">—</span>'},
-    {key:'distance', label:'Away', right:true, fmt: int},
+    {key:'distance', label:'Away', right:true, fmt: (v, r) => r.source === 'carmax' ? '<span class="dim" title="Shipped to you; the shipping quote is in the landed cost">ships</span>' : int(v)},
     {key:'city', label:'Where', fmt: (v, r) => esc([v, r.state].filter(Boolean).join(', '))},
   ];
   // The cap is enforced at fetch time too; this is belt-and-braces for a
@@ -653,7 +655,7 @@
     {key:'price_at_follow', label:'Then', right:true, fmt: money},
     {key:'price_now', label:'Now', right:true, fmt: v => `<b>${money(v)}</b>`},
     {key:'delta', label:'Δ', right:true, fmt: v => v == null ? '<span class="dim">—</span>'
-        : `<span class="${v < 0 ? 'good' : v > 0 ? 'badv' : 'dim'}">${v > 0 ? '+' : ''}${money(v)}</span>`},
+        : `<span class="${v < 0 ? 'good' : v > 0 ? 'badv' : 'dim'}">${v > 0 ? '+' : v < 0 ? '−' : ''}${money(Math.abs(v))}</span>`},
     {key:'miles_now', label:'Miles', right:true, fmt: int},
     {key:'lot', label:'Lot'},
     {key:'last_text', label:'Last change', fmt: (v, r) => v ? `<span title="${esc(r.last_change || '')}">${esc(v)}</span>` : '<span class="dim">—</span>'},
