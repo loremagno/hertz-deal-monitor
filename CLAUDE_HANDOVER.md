@@ -387,6 +387,21 @@ existing seeds' stamps shifted +4 h; curve cache key bumped to `:v2` for
 the 0-3 trim scale), and unlabelled trims get a missing-label dummy (the
 Highlander case above).
 
+**Cloud run 34808479441 (forced, 05:07 UTC, fully green incl. persist).**
+2,007 collected, 35 Hertz models, hedonic on 2,013 rows (LOO log-RMSE
+0.035, doc fee $459), "Market curves: adopted 2 from the committed seed"
+(both :v2, n=61/59), first sweep baseline recorded, board 609 rows, XC60 on
+"blend 69% market" with 70 comps: CarMax B5 Plus −6.6, −5.0, −3.0, +0.2,
++1.8, +3.8%; Byers Plus Dark Theme −4.0%. The sweep and the very-discounted
+lane show 0 rows on this sample (nothing at −6%/−2σ or −10%/−2σ): quiet by
+design. The "2026 Palisade SEL $37,329" alert was an ARRIVAL alert
+(`alert_on_new`, residual −0.9%, AutoCheck clean 92, "Newly listed at Des
+Plaines, IL"), not a value alert: switching capped sweeps to the mileage
+sort surfaced low-mileage 2026 Palisades the cheapest-first pages never
+reached, so they enter the store as new. It went out twice because run
+34807668912's alert record died with its failed commit. Expect a few more
+such arrivals over the next runs as the mileage-sorted pages settle.
+
 ## Pending / Next Steps
 - [x] Issues enabled on `loremagno/hertz-deal-monitor` (Lorenzo, 2026-09-14);
       the run reports `follow.enabled: true`. Nothing followed yet: the first
