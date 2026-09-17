@@ -441,6 +441,36 @@ still need a clean AutoCheck or a certification. The first sweep of any
 new source is a silent baseline (`known_sources` in `run()`), so the first
 Avis poll stores 29 CX-50 Hybrids without 29 pushes.
 
+## Session 2026-09-17: "no alerts, no movement" -> healthy, plus one real bug
+
+Lorenzo: "I'm not getting any alerts, no movement here!!! Is everything
+working?" Diagnosis: the monitor is healthy. Fourteen consecutive green
+scheduled runs; board rebuilt on time. Four alerts DID fire (09-14 CX-50
+Hybrid $29,849; 09-15 Palisade $37,463 and CX-90 $35,822; 09-16 CX-50
+Hybrid $28,572), with "Push sent" and "Email sent" in the logs each time,
+and all four notification secrets are set. If nothing reached his phone the
+ntfy subscription is the suspect, not the sender.
+
+Why it went quiet: NO drivable CX-50 Hybrid arrived after 09-16. The 09-16
+alert car ($28,572) sold on 09-17. Market finding worth keeping: of the
+drivable Hertz CX-50 Hybrids, all seven that sold had a median of 2 days on
+the board (range 0-5), while the seven still listed are all $31,299+ and
+have sat since 09-09. Cheap drivable stock lasts about 48 hours.
+
+Bug found and fixed (`aa3f699`, see HANDOVER "Inactivation is scoped to
+(source, model) PAIRS"): the Avis Palisade zero-fetch was threatening
+Hertz's 120 Palisades through the model x source cross product, and pushed
+a nuisance "source was skipped" notification every run for three days.
+Those were very likely the only pushes he was seeing.
+
+KNOWN GAP, raised with Lorenzo and awaiting his call: a car that is marked
+down INTO deal territory after arriving never alerts unless it crosses the
+tier bar (-8% for tier B). The best drivable car on the board right now, a
+2026 Palisade SEL at $35,501 / 14,290 mi / 237 mi, sits at -4.9% and -1.6
+sigma and has never alerted; it arrived 09-09 above prediction and was
+marked down since. The last two runs recorded 573 and 307 price drops, none
+of which can alert.
+
 ## Pending / Next Steps
 - [x] Enterprise Car Sales: built as a low-mileage lane (see above). Was: Its search API is fully
       replayable through Playwright's request API with the page's own headers

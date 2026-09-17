@@ -226,6 +226,25 @@ elsewhere with the pooled rates.
 
 ---
 
+## Inactivation is scoped to (source, model) PAIRS
+
+`collect()` returns the exact pairs it asked for; `store.mark_inactive(seen,
+pairs)` builds one `(source = ? AND model = ?)` clause per pair; the
+zero-fetch guard compares each pair against `active_count(model, source)`
+and drops only the offending pair. `mark_inactive` with no pairs does
+nothing, rather than marking every unseen car sold.
+
+The earlier version crossed a set of models with a set of sources. Avis
+carries no Palisade, so its query returned zero while Hertz's 120 Palisades
+sat in the cross product, unseen that run and therefore due to be marked
+sold. The guard caught it correctly every two hours for three days and
+pushed "a source was skipped" each time, because the label carried the
+changing count. Fixed 2026-09-17 (`aa3f699`), verified on a copy of the live
+database and on cloud run 35271973915: no guard warning, no nuisance push,
+all 120 Palisades still active, 2,129 vehicles fetched.
+
+---
+
 ## Following a car
 
 The board's ☆ pre-fills a GitHub issue on the repo (label `follow`; the body
