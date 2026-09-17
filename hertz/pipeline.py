@@ -387,8 +387,10 @@ def collect(
     """
     by_vin: dict[str, Listing] = {}
     per_model: dict[str, int] = {}
-    polled: set[str] = set()
-    polled_sources: set[str] = set()
+    # The (source, model) pairs this run actually asked for. Inactivation and
+    # the zero-fetch guard are both scoped to these, never to a set of models
+    # crossed with a set of sources.
+    polled: set[tuple[str, str]] = set()
     failed_entries: list[tuple[str, str]] = []
     # Entries whose poll window should be reset -- but only once the run has
     # actually stored what it fetched. A run that dies after collecting would
@@ -412,7 +414,6 @@ def collect(
                 polled_entries.append(entry)
             continue
         source = cfg.sources[entry.source]
-        polled_sources.add(entry.source)
 
         # One source going dark must not take the run down. A 20-second
         # dataLayer timeout on Byers Mazda (a side quest with zero stock)
@@ -433,7 +434,7 @@ def collect(
                     session, model, entry.max_pages, source, years,
                     expected=store.active_count(model, entry.source))
                 per_model[key] = len(listings)
-                polled.add(model.lower())
+                polled.add((entry.source, model.lower()))
                 for listing in listings:
                     by_vin.setdefault(listing.vin, listing)
 
@@ -457,7 +458,7 @@ def collect(
                 per_model[key] = len(listings)
                 # A capped make sweep must not "sell" the models it did not
                 # reach: only models it actually returned count as polled.
-                polled.update(l.model.lower() for l in listings)
+                polled.update((entry.source, l.model.lower()) for l in listings)
                 for listing in listings:
                     by_vin.setdefault(listing.vin, listing)
         except Exception as exc:
@@ -497,7 +498,7 @@ def collect(
         resolved, len(listings), len(discovered),
     )
 
-    return listings, polled, polled_sources, polled_entries, failed_entries
+    return listings, polled, polled_entries, failed_entries
 
 
 def enrich(session: ingest.BrowserSession, store: Store, candidates: list[Scored], cfg: Config) -> None:
@@ -567,7 +568,7 @@ def run(cfg: Config, dry_run: bool = False, force: bool = False) -> RunResult:
             city_state=cfg.city_state,
             coordinates=cfg.coordinates,
         ) as session:
-            (listings, polled_models, polled_sources,
+            (listings, polled_pairs,
              polled_entries, failed_entries) = collect(session, cfg, store)
             result.failed_entries = failed_entries
 
@@ -601,12 +602,10 @@ def run(cfg: Config, dry_run: bool = False, force: bool = False) -> RunResult:
             if carmax_listings:
                 # Only when the sweep actually returned cars: an empty CarMax
                 # result (Chrome missing, block) must not "sell" its rows.
-                polled_sources.add("carmax")
-                polled_models.update(c.model.lower() for c in carmax_listings)
+                polled_pairs.update(("carmax", c.model.lower()) for c in carmax_listings)
             listings.extend(enterprise_listings)
             if enterprise_listings:
-                polled_sources.add("enterprise")
-                polled_models.update(c.model.lower() for c in enterprise_listings)
+                polled_pairs.update(("enterprise", c.model.lower()) for c in enterprise_listings)
                 for w in cfg.watch:
                     if w.source == "enterprise" and _entry_due(store, w):
                         polled_entries.append(w)
@@ -622,7 +621,7 @@ def run(cfg: Config, dry_run: bool = False, force: bool = False) -> RunResult:
             # a run where every watchlist entry is still inside its polling
             # window legitimately fetches nothing.
             previous = store.last_successful_fetch_count()
-            if polled_models and not listings and previous > 0:
+            if polled_pairs and not listings and previous > 0:
                 raise ingest.BlockedError(
                     f"Fetched 0 vehicles but the last good run saw {previous}. "
                     "Treating this as a scraper failure, not an empty market."
@@ -636,22 +635,23 @@ def run(cfg: Config, dry_run: bool = False, force: bool = False) -> RunResult:
             # model dropping from a healthy count to zero is a fetch failure
             # until a human says otherwise: its rows are kept, it is not
             # marked polled, and the run reports it.
-            counts_now: dict[str, int] = {}
+            counts_now: dict[tuple[str, str], int] = {}
             for l in listings:
-                counts_now[l.model.lower()] = counts_now.get(l.model.lower(), 0) + 1
-            suspect: list[str] = []
-            for model in sorted(polled_models):
-                before = store.active_count(model)
-                if before >= 5 and counts_now.get(model, 0) == 0:
-                    suspect.append(f"{model} ({before} -> 0)")
+                key = ((l.source or "hertz"), l.model.lower())
+                counts_now[key] = counts_now.get(key, 0) + 1
+            suspect: list[tuple[str, str]] = []
+            for source, model in sorted(polled_pairs):
+                before = store.active_count(model, source)
+                if before >= 5 and counts_now.get((source, model), 0) == 0:
+                    suspect.append((source, model))
             if suspect:
-                logger.warning("Refusing to mark these models sold on a zero fetch: %s",
-                               "; ".join(suspect))
+                logger.warning(
+                    "Refusing to mark these sold on a zero fetch: %s",
+                    "; ".join(f"{s}:{m} ({store.active_count(m, s)} -> 0)" for s, m in suspect))
                 result.failed_entries.extend(
-                    (f"zero-fetch guard: {m}", "model returned no rows after a healthy run")
-                    for m in suspect)
-                polled_models = {m for m in polled_models
-                                 if not (store.active_count(m) >= 5 and counts_now.get(m, 0) == 0)}
+                    (f"zero-fetch guard: {s}:{m}", "returned no rows after a healthy run")
+                    for s, m in suspect)
+                polled_pairs = polled_pairs - set(suspect)
 
             # A source polled for the first time is a baseline, not a wave
             # of arrivals: the first Avis sweep would otherwise push 29 new
@@ -672,7 +672,7 @@ def run(cfg: Config, dry_run: bool = False, force: bool = False) -> RunResult:
                 delta = change["price_delta"]
                 if delta and delta < 0:
                     result.price_drops.append((listing.vin, -delta))
-            store.mark_inactive(seen, polled_models, polled_sources)
+            store.mark_inactive(seen, polled_pairs)
 
             # Safe to reset the poll windows now that the rows are committed.
             for entry in polled_entries:

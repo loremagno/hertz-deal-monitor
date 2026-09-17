@@ -186,32 +186,35 @@ class Store:
         self.conn.commit()
         return {"is_new": is_new, "price_delta": price_delta}
 
-    def mark_inactive(self, seen_vins: set[str], polled_models: set[str] | None = None,
-                      polled_sources: set[str] | None = None) -> int:
+    def mark_inactive(self, seen_vins: set[str],
+                      polled_pairs: set[tuple[str, str]] | None = None) -> int:
         """Flag listings we did not see this run. Usually means sold.
 
-        Scoped to the (source, model) pairs actually polled. Watchlist
-        entries poll on different schedules, so an unscoped sweep would mark
-        every car of an unpolled model as sold and then "rediscover" them all
-        next time, producing a burst of bogus new-listing alerts. Scoping by
-        model alone had the same effect across sources: a Hertz XC60 poll was
-        marking the CarMax and Byers XC60s sold.
+        Scoped to the exact (source, model) pairs this run actually polled.
+        Watchlist entries poll on different schedules, so an unscoped sweep
+        would mark every car of an unpolled model as sold and then
+        "rediscover" them all next time, producing a burst of bogus
+        new-listing alerts.
+
+        The scope must be PAIRS, not a set of models crossed with a set of
+        sources. The cross product let one source's empty answer threaten
+        another's stock: Avis has no Palisade, so its query returned zero
+        while Hertz's 120 Palisades sat in the cross product, unseen this
+        run and therefore due to be marked sold. The zero-fetch guard caught
+        it every two hours for three days and pushed a warning each time.
         """
-        if not seen_vins:
+        if not seen_vins or not polled_pairs:
             return 0
 
         vin_placeholders = ",".join("?" for _ in seen_vins)
         sql = f"UPDATE listings SET active = 0 WHERE active = 1 AND vin NOT IN ({vin_placeholders})"
         params = list(seen_vins)
 
-        if polled_models:
-            model_placeholders = ",".join("?" for _ in polled_models)
-            sql += f" AND LOWER(model) IN ({model_placeholders})"
-            params += [m.lower() for m in polled_models]
-        if polled_sources:
-            source_placeholders = ",".join("?" for _ in polled_sources)
-            sql += f" AND COALESCE(source, 'hertz') IN ({source_placeholders})"
-            params += list(polled_sources)
+        pairs = sorted(polled_pairs)
+        clause = " OR ".join("(COALESCE(source, 'hertz') = ? AND LOWER(model) = ?)" for _ in pairs)
+        sql += f" AND ({clause})"
+        for source, model in pairs:
+            params += [source, model.lower()]
 
         cur = self.conn.execute(sql, params)
         self.conn.commit()

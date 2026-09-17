@@ -324,6 +324,7 @@ def main(argv: list[str] | None = None) -> int:
             if result.failed_entries:
                 labels = ", ".join(label for label, _ in result.failed_entries)
                 if store.get_meta("skipped_sources") != labels:
+                    # (the label carries no counts, so a steady state stays quiet)
                     notify.send_push(
                         cfg, "Hertz monitor: a source was skipped",
                         f"{labels} did not respond this run; everything else "
