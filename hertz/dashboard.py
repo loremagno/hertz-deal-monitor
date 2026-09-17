@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import market
-from .config import Config
+from .config import CONDITION_SOURCES, Config
 from .score import interior_tier, preference_fit
 
 
@@ -25,9 +25,15 @@ def _row(s, cfg: Config, groups: dict | None = None, extra: dict | None = None) 
     l = s.listing
     report = s.autocheck
     if report is None:
-        condition, condition_kind = ("certified, not independently read" if l.certified
-                                     else ("Carfax linked, not read" if s.history_url else "not checked")), \
-                                    ("cert" if l.certified else "none")
+        if l.certified:
+            condition, condition_kind = "certified, not independently read", "cert"
+        elif s.history_url:
+            condition, condition_kind = "Carfax linked, not read", "none"
+        elif s.condition_outcome == "none":
+            # We opened the page. The seller publishes no history at all.
+            condition, condition_kind = "no history published", "none"
+        else:
+            condition, condition_kind = "not checked yet", "none"
     elif report.is_clean:
         condition, condition_kind = (f"clean · {report.score}" if report.score else "clean"), "clean"
     else:
@@ -73,6 +79,22 @@ def _row(s, cfg: Config, groups: dict | None = None, extra: dict | None = None) 
         "days_on_sale": extra.get("days_on_sale"),
         "history_url": s.history_url,
     }
+
+
+def _coverage(watched, cfg: Config) -> dict:
+    """Condition verdicts across the drivable, history-bearing part of the board."""
+    rows = [s for s in watched
+            if (s.listing.source or "hertz") in CONDITION_SOURCES
+            and s.listing.geodist is not None
+            and s.listing.geodist <= cfg.alert_radius_miles]
+    read = sum(1 for s in rows if s.autocheck is not None)
+    linked = sum(1 for s in rows if s.autocheck is None and s.history_url)
+    # Looked, and the seller publishes nothing. Checked, just not answerable.
+    none_published = sum(1 for s in rows if s.autocheck is None and not s.history_url
+                         and s.condition_outcome == "none")
+    return {"total": len(rows), "read": read, "link_only": linked,
+            "no_report": none_published,
+            "unchecked": len(rows) - read - linked - none_published}
 
 
 def build(result, cfg: Config, dream: dict | None, store, suv: dict | None = None,
@@ -166,6 +188,11 @@ def build(result, cfg: Config, dream: dict | None, store, suv: dict | None = Non
         "preferences": {"colors": cfg.pref_colors, "trims": cfg.pref_trims,
                         "odometer_ideal": cfg.odometer_ideal},
         "last_run": dict(last_run) if last_run else None,
+        # How much of the drivable board carries a condition verdict. Counted
+        # over the rows actually published, not over every car in the store:
+        # the base trims the watches exclude are not on the board and are
+        # never surveyed, so counting them could never reach 100%.
+        "condition_coverage": _coverage(watched, cfg),
         "skipped_sources": [label for label, _ in getattr(result, "failed_entries", [])],
         "watches": watches,
         "listings": [_row(s, cfg, groups, extras.get(s.listing.vin)) for s in watched],

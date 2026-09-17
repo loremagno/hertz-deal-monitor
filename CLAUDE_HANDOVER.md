@@ -478,6 +478,34 @@ sigma and has never alerted; it arrived 09-09 above prediction and was
 marked down since. The last two runs recorded 573 and 307 price drops, none
 of which can alert.
 
+## Session 2026-09-17 (late): audit, then condition coverage
+
+Audit findings Lorenzo asked for, evidence in the session: (1) condition was
+blank on 97% of the drivable board, 91 cars with 3 verdicts, and condition is
+the thing he was burned by; (2) about 216 page loads a day went to five lanes
+with zero drivable rows, the 2026 sweep being 144 pages per 48h for nothing;
+(3) the board holds ~659 rows of which ~45 are drivable; (4) the wagon tab is
+decaying, 4 of 5 models skipped on the last refresh; (5) zero cars followed in
+three days, which is a signal about the GitHub-issue flow.
+
+He picked condition coverage. Built: see HANDOVER "Condition coverage".
+New `condition_attempts` table, `Scored.condition_outcome`, `[condition]`
+config block, header count on the page.
+
+Verified offline against a copy of the live DB with faked page fetches: 73
+drivable board rows went 0 -> fully resolved in 3 runs (30 a run), run 4 cost
+zero page loads, and the board rendered 59 clean / 5 flagged / 7 "no history
+published" / 2 "Carfax linked, not read". Two traps found while building and
+worth remembering: reconstructing an `AutoCheck` straight from a sqlite row
+bypasses `get_autocheck`'s int-to-bool `tri()` and makes every report read as
+NOT clean (my test bug, not a product bug); and a coverage metric computed in
+SQL over all drivable cars can never reach 100%, because the base trims the
+watches exclude are in the store but not on the board.
+
+NOT done from the audit, in priority order: reclaim the wasted crawl (retune
+or drop the 2026 sweep, the two CX-70 Hertz/Byers lanes, Hertz XC60, CX-50
+Hybrid at Enterprise); a single "today" panel; the wagon-tab decay.
+
 ## Pending / Next Steps
 - [x] Enterprise Car Sales: built as a low-mileage lane (see above). Was: Its search API is fully
       replayable through Playwright's request API with the page's own headers

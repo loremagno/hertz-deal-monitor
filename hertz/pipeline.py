@@ -18,7 +18,7 @@ from . import benchmark as bm
 from . import carmax as carmax_mod
 from . import enterprise as enterprise_mod
 from . import clock, geo, ingest, score
-from .config import Config
+from .config import CONDITION_SOURCES, Config
 from .models import Listing, Scored
 from .store import Store
 
@@ -393,6 +393,7 @@ class RunResult:
     curves: dict = field(default_factory=dict)
     failed_entries: list = field(default_factory=list)   # (label, error) skipped this run
     new_models: list = field(default_factory=list)       # (make, model, count, min price) first seen this run
+    condition: dict = field(default_factory=dict)        # {"checked", "reports", "skipped"}
 
 
 def collect(
@@ -567,6 +568,114 @@ def enrich(session: ingest.BrowserSession, store: Store, candidates: list[Scored
             if report is not None:
                 store.save_autocheck(report)
                 scored.autocheck = report
+
+
+def attach_known_conditions(store: Store, scored_list: list[Scored]) -> int:
+    """Hang every history fact we already hold onto the scored cars. Free.
+
+    The board reads condition off the Scored object, and enrich() only ever
+    filled that in for cars heading to an alert. So a car whose report was
+    bought a week ago still displayed "not checked". This costs no page
+    loads and is the reason the column was blank on 97% of the board.
+    """
+    filled = 0
+    for scored in scored_list:
+        vin = scored.listing.vin
+        if scored.autocheck is None:
+            report = store.get_autocheck(vin)
+            if report is not None:
+                scored.autocheck = report
+                filled += 1
+        attempt = store.condition_attempt(vin)
+        if attempt:
+            scored.condition_outcome = attempt.get("outcome") or ""
+            if not scored.history_url and attempt.get("history_url"):
+                scored.history_url = attempt["history_url"]
+        elif scored.autocheck is not None:
+            scored.condition_outcome = "report"
+    return filled
+
+
+def survey_conditions(session: ingest.BrowserSession, store: Store,
+                      scored_list: list[Scored], cfg: Config) -> dict:
+    """Buy a history report for drivable watched cars that have none.
+
+    Condition is the thing Lorenzo was burned by, and a board that shows a
+    price without a verdict cannot help him avoid it. Alerts already buy a
+    report for their own candidates; this covers everything else he could
+    actually drive to, cheapest-against-model first, under a per-run budget
+    so the run stays well inside its timeout. Reports cache for two weeks,
+    so the cost is a one-off backfill and then only new arrivals.
+
+    Every attempt is recorded, successful or not, so a seller that
+    publishes nothing readable is not re-opened every two hours.
+    """
+    budget = max(0, cfg.condition_survey_per_run)
+    if not budget:
+        return {"checked": 0, "reports": 0, "skipped": 0}
+
+    due: list[Scored] = []
+    for scored in scored_list:
+        listing = scored.listing
+        if (listing.source or "hertz") not in CONDITION_SOURCES:
+            continue
+        if listing.geodist is None or listing.geodist > cfg.alert_radius_miles:
+            continue
+        if scored.autocheck is not None or store.get_autocheck(listing.vin) is not None:
+            continue
+        if store.condition_attempt_fresh(listing.vin, cfg.condition_retry_days):
+            continue
+        due.append(scored)
+
+    # The cars most worth knowing about first: cheapest against their own
+    # model, then nearest. A partial backfill should still answer the
+    # question that matters before it runs out of budget.
+    due.sort(key=lambda s: (s.residual_pct if s.residual_pct is not None else 999.0,
+                            s.listing.geodist or 9e9))
+    if not due:
+        return {"checked": 0, "reports": 0, "skipped": 0}
+
+    logger.info("Condition survey: %d drivable car(s) without a verdict, doing up to %d",
+                len(due), budget)
+    started = time.monotonic()
+    checked = reports = 0
+    for scored in due[:budget]:
+        if time.monotonic() - started > cfg.condition_survey_seconds:
+            logger.info("Condition survey: time budget reached after %d car(s)", checked)
+            break
+        listing = scored.listing
+        checked += 1
+        try:
+            details = ingest.fetch_vdp_details(session, listing.url)
+        except Exception as exc:
+            logger.warning("Condition survey: detail page failed for %s: %s", listing.vin, exc)
+            continue
+
+        if details.get("delivery_quote") is not None and listing.delivery_quote is None:
+            listing.delivery_quote = details["delivery_quote"]
+            store.upsert(listing)
+
+        carfax = details.get("carfax_url") or ""
+        autocheck_url = details.get("autocheck_url") or ""
+        report = None
+        if autocheck_url:
+            report = autocheck_mod.fetch_autocheck(session, autocheck_url, listing.vin)
+        if report is not None:
+            store.save_autocheck(report)
+            scored.autocheck = report
+            reports += 1
+            scored.condition_outcome = "report"
+            store.record_condition_attempt(listing.vin, "report", carfax)
+        elif carfax:
+            scored.history_url = carfax
+            scored.condition_outcome = "carfax"
+            store.record_condition_attempt(listing.vin, "carfax", carfax)
+        else:
+            scored.condition_outcome = "none"
+            store.record_condition_attempt(listing.vin, "none", "")
+
+    logger.info("Condition survey: opened %d car(s), %d report(s) read", checked, reports)
+    return {"checked": checked, "reports": reports, "skipped": max(0, len(due) - checked)}
 
 
 def run(cfg: Config, dry_run: bool = False, force: bool = False) -> RunResult:
@@ -754,6 +863,16 @@ def run(cfg: Config, dry_run: bool = False, force: bool = False) -> RunResult:
             if provisional:
                 logger.info("Enriching %d candidates with AutoCheck", len(provisional))
                 enrich(session, store, provisional, cfg)
+
+            # Everything we already know, then a budgeted sweep for the rest
+            # of the drivable board. Both are no-ops on a dry run's budget of
+            # zero only if the operator sets it so; a dry run is otherwise a
+            # fair rehearsal and is allowed to read history.
+            attached = attach_known_conditions(store, result.watched)
+            if attached:
+                logger.info("Condition: %d car(s) answered from cache", attached)
+            result.condition = survey_conditions(session, store, result.watched, cfg)
+            attach_known_conditions(store, result.all_scored)
 
         new_vins = set() if seeding else set(result.new_vins)
         cut_now = {vin: drop for vin, drop in result.price_drops

@@ -239,9 +239,12 @@
       monitor's repo; creating it is what makes the monitor watch that car. Every run then comments on the
       issue and sends a push when its price, mileage, listing status or AutoCheck changes. Close the issue to
       stop. The star is also remembered in this browser, so the Followed tab shows it at once.</div>
-    <div><b>Condition</b> is Experian AutoCheck where the seller links one. A reported accident, branded title or
-      odometer flag blocks an alert. Franchise-certified cars pass on the certification and say so. A clean report is
-      not a substitute for a pre-purchase inspection.</div>
+    <div><b>Condition</b> is Experian AutoCheck, now read for every car within range that a seller publishes one for,
+      not only the cars heading for an alert. A reported accident, branded title or odometer flag blocks an alert and
+      marks the row red. "No history published" means the page was opened and the seller offers nothing; "Carfax linked,
+      not read" means there is a report the monitor cannot open, so follow the link yourself; "not checked yet" means
+      it is still in the queue. Franchise-certified cars pass on the certification and say so. A clean report is not a
+      substitute for a pre-purchase inspection.</div>
   </footer>
 </div>
 
@@ -276,6 +279,11 @@
     (ageH > 6 ? ` <span class="stale">(${Math.round(ageH)} h old — the schedule may have stalled)</span>` : '') +
     ` · CX-50 Hybrid: <b>${target.length}</b> nationwide, <b>${target.filter(near).length}</b> within ${data.home.radius_miles} mi` +
     ` · <b>${listings.filter(near).length}</b> watched cars in range · model n=${data.model.n}, log-RMSE ${data.model.log_rmse.toFixed(3)}` +
+    (() => { const c = data.condition_coverage; if (!c || !c.total) return '';
+      const done = c.read + c.link_only + c.no_report;
+      const cls = done < c.total ? 'stale' : 'good';
+      return ` · history: <b>${c.read}</b> of ${c.total} drivable read` +
+             (c.unchecked ? ` <span class="${cls}">(${c.unchecked} still to check)</span>` : ''); })() +
     (data.skipped_sources.length ? ` · <span class="stale">skipped: ${esc(data.skipped_sources.join(', '))}</span>` : '');
 
   // ---- ownership cost ---------------------------------------------------

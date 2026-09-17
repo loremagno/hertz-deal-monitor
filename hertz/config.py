@@ -15,6 +15,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 CONFIG_PATH = BASE_DIR / "config.toml"
 
 
+# Sellers whose detail pages carry a history link the monitor can open.
+# CarMax hard-blocks its detail pages; Enterprise runs a JS app and sells
+# only inspected, warrantied cars, which is what its rows already say.
+# Lives here so both the pipeline and the dashboard can see it without the
+# dashboard having to import the pipeline (and with it, Playwright).
+CONDITION_SOURCES = ("hertz", "avis", "byers-mazda", "byers-volvo")
+
+
 _BODY_WORDS = {"suv", "crossover", "sedan", "hatchback", "wagon", "coupe", "convertible", "van",
                "minivan", "truck", "pickup"}
 
@@ -220,6 +228,13 @@ class Config:
 
     carmax_max_shipping: int = 499
 
+    # Condition survey: how many drivable cars may have their history read
+    # per run, how long that may take, and how long an attempt that found
+    # nothing readable stands before it is retried.
+    condition_survey_per_run: int = 30
+    condition_survey_seconds: int = 360
+    condition_retry_days: int = 14
+
     # scoring
     min_comps: int = 12
     min_abs_discount: int = 400
@@ -340,6 +355,9 @@ def load(path: Path = CONFIG_PATH) -> Config:
         odometer_ideal=int(prefs.get("odometer_ideal", 0)),
         odometer_tolerance=int(prefs.get("odometer_tolerance", 0)),
         carmax_max_shipping=int(raw.get("carmax", {}).get("max_shipping", 499)),
+        condition_survey_per_run=int(raw.get("condition", {}).get("survey_per_run", 30)),
+        condition_survey_seconds=int(raw.get("condition", {}).get("survey_seconds", 360)),
+        condition_retry_days=int(raw.get("condition", {}).get("retry_days", 14)),
         min_comps=int(scoring.get("min_comps", 12)),
         min_abs_discount=int(scoring.get("min_abs_discount", 400)),
         market_blend_k=float(scoring.get("market_blend_k", 20.0)),

@@ -299,6 +299,12 @@ class Scored:
     price_drop_30d: int | None = None
     autocheck: AutoCheck | None = None
     history_url: str = ""                  # a Carfax the seller links, unread
+    # What happened when we last tried to read this car's history:
+    # "report" (an AutoCheck we parsed), "carfax" (a link we cannot read),
+    # "none" (the seller publishes nothing), or "" (never looked). The
+    # difference between "none" and "" is the difference between a checked
+    # car and an unchecked one, and the board says so.
+    condition_outcome: str = ""
     reasons: list[str] = field(default_factory=list)
 
     @property

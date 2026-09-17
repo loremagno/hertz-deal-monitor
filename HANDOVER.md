@@ -245,6 +245,50 @@ all 120 Palisades still active, 2,129 vehicles fetched.
 
 ---
 
+## Condition coverage
+
+Every car within `alert_radius_miles` that sits on a watch and comes from a
+seller with a readable history page gets a verdict, not only the cars
+heading for an alert. Before this, `enrich()` bought a report solely for
+alert candidates and the board read "not checked" on 97% of the drivable
+rows: 91 cars, 3 verdicts. Condition is the thing Lorenzo was burned by, so
+a price without a verdict is close to useless to him.
+
+Two pieces, in `pipeline.py`:
+
+- `attach_known_conditions(store, scored)` hangs every report and history
+  link we already hold onto the scored cars. Costs nothing, and alone it
+  fixed rows whose report had been bought days earlier but still displayed
+  as unchecked.
+- `survey_conditions(session, store, scored, cfg)` buys the rest, cheapest
+  against model first then nearest, under `[condition] survey_per_run` (30)
+  and `survey_seconds` (360). Reports cache 14 days, so this is a one-off
+  backfill of about three runs and then only new arrivals.
+
+`CONDITION_SOURCES` (in `config.py`, so the dashboard need not import the
+pipeline) is hertz, avis and the two Byers sites. CarMax hard-blocks its
+detail pages; Enterprise runs a JS app and sells only inspected, warrantied
+cars, which its rows already say.
+
+Every attempt is recorded in the new `condition_attempts` table, whatever
+came back, so a seller that publishes nothing readable is not re-opened
+every two hours. `outcome` is one of:
+
+| outcome | board shows |
+|---|---|
+| `report` | the AutoCheck verdict, clean or flagged |
+| `carfax` | "Carfax linked, not read", with a link chip (Avis) |
+| `none` | "no history published" |
+| never tried | "not checked yet" |
+
+That last distinction matters: "no history published" means we looked, and
+it is not the same as an unchecked car. `dashboard._coverage` counts over
+the rows actually published, not over every car in the store, because the
+base trims the watches exclude are never surveyed and would otherwise hold
+the number below 100% forever. The header shows the count.
+
+---
+
 ## Markdown alerts
 
 A car that arrives at prediction and is cut week by week until it is

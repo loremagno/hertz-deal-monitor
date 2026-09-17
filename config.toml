@@ -59,6 +59,17 @@ max_shipping = 499
 # enabled on the repo for this to work.
 repo = "loremagno/hertz-deal-monitor"
 
+[condition]
+# Reading a car's history costs two page loads and the answer is good for a
+# fortnight, so the board can afford a verdict on every car Lorenzo could
+# actually drive to, not just the ones heading for an alert. On 2026-09-17
+# the drivable board was 91 cars with 3 verdicts between them, which is the
+# one column he most needs and the thing he was burned by. At 30 a run the
+# backfill takes about three runs and then only new arrivals cost anything.
+survey_per_run = 30
+survey_seconds = 360
+retry_days = 14
+
 [preferences]
 # Soft preferences, not filters. A car that misses them still appears on the
 # board and can still alert; the board and the alert say how it differs.

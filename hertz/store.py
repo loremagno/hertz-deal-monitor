@@ -67,6 +67,19 @@ CREATE TABLE IF NOT EXISTS runs (
 
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
 
+-- One row per car whose history we have TRIED to read, whatever came back.
+-- Without it the survey re-opens the same detail page every two hours for
+-- every car whose seller publishes no readable report: Avis links a Carfax
+-- that renders nothing to a headless browser, and a few Hertz pages carry
+-- no link at all. `outcome` is 'report', 'carfax' or 'none'; `history_url`
+-- keeps the link so the board can offer it without another page load.
+CREATE TABLE IF NOT EXISTS condition_attempts (
+    vin TEXT PRIMARY KEY,
+    tried_at TEXT NOT NULL,
+    outcome TEXT,
+    history_url TEXT
+);
+
 -- Rent2Buy cars sit at rental branches, so the inventory spans hundreds of
 -- distinct postal codes. Without this, every run would re-geocode all of
 -- them over the network.
@@ -235,6 +248,36 @@ class Store:
         return drop if drop > 0 else None
 
     # -- autocheck --------------------------------------------------------
+
+    def condition_attempt(self, vin: str) -> dict | None:
+        """The last attempt to read this car's history, or None."""
+        row = self.conn.execute(
+            "SELECT vin, tried_at, outcome, history_url FROM condition_attempts WHERE vin = ?",
+            (vin,)).fetchone()
+        return dict(row) if row else None
+
+    def condition_attempt_fresh(self, vin: str, max_age_days: int = 14) -> dict | None:
+        """The last attempt, if it is recent enough to trust and not retry."""
+        row = self.condition_attempt(vin)
+        if not row:
+            return None
+        try:
+            tried = datetime.fromisoformat(row["tried_at"])
+        except (TypeError, ValueError):
+            return None
+        return row if datetime.now() - tried <= timedelta(days=max_age_days) else None
+
+    def record_condition_attempt(self, vin: str, outcome: str, history_url: str = "") -> None:
+        self.conn.execute(
+            """INSERT INTO condition_attempts (vin, tried_at, outcome, history_url)
+               VALUES (?,?,?,?)
+               ON CONFLICT(vin) DO UPDATE SET
+                   tried_at = excluded.tried_at,
+                   outcome = excluded.outcome,
+                   history_url = excluded.history_url""",
+            (vin, _now(), outcome, history_url or ""),
+        )
+        self.conn.commit()
 
     def get_autocheck(self, vin: str, max_age_days: int = 14) -> AutoCheck | None:
         row = self.conn.execute("SELECT * FROM autocheck WHERE vin = ?", (vin,)).fetchone()
