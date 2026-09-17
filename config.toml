@@ -82,6 +82,22 @@ min_abs_discount = 400
 # weight n / (n + K) and the curve the rest: nine XC60s -> 31% inventory,
 # 69% market; sixty CX-50 Hybrids -> 75% inventory.
 market_blend_k = 20
+# Markdown alerts, on watches that set `markdown_alert = true`. A car that
+# arrives at prediction and is cut week by week until it is genuinely cheap
+# used to say nothing: arrival alerts fire once, and the value gate wants
+# the tier bar. It must now sit at or below this many standard deviations
+# under its own model, and the cut must be at least this much money. On the
+# board of 2026-09-17, 573 drops in one run left exactly one car past -1.5.
+#
+# EITHER bar passes. One alone does not work across models: the XC60 is
+# scored against a Cars.com curve whose spread is 6.0% of price, so -1.5
+# sigma there means -9% and never fires, while the CX-50 Hybrid sits on the
+# within-inventory fit at a 3.2% spread. Over the first eight days of price
+# history the sigma bar alone fired 0 times and the percentage bar once, on
+# a certified XC60 thirteen miles away that had been cut $600.
+markdown_pct = -5.0
+markdown_sigma = -1.5
+markdown_min_drop = 250
 
 [alerts]
 enable_email = true
@@ -137,6 +153,7 @@ search_path = "/used-inventory/index.htm"
 tier = "A"
 group = "primary"
 label = "Mazda CX-50 Hybrid"
+markdown_alert = true   # tell me when this one is cut into deal territory
 source = "hertz"
 models = ["CX-50 Hybrid"]
 threshold_pct = -3.0
@@ -152,6 +169,7 @@ new_max_residual_pct = 3.0
 tier = "A"
 group = "primary"
 label = "Mazda CX-50 Hybrid (Avis)"
+markdown_alert = true   # tell me when this one is cut into deal territory
 source = "avis"
 models = ["CX-50 Hybrid"]
 exclude_base_trims = true     # Avis stocks Preferred too; Hertz never did
@@ -195,6 +213,7 @@ exclude_trims = ["Base", "SE Base", "Preferred", "3.3 Turbo Preferred", "LE", "L
 tier = "A"
 group = "primary"
 label = "Mazda CX-50 Hybrid (Enterprise)"
+markdown_alert = true   # tell me when this one is cut into deal territory
 source = "enterprise"
 makes = ["Mazda"]
 models = ["CX-50 Hybrid"]
@@ -379,6 +398,7 @@ new_max_residual_pct = 0.0
 tier = "A"
 group = "suv"
 label = "Byers certified XC60"
+markdown_alert = true   # tell me when this one is cut into deal territory
 source = "byers-volvo"
 models = ["XC60"]
 require_trims = ["Plus"]
@@ -398,6 +418,7 @@ new_max_residual_pct = 99.0
 tier = "A"
 group = "suv"
 label = "CarMax XC60"
+markdown_alert = true   # tell me when this one is cut into deal territory
 source = "carmax"
 models = ["XC60"]
 require_trims = ["Plus"]
@@ -417,6 +438,7 @@ new_max_residual_pct = 99.0
 tier = "A"
 group = "suv"
 label = "Hertz XC60"
+markdown_alert = true   # tell me when this one is cut into deal territory
 source = "hertz"
 models = ["XC60"]
 require_trims = ["Plus"]
@@ -435,6 +457,7 @@ new_max_residual_pct = 99.0
 tier = "A"
 group = "suv"
 label = "CX-70 (Hertz)"
+markdown_alert = true   # tell me when this one is cut into deal territory
 source = "hertz"
 models = ["CX-70"]
 require_trims = ["Premium"]   # any-of: "Premium Sport", "Premium Plus", "S Premium"; excludes Preferred
@@ -459,6 +482,7 @@ new_max_residual_pct = 99.0
 tier = "A"
 group = "suv"
 label = "CX-70 (Byers Mazda)"
+markdown_alert = true   # tell me when this one is cut into deal territory
 source = "byers-mazda"
 models = ["CX-70"]
 require_trims = ["Premium"]   # any-of: "Premium Sport", "Premium Plus", "S Premium"; excludes Preferred

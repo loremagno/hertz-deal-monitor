@@ -245,6 +245,32 @@ all 120 Palisades still active, 2,129 vehicles fetched.
 
 ---
 
+## Markdown alerts
+
+A car that arrives at prediction and is cut week by week until it is
+genuinely cheap used to say nothing: arrival alerts fire once, on the day
+it appears, and the value gate wants the tier bar. `[[watch]]
+markdown_alert = true` closes that gap, and is set on the primary targets
+only (the three CX-50 Hybrid watches, the three XC60 watches, the two
+CX-70 watches) at Lorenzo's request, 2026-09-17.
+
+A markdown alert needs all of: the watch asking for it, a cut of at least
+`[scoring] markdown_min_drop` ($250) this run, the car now below EITHER
+`markdown_pct` (-5%) or `markdown_sigma` (-1.5) against its own model, and
+the same condition gate as every other alert (clean AutoCheck, or a
+franchise certification, never waived).
+
+Either bar, not both, and that matters. The XC60 is scored against a
+Cars.com curve whose spread is 6.0% of price, so -1.5 sigma there means -9%
+and never fires; the CX-50 Hybrid sits on the within-inventory fit at a
+3.2% spread where -1.5 sigma is -4.8%. Measured across the first eight days
+of committed price history: 931 cars were cut by $250 or more, 25 of them
+were drivable and watched but not primary targets, and the rule fired
+exactly once, on a certified XC60 thirteen miles away cut $600 to -5.3%.
+About one a week.
+
+---
+
 ## Following a car
 
 The board's ☆ pre-fills a GitHub issue on the repo (label `follow`; the body

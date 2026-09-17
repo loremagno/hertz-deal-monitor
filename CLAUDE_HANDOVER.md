@@ -463,7 +463,14 @@ Hertz's 120 Palisades through the model x source cross product, and pushed
 a nuisance "source was skipped" notification every run for three days.
 Those were very likely the only pushes he was seeing.
 
-KNOWN GAP, raised with Lorenzo and awaiting his call: a car that is marked
+MARKDOWN ALERTS BUILT (Lorenzo chose "yes, but only my primary targets").
+See HANDOVER "Markdown alerts". Note the bar had to change after
+measurement: the -1.5 sigma bar I proposed would have fired ZERO times in
+eight days, because the XC60's blended sigma is 6.0% of price. The rule is
+now EITHER -5% or -1.5 sigma, which fires about once a week. Always measure
+a proposed alert bar against the committed price history before shipping it.
+
+The gap it closed: a car that is marked
 down INTO deal territory after arriving never alerts unless it crosses the
 tier bar (-8% for tier B). The best drivable car on the board right now, a
 2026 Palisade SEL at $35,501 / 14,290 mi / 237 mi, sits at -4.9% and -1.6

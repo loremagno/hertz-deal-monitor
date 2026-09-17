@@ -81,6 +81,16 @@ class WatchEntry:
     # worth telling you about. 0 means "at or below prediction".
     new_max_residual_pct: float = 0.0
 
+    # Tell me when a car I am watching is MARKED DOWN into deal territory.
+    # Arrival alerts fire once, on the day a car appears; the value gate
+    # needs the tier bar. Between them sat a blind spot: a car that arrives
+    # at prediction and is cut week by week until it is genuinely cheap
+    # never says anything. On 2026-09-17 the best drivable car on the board
+    # was exactly that, a 2026 Palisade SEL at -4.9% and -1.6 sigma, marked
+    # down since it arrived eight days earlier. Lorenzo asked for this on
+    # his primary targets only.
+    markdown_alert: bool = False
+
     # A sweep: no model list, a make list, and the filters Hertz applies
     # server-side (price band, mileage cap, body styles, model years). The
     # point is a model Hertz starts selling that no model list names.
@@ -216,6 +226,19 @@ class Config:
     # Weight on the within-inventory fit is n / (n + market_blend_k) when a
     # Cars.com curve exists for the model; the rest goes to the curve.
     market_blend_k: float = 20.0
+    # Markdown alerts: how far below its model a marked-down car must sit
+    # to be worth a message, and how big the cut must be to count.
+    #
+    # EITHER bar passes, because one alone does not work across models. The
+    # XC60 is scored against a Cars.com curve whose spread is 6.0% of price,
+    # so -1.5 sigma there means -9% and never fires; the CX-50 Hybrid, on
+    # the within-inventory fit, has a 3.2% spread where -1.5 sigma is -4.8%.
+    # Measured over the first eight days of price history: the sigma bar
+    # alone fired 0 times, the percentage bar fired once, on a certified
+    # XC60 thirteen miles away that had been cut $600.
+    markdown_pct: float = -5.0
+    markdown_sigma: float = -1.5
+    markdown_min_drop: int = 250
 
     # alerts
     enable_email: bool = True
@@ -320,6 +343,9 @@ def load(path: Path = CONFIG_PATH) -> Config:
         min_comps=int(scoring.get("min_comps", 12)),
         min_abs_discount=int(scoring.get("min_abs_discount", 400)),
         market_blend_k=float(scoring.get("market_blend_k", 20.0)),
+        markdown_pct=float(scoring.get("markdown_pct", -5.0)),
+        markdown_sigma=float(scoring.get("markdown_sigma", -1.5)),
+        markdown_min_drop=int(scoring.get("markdown_min_drop", 250)),
         enable_email=bool(alerts.get("enable_email", True)),
         enable_push=bool(alerts.get("enable_push", True)),
         digest_every_days=int(alerts.get("digest_every_days", 3)),
@@ -354,6 +380,7 @@ def load(path: Path = CONFIG_PATH) -> Config:
             year_max=int(w.get("year_max", 9999)),
             alert_on_new=bool(w.get("alert_on_new", False)),
             new_max_residual_pct=float(w.get("new_max_residual_pct", 0.0)),
+            markdown_alert=bool(w.get("markdown_alert", False)),
             sweep=bool(w.get("sweep", False)),
             price_min=int(w.get("price_min", 0)),
             price_max=int(w.get("price_max", 0)),

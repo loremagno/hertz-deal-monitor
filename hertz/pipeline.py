@@ -323,6 +323,30 @@ def _wants_new_alert(scored, cfg: Config) -> bool:
     return scored.residual_pct <= entry.new_max_residual_pct
 
 
+def _wants_markdown_alert(scored, cfg: Config) -> bool:
+    """Has a watched car just been cut into genuinely cheap territory?
+
+    Its watch must ask for markdown alerts, the cut must be real money
+    (checked by the caller), and the car must now sit below EITHER bar:
+    `markdown_pct` below its model, or `markdown_sigma` of that model's own
+    spread. Either, not both, because the two bars mean different things
+    across models: the XC60's spread is 6.0% of price, so -1.5 sigma there
+    is -9% and unreachable, while the CX-50 Hybrid's is 3.2%.
+
+    Condition is gated afterwards, exactly as everywhere else.
+    """
+    entry = next(
+        (w for w in cfg.watch
+         if w.tier.upper() == scored.tier and w.label == scored.matched_label),
+        None,
+    )
+    if entry is None or not entry.markdown_alert:
+        return False
+    by_pct = scored.residual_pct is not None and scored.residual_pct <= cfg.markdown_pct
+    by_sigma = scored.residual_sigma is not None and scored.residual_sigma <= cfg.markdown_sigma
+    return by_pct or by_sigma
+
+
 def _poll_key(entry) -> str:
     return f"last_poll:{entry.tier}:{entry.label}"
 
@@ -713,6 +737,9 @@ def run(cfg: Config, dry_run: bool = False, force: bool = False) -> RunResult:
             # hear about arrivals. New inventory is the event most likely to
             # be missed, because a good car can arrive and sell inside a week.
             new_vins = set() if seeding else set(result.new_vins)
+            # Cars cut by real money this run, for the markdown path below.
+            cut_now = {vin: drop for vin, drop in result.price_drops
+                       if drop >= cfg.markdown_min_drop}
             for scored in result.watched:
                 distance = scored.listing.geodist
                 if distance is None or distance > cfg.alert_radius_miles:
@@ -721,12 +748,16 @@ def run(cfg: Config, dry_run: bool = False, force: bool = False) -> RunResult:
                     provisional.append(scored)
                 elif scored.vin in new_vins and _wants_new_alert(scored, cfg):
                     provisional.append(scored)
+                elif scored.vin in cut_now and _wants_markdown_alert(scored, cfg):
+                    provisional.append(scored)
 
             if provisional:
                 logger.info("Enriching %d candidates with AutoCheck", len(provisional))
                 enrich(session, store, provisional, cfg)
 
         new_vins = set() if seeding else set(result.new_vins)
+        cut_now = {vin: drop for vin, drop in result.price_drops
+                   if drop >= cfg.markdown_min_drop}
         for scored in provisional:
             ok, reasons = score.qualifies(scored, cfg)
             is_new = scored.vin in new_vins
@@ -751,6 +782,26 @@ def run(cfg: Config, dry_run: bool = False, force: bool = False) -> RunResult:
                     reasons = [f"Newly listed at {scored.listing.lot}",
                                "Carfax linked on the page but NOT read by the monitor: "
                                f"open it before trusting this car: {scored.history_url}"]
+
+            # A markdown into deal territory. Condition is never waived: the
+            # car must carry a clean report or a franchise certification,
+            # which is what `qualifies` already decided above.
+            if not ok and scored.vin in cut_now and _wants_markdown_alert(scored, cfg):
+                report = scored.autocheck
+                clean = (report is not None and report.is_clean) or (
+                    report is None and scored.listing.certified)
+                if clean:
+                    ok = True
+                    drop = cut_now[scored.vin]
+                    reasons = [
+                        f"Price cut ${drop:,} to ${scored.listing.price:,}, now "
+                        f"{scored.residual_pct:+.1f}% vs its model "
+                        f"({scored.residual_sigma:+.2f} sigma) at {scored.listing.lot}"
+                    ] + [r for r in reasons if "AutoCheck" in r or "Certified" in r
+                         or "certified" in r]
+                elif report is not None:
+                    reasons = [f"Price cut, but AutoCheck: {'; '.join(report.concerns)}"]
+
 
             scored.reasons = reasons
             if not ok:
