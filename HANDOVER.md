@@ -129,6 +129,48 @@ sigma is its model's LOO residual SD where the model has 20 or more rows,
 else the pooled value, and is widened by 1/√(1−h) for a car in a thin model.
 `residual_sigma` on the board is the studentized residual.
 
+**The market leads the benchmark (2026-09-18).** Lorenzo: "we are comparing
+cars to other Hertz listings? I would like to benchmark more to the global
+market, because otherwise a wave of cheap cars changes the model." Correct,
+and it was the central weakness. The within-inventory fit is ENDOGENOUS: it
+is fitted on the same sellers it judges, with a fixed effect per model, so a
+fleet offload drags the yardstick along with the cars and every one reads as
+ordinary. Two changes followed.
+
+*Curves are configured per MODEL, not per watch.* They used to hang off a
+watch entry and be keyed by that watch's first model, so a watch naming
+fourteen models could only ever have one curve, and the primary target had
+none: before this, only the XC60 and CX-70 had any outside benchmark at all.
+The `[[market]]` table in `config.toml` now lists one entry per model
+(seller's `make` and `model`, Cars.com `slug`, `year_min`), read by
+`pipeline.market_curve_targets`. Legacy `market_slug` on a watch still works.
+
+*The curve gets at least `market_weight_floor` (0.6) of the verdict.* Given
+a precise but biased estimate and a noisy unbiased one, and a buyer asking
+"is Hertz cheap right now", the unbiased one has to lead. `market_max_rmse`
+(0.12) sets a badly fitted curve aside instead of letting the floor promote
+it: thin Cars.com samples occasionally misfit, such as a C-Class sample full
+of AMGs or a GV70 whose age term comes out positive.
+
+What it changed on the drivable board, same cars, same day:
+
+| | inventory only | market leads |
+|---|---|---|
+| median residual | +2.2% | −0.6% |
+| 10th percentile | −3.7% | −5.8% |
+| rows below −3% | 12 | 21 |
+| best CX-50 Hybrid | −0.6% | −4.8% |
+
+So Hertz's drivable stock is around 3% under the open market for the same
+car, which the old benchmark could not show because it compared Hertz with
+Hertz. Caveat worth keeping: Cars.com asking prices are negotiable while
+Hertz is no-haggle, so part of that gap is bargaining room, not discount.
+
+19 of 23 curves fitted on 2026-09-18 (n = 24 to 61, RMSE 0.040 to 0.097).
+Missing: mazda-cx_5 and genesis-gv80 were Cloudflare-blocked that run, and
+`mercedes_benz-gla_class` / `glb_class` are unverified slug guesses. A model
+without a curve keeps the internal benchmark and the board says "hertz".
+
 **Two benchmarks, blended.** Where a Cars.com curve exists for the model
 (`benchmark.fit_curve`: log price on mileage, age, trim rung and a certified
 flag, fitted on the years the watch wants, three "best match" pages per

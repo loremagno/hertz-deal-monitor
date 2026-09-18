@@ -534,6 +534,24 @@ Measured and honest: burst arrivals were NOT cheaper in this sample, and
 model price levels were flat through each wave. The alert buys first pick,
 not a discount, and says so.
 
+## Session 2026-09-18 (later): the benchmark now leads with the open market
+
+Lorenzo spotted the central weakness unprompted. See HANDOVER "The market
+leads the benchmark". Two structural changes: a `[[market]]` table keyed per
+MODEL (23 entries) replacing per-watch curve config, and a 0.6 floor on the
+market's share of the blend, with `market_max_rmse` 0.12 as a guard.
+
+Measured on the live DB, drivable board: median residual +2.2% -> -0.6%,
+rows below -3% went 12 -> 21, best CX-50 Hybrid -0.6% -> -4.8%. Hertz is
+roughly 3% under the open market and the old benchmark literally could not
+see it, because it compared Hertz with Hertz.
+
+Curve refit 2026-09-18 (`--curves --curve-pages 2`, about 50 minutes for 23
+models, a fresh browser per page): 19 fitted, n 24-61. MISSING and worth a
+retry: mazda-cx_5 and genesis-gv80 (both Cloudflare-blocked), plus the
+guessed slugs mercedes_benz-gla_class / glb_class (the GLA has 42 rows in
+inventory, so the right slug is worth finding).
+
 ## Pending / Next Steps
 - [ ] Treat a Rent2Buy price as provisional rather than firm, and track
       whether a given car's estimate is drifting up or holding. Offered,
