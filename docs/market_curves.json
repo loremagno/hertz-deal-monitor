@@ -1,6 +1,372 @@
 {
- "seeded_at": "2026-09-14T04:23:22",
+ "seeded_at": "2026-09-18T16:05:04",
  "curves": {
+  "market_curve:mazda-cx_50_hybrid:y2025:v2": {
+   "fetched_at": "2026-09-18T16:05:04",
+   "year_min": 2025,
+   "curve": {
+    "intercept": 10.55589322364354,
+    "per_10k_miles": -0.051288489796446055,
+    "per_year": -0.08198117375038422,
+    "per_trim_tier": 0.042699372501939975,
+    "n": 42,
+    "rmse": 0.0484087938467529,
+    "median_price": 31678,
+    "median_mileage": 21738,
+    "trim_counts": {
+     "tier 2": 16,
+     "tier 3": 15,
+     "tier 0": 11
+    },
+    "per_certified": -0.007838871838614717
+   }
+  },
+  "market_curve:mazda-cx_70:y2024:v2": {
+   "fetched_at": "2026-09-18T16:05:04",
+   "year_min": 2024,
+   "curve": {
+    "intercept": 10.71491149943891,
+    "per_10k_miles": -0.031294781807401535,
+    "per_year": -0.155755324485603,
+    "per_trim_tier": 0.09743056325884875,
+    "n": 44,
+    "rmse": 0.05877070124213886,
+    "median_price": 37256,
+    "median_mileage": 24483,
+    "trim_counts": {
+     "tier 3": 10,
+     "tier 1.5": 8,
+     "tier 0": 13,
+     "tier 2": 13
+    },
+    "per_certified": 0.017789825682463546
+   }
+  },
+  "market_curve:hyundai-palisade:y2025:v2": {
+   "fetched_at": "2026-09-18T16:05:04",
+   "year_min": 2025,
+   "curve": {
+    "intercept": 10.49183192197572,
+    "per_10k_miles": -0.07420495643900377,
+    "per_year": -6.563585939276358e-05,
+    "per_trim_tier": 0.1068897800126931,
+    "n": 24,
+    "rmse": 0.04027288600505012,
+    "median_price": 40520,
+    "median_mileage": 18142,
+    "trim_counts": {
+     "tier 3": 11,
+     "tier 1": 9,
+     "tier 2": 2,
+     "tier 0": 2
+    },
+    "per_certified": 0.026214277359648593
+   }
+  },
+  "market_curve:hyundai-santa_fe:y2024:v2": {
+   "fetched_at": "2026-09-18T16:05:04",
+   "year_min": 2024,
+   "curve": {
+    "intercept": 10.389609054004074,
+    "per_10k_miles": -0.03583015787199086,
+    "per_year": -0.03684372154961465,
+    "per_trim_tier": 0.08048547390372691,
+    "n": 40,
+    "rmse": 0.050988213979399066,
+    "median_price": 31489,
+    "median_mileage": 22593,
+    "trim_counts": {
+     "tier 3": 16,
+     "tier 2": 5,
+     "tier 1": 13,
+     "tier 0": 6
+    },
+    "per_certified": 0.037890651562247184
+   }
+  },
+  "market_curve:mazda-cx_90:y2024:v2": {
+   "fetched_at": "2026-09-18T16:05:04",
+   "year_min": 2024,
+   "curve": {
+    "intercept": 10.601972695545635,
+    "per_10k_miles": -0.06307430555618207,
+    "per_year": -0.04739382604259481,
+    "per_trim_tier": 0.06175182841091966,
+    "n": 43,
+    "rmse": 0.059911099910140195,
+    "median_price": 32990,
+    "median_mileage": 25916,
+    "trim_counts": {
+     "tier 0": 17,
+     "tier 3": 11,
+     "tier 2": 14,
+     "tier 1.5": 1
+    },
+    "per_certified": 0.053670459577651736
+   }
+  },
+  "market_curve:mazda-cx_50:y2024:v2": {
+   "fetched_at": "2026-09-18T16:05:04",
+   "year_min": 2024,
+   "curve": {
+    "intercept": 10.306816982269211,
+    "per_10k_miles": -0.04192410147331988,
+    "per_year": -0.014255622772676429,
+    "per_trim_tier": 0.07029880814742938,
+    "n": 40,
+    "rmse": 0.06526489661054986,
+    "median_price": 27700,
+    "median_mileage": 24886,
+    "trim_counts": {
+     "tier 2": 13,
+     "tier 3": 6,
+     "tier 0": 21
+    },
+    "per_certified": -0.012181713529999432
+   }
+  },
+  "market_curve:volkswagen-atlas:y2024:v2": {
+   "fetched_at": "2026-09-18T16:05:04",
+   "year_min": 2024,
+   "curve": {
+    "intercept": 10.401010601956271,
+    "per_10k_miles": -0.044186267887793514,
+    "per_year": -0.020144475849790892,
+    "per_trim_tier": 0.11090990293797853,
+    "n": 42,
+    "rmse": 0.0701649158103976,
+    "median_price": 33189,
+    "median_mileage": 31018,
+    "trim_counts": {
+     "tier 1": 28,
+     "tier 3": 13,
+     "tier 1.5": 1
+    },
+    "per_certified": 0.10386074210724763
+   }
+  },
+  "market_curve:volkswagen-tiguan:y2025:v2": {
+   "fetched_at": "2026-09-18T16:05:04",
+   "year_min": 2025,
+   "curve": {
+    "intercept": 10.31554380588621,
+    "per_10k_miles": -0.044004704300128546,
+    "per_year": -0.041600106377186134,
+    "per_trim_tier": 0.11426859272448,
+    "n": 41,
+    "rmse": 0.04748100403464452,
+    "median_price": 33047,
+    "median_mileage": 9000,
+    "trim_counts": {
+     "tier 2": 18,
+     "tier 3": 9,
+     "tier 0": 6,
+     "tier 1": 8
+    },
+    "per_certified": 0.01812250539007456
+   }
+  },
+  "market_curve:genesis-gv70:y2024:v2": {
+   "fetched_at": "2026-09-18T16:05:04",
+   "year_min": 2024,
+   "curve": {
+    "intercept": 10.473138802260946,
+    "per_10k_miles": -0.09209058232833545,
+    "per_year": 0.01977179079262585,
+    "per_trim_tier": 0.17269052141554625,
+    "n": 47,
+    "rmse": 0.09684043292826738,
+    "median_price": 35777,
+    "median_mileage": 30124,
+    "trim_counts": {
+     "tier 3": 6,
+     "tier 1.5": 36,
+     "tier 2": 4,
+     "tier 1": 1
+    },
+    "per_certified": 0.049011145897625764
+   }
+  },
+  "market_curve:genesis-g70:y2025:v2": {
+   "fetched_at": "2026-09-18T16:05:04",
+   "year_min": 2025,
+   "curve": {
+    "intercept": 10.317920191923308,
+    "per_10k_miles": -0.05284327412867344,
+    "per_year": -0.0907427878602659,
+    "per_trim_tier": 0.18788004036866215,
+    "n": 24,
+    "rmse": 0.08593063283975245,
+    "median_price": 31984,
+    "median_mileage": 26956,
+    "trim_counts": {
+     "tier 1.5": 18,
+     "tier 3": 6
+    },
+    "per_certified": 0.0
+   }
+  },
+  "market_curve:toyota-highlander:y2024:v2": {
+   "fetched_at": "2026-09-18T16:05:04",
+   "year_min": 2024,
+   "curve": {
+    "intercept": 10.729058152886457,
+    "per_10k_miles": -0.02941030765290876,
+    "per_year": -0.07077972385438284,
+    "per_trim_tier": 0.09218947379773905,
+    "n": 41,
+    "rmse": 0.05871068312866978,
+    "median_price": 42309,
+    "median_mileage": 27369,
+    "trim_counts": {
+     "tier 2": 25,
+     "tier 3": 12,
+     "tier 0": 4
+    },
+    "per_certified": -0.012147795481048124
+   }
+  },
+  "market_curve:toyota-sienna:y2024:v2": {
+   "fetched_at": "2026-09-18T16:05:04",
+   "year_min": 2024,
+   "curve": {
+    "intercept": 10.723728319570018,
+    "per_10k_miles": -0.034243829439304374,
+    "per_year": 0.010178736504961223,
+    "per_trim_tier": 0.06225117026773448,
+    "n": 44,
+    "rmse": 0.05669075245322899,
+    "median_price": 46120,
+    "median_mileage": 29787,
+    "trim_counts": {
+     "tier 0": 10,
+     "tier 2": 28,
+     "tier 3": 6
+    },
+    "per_certified": 0.0014341072463964618
+   }
+  },
+  "market_curve:kia-telluride:y2024:v2": {
+   "fetched_at": "2026-09-18T16:05:04",
+   "year_min": 2024,
+   "curve": {
+    "intercept": 10.513884453639982,
+    "per_10k_miles": -0.03792136719033637,
+    "per_year": -0.05500319826628719,
+    "per_trim_tier": 0.13105487306882616,
+    "n": 41,
+    "rmse": 0.05774365775550629,
+    "median_price": 39210,
+    "median_mileage": 28086,
+    "trim_counts": {
+     "tier 1": 15,
+     "tier 3": 21,
+     "tier 0": 1,
+     "tier 2": 4
+    },
+    "per_certified": 0.010231899908778336
+   }
+  },
+  "market_curve:kia-sorento:y2024:v2": {
+   "fetched_at": "2026-09-18T16:05:04",
+   "year_min": 2024,
+   "curve": {
+    "intercept": 10.3631005241821,
+    "per_10k_miles": -0.03902904166974002,
+    "per_year": -0.023456185050651588,
+    "per_trim_tier": 0.07107167551954949,
+    "n": 40,
+    "rmse": 0.05525072977482342,
+    "median_price": 31270,
+    "median_mileage": 23170,
+    "trim_counts": {
+     "tier 1": 19,
+     "tier 3": 8,
+     "tier 0": 4,
+     "tier 2": 9
+    },
+    "per_certified": 0.017633269581674885
+   }
+  },
+  "market_curve:kia-sportage:y2025:v2": {
+   "fetched_at": "2026-09-18T16:05:04",
+   "year_min": 2025,
+   "curve": {
+    "intercept": 10.294438312020512,
+    "per_10k_miles": -0.018010079675128073,
+    "per_year": -0.08580102019731355,
+    "per_trim_tier": 0.06860398775606974,
+    "n": 44,
+    "rmse": 0.06362938302957342,
+    "median_price": 28125,
+    "median_mileage": 13405,
+    "trim_counts": {
+     "tier 3": 13,
+     "tier 2": 21,
+     "tier 0": 10
+    },
+    "per_certified": 0.007261381062365012
+   }
+  },
+  "market_curve:hyundai-tucson:y2025:v2": {
+   "fetched_at": "2026-09-18T16:05:04",
+   "year_min": 2025,
+   "curve": {
+    "intercept": 10.272521765563633,
+    "per_10k_miles": -0.04192717964595979,
+    "per_year": -0.07212477669366087,
+    "per_trim_tier": 0.08697386079688652,
+    "n": 42,
+    "rmse": 0.0615563598134493,
+    "median_price": 24944,
+    "median_mileage": 20438,
+    "trim_counts": {
+     "tier 1": 32,
+     "tier 3": 5,
+     "tier 2": 4,
+     "tier 0": 1
+    },
+    "per_certified": -0.0005876702426588462
+   }
+  },
+  "market_curve:volvo-v60_cross_country:y2023:v2": {
+   "fetched_at": "2026-09-18T16:05:04",
+   "year_min": 2023,
+   "curve": {
+    "intercept": 10.231340503861906,
+    "per_10k_miles": -0.057926649341129045,
+    "per_year": -0.019320098994965715,
+    "per_trim_tier": 0.2077709225014223,
+    "n": 42,
+    "rmse": 0.06733290874504926,
+    "median_price": 35298,
+    "median_mileage": 23018,
+    "trim_counts": {
+     "tier 2": 30,
+     "tier 3": 12
+    },
+    "per_certified": 0.03441283800617966
+   }
+  },
+  "market_curve:mercedes_benz-c_class:y2024:v2": {
+   "fetched_at": "2026-09-18T16:05:04",
+   "year_min": 2024,
+   "curve": {
+    "intercept": 10.18130944196799,
+    "per_10k_miles": -0.04979630644862137,
+    "per_year": -0.05532600236679333,
+    "per_trim_tier": 0.4029690643597107,
+    "n": 44,
+    "rmse": 0.08361762530210262,
+    "median_price": 37828,
+    "median_mileage": 18556,
+    "trim_counts": {
+     "tier 1.5": 43,
+     "tier 3": 1
+    },
+    "per_certified": 0.04412334018947281
+   }
+  },
   "market_curve:volvo-xc60:y2024:v2": {
    "fetched_at": "2026-09-14T04:23:22",
    "year_min": 2024,
@@ -20,27 +386,6 @@
      "tier 1.5": 1
     },
     "per_certified": 0.03860664270514086
-   }
-  },
-  "market_curve:mazda-cx_70:y2024:v2": {
-   "fetched_at": "2026-09-14T04:23:22",
-   "year_min": 2024,
-   "curve": {
-    "intercept": 10.616092613213336,
-    "per_10k_miles": -0.0441713983694715,
-    "per_year": -0.07793721725557991,
-    "per_trim_tier": 0.07869150183770414,
-    "n": 59,
-    "rmse": 0.06497097827446528,
-    "median_price": 37778,
-    "median_mileage": 17581,
-    "trim_counts": {
-     "tier 2": 12,
-     "tier 1.5": 15,
-     "tier 3": 18,
-     "tier 0": 14
-    },
-    "per_certified": 0.020915195642913047
    }
   }
  }

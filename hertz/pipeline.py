@@ -35,18 +35,20 @@ CURVE_SEED = "market_curves.json"
 
 
 def market_curve_targets(cfg: Config) -> dict:
-    """{(make, slug): (model_key, year_min)} for every watch that asks for a curve."""
+    """{(cars_make, slug): (model_key, year_min)} for every benchmarked model.
+
+    Driven by the `[[market]]` table, not by watches: a watch naming
+    fourteen models could only ever key one curve, which is why the primary
+    target had no outside benchmark at all. Legacy `market_slug` on a watch
+    is still honoured so nothing breaks mid-migration.
+    """
     wanted: dict = {}
+    for m in cfg.market:
+        wanted[(m.cars_make, m.slug)] = (m.key, m.year_min)
     for w in cfg.watch:
         if not (w.market_slug and w.market_make):
             continue
-        key = (w.market_make, w.market_slug)
-        # The oldest model year any watch on this slug accepts. The curve is
-        # fitted on those years only, so it never extrapolates from older cars.
-        year_min = w.year_min or 0
-        if key in wanted:
-            year_min = min(year_min, wanted[key][1]) if year_min and wanted[key][1] else 0
-        wanted[key] = (_normalize_key(w), year_min)
+        wanted.setdefault((w.market_make, w.market_slug), (_normalize_key(w), w.year_min or 0))
     return wanted
 
 

@@ -197,6 +197,35 @@ class WatchEntry:
 
 
 @dataclass
+class MarketModel:
+    """One model to benchmark against the open market, independent of watches.
+
+    Curves used to hang off watch entries, which keyed them by the watch's
+    FIRST model, so a watch naming fourteen models could only ever have one
+    curve and the primary target had none at all. Every car Lorenzo might
+    buy deserves an outside benchmark, so they live here instead.
+
+    `make` and `model` are the seller's own strings, matched against the
+    listing; `slug` is Cars.com's ("mazda-cx_50_hybrid"), whose prefix is
+    also the Cars.com make.
+    """
+
+    make: str
+    model: str
+    slug: str
+    year_min: int = 0
+
+    @property
+    def key(self) -> str:
+        """Match `score._normalize_model`: "make|model", lowercased."""
+        return f"{self.make.strip().lower()}|{self.model.strip().lower()}"
+
+    @property
+    def cars_make(self) -> str:
+        return self.slug.split("-", 1)[0]
+
+
+@dataclass
 class Config:
     # location
     zip: str = "43220"
@@ -247,8 +276,23 @@ class Config:
     min_comps: int = 12
     min_abs_discount: int = 400
     # Weight on the within-inventory fit is n / (n + market_blend_k) when a
-    # Cars.com curve exists for the model; the rest goes to the curve.
+    # Cars.com curve exists for the model; the rest goes to the curve, and
+    # the curve never gets less than `market_weight_floor`.
+    #
+    # The floor is the point. The within-inventory benchmark is ENDOGENOUS:
+    # it is fitted on the same sellers whose prices it judges, with a fixed
+    # effect per model, so when Hertz offloads a wave of cheap cars the
+    # benchmark moves with them and every one reads as ordinary. The
+    # Cars.com curve is noisier but exogenous to that. Given a choice
+    # between a precise biased number and a noisy unbiased one, and a buyer
+    # asking "is Hertz cheap right now", the unbiased one has to lead.
     market_blend_k: float = 20.0
+    market_weight_floor: float = 0.6
+    # A curve this loose is not worth 60% of the verdict. Thin Cars.com
+    # samples occasionally fit badly (a C-Class sample full of AMGs, a GV70
+    # whose age term comes out positive), and the floor would hand such a
+    # curve the lead. Above this log-RMSE the model keeps the internal fit.
+    market_max_rmse: float = 0.12
     # Markdown alerts: how far below its model a marked-down car must sit
     # to be worth a message, and how big the cut must be to count.
     #
@@ -274,6 +318,7 @@ class Config:
     ntfy_server: str = "https://ntfy.sh"
 
     watch: list[WatchEntry] = field(default_factory=list)
+    market: list[MarketModel] = field(default_factory=list)
     sources: dict = field(default_factory=dict)
 
     # "owner/name" of the repo whose issues hold followed listings. On
@@ -373,6 +418,8 @@ def load(path: Path = CONFIG_PATH) -> Config:
         min_comps=int(scoring.get("min_comps", 12)),
         min_abs_discount=int(scoring.get("min_abs_discount", 400)),
         market_blend_k=float(scoring.get("market_blend_k", 20.0)),
+        market_weight_floor=float(scoring.get("market_weight_floor", 0.6)),
+        market_max_rmse=float(scoring.get("market_max_rmse", 0.12)),
         markdown_pct=float(scoring.get("markdown_pct", -5.0)),
         markdown_sigma=float(scoring.get("markdown_sigma", -1.5)),
         markdown_min_drop=int(scoring.get("markdown_min_drop", 250)),
@@ -421,6 +468,13 @@ def load(path: Path = CONFIG_PATH) -> Config:
             min_sigma=(None if w.get("min_sigma") is None else float(w.get("min_sigma"))),
         )
         for w in raw.get("watch", [])
+    ]
+
+    cfg.market = [
+        MarketModel(make=str(m.get("make", "")), model=str(m.get("model", "")),
+                    slug=str(m.get("slug", "")), year_min=int(m.get("year_min", 0)))
+        for m in raw.get("market", [])
+        if m.get("make") and m.get("model") and m.get("slug")
     ]
 
     from .ingest import Source

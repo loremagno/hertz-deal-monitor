@@ -476,6 +476,9 @@ def score_listing(
     # pre-doc-fee price; the quoted price gets its own doc fee back below.
     key = _normalize_model(listing)
     curve = (market_curves or {}).get(key)
+    # A curve too loose to be worth leading with is set aside entirely.
+    if curve is not None and curve.rmse and curve.rmse > cfg.market_max_rmse:
+        curve = None
     internal = hedonic.assess(listing) if hedonic else None
     price_fit = fit_price(listing, hedonic.doc_fee if hedonic else 0)
     if not price_fit or price_fit <= 0:
@@ -497,7 +500,9 @@ def score_listing(
             pred_mkt = None
 
     if pred_int is not None and pred_mkt is not None and sig_mkt:
-        w = n / (n + cfg.market_blend_k)
+        # Precision weighting, but the market never falls below its floor:
+        # the inventory fit is endogenous to the very waves we want to spot.
+        w = min(1.0 - cfg.market_weight_floor, n / (n + cfg.market_blend_k))
         pred = w * pred_int + (1.0 - w) * pred_mkt
         sigma = math.sqrt(w * sig_int ** 2 + (1.0 - w) * sig_mkt ** 2)
         scored.benchmark = f"blend {int(round(100 * (1 - w)))}% market"

@@ -113,9 +113,22 @@ min_comps = 12
 # percentage test is even considered, to avoid alerting on rounding noise.
 min_abs_discount = 400
 # When a Cars.com curve exists for a model, the within-inventory fit gets
-# weight n / (n + K) and the curve the rest: nine XC60s -> 31% inventory,
-# 69% market; sixty CX-50 Hybrids -> 75% inventory.
+# weight n / (n + K) and the curve the rest, EXCEPT that the curve never
+# falls below `market_weight_floor`.
+#
+# Lorenzo, 2026-09-18: "we are comparing cars to other Hertz listings? I
+# would like to benchmark more to the global market, because otherwise a
+# wave of cheap cars changes the model." Exactly right, and it is the whole
+# weakness of a within-inventory benchmark: it is fitted on the same sellers
+# it judges, with a fixed effect per model, so a fleet offload moves the
+# yardstick with the cars and every one reads as ordinary. The Cars.com
+# curve is noisier but exogenous, so it leads.
 market_blend_k = 20
+market_weight_floor = 0.6
+# A Cars.com sample that fits this badly is not worth 60% of the verdict;
+# such a model keeps the internal benchmark. On 2026-09-18 the loosest of
+# the nineteen curves was the GV70 at 0.097, so nothing is excluded today.
+market_max_rmse = 0.12
 # Markdown alerts, on watches that set `markdown_alert = true`. A car that
 # arrives at prediction and is cut week by week until it is genuinely cheap
 # used to say nothing: arrival alerts fire once, and the value gate wants
@@ -153,6 +166,157 @@ server = "https://ntfy.sh"
 # Watchlist. Tier A is the real target and alerts on a modest discount.
 # Tier B is opportunistic: it only fires on an exceptional discount.
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Outside benchmarks. One entry per model worth judging against the open
+# market rather than against Hertz's own book. `make` and `model` are the
+# seller's own strings; `slug` is Cars.com's, and its prefix is the Cars.com
+# make. Curves are fitted locally by `python -m hertz --curves` and committed
+# to docs/market_curves.json, because Cars.com blocks the runner more often
+# than not. Refit weekly, or whenever the board shows "hertz" as a benchmark
+# for a model listed here.
+# ---------------------------------------------------------------------------
+
+[[market]]
+make = "Mazda"
+model = "CX-50 Hybrid"
+slug = "mazda-cx_50_hybrid"
+year_min = 2025
+
+[[market]]
+make = "Volvo"
+model = "XC60"
+slug = "volvo-xc60"
+year_min = 2024
+
+[[market]]
+make = "Mazda"
+model = "CX-70"
+slug = "mazda-cx_70"
+year_min = 2024
+
+[[market]]
+make = "Hyundai"
+model = "Palisade"
+slug = "hyundai-palisade"
+year_min = 2025
+
+[[market]]
+make = "Hyundai"
+model = "Santa Fe"
+slug = "hyundai-santa_fe"
+year_min = 2024
+
+[[market]]
+make = "Mazda"
+model = "CX-90"
+slug = "mazda-cx_90"
+year_min = 2024
+
+[[market]]
+make = "Mazda"
+model = "CX-50"
+slug = "mazda-cx_50"
+year_min = 2024
+
+[[market]]
+make = "Mazda"
+model = "CX-5"
+slug = "mazda-cx_5"
+year_min = 2024
+
+[[market]]
+make = "Volkswagen"
+model = "Atlas"
+slug = "volkswagen-atlas"
+year_min = 2024
+
+[[market]]
+make = "Volkswagen"
+model = "Tiguan"
+slug = "volkswagen-tiguan"
+year_min = 2025
+
+[[market]]
+make = "Genesis"
+model = "GV80"
+slug = "genesis-gv80"
+year_min = 2024
+
+[[market]]
+make = "Genesis"
+model = "GV70"
+slug = "genesis-gv70"
+year_min = 2024
+
+[[market]]
+make = "Genesis"
+model = "G70"
+slug = "genesis-g70"
+year_min = 2025
+
+[[market]]
+make = "Toyota"
+model = "Highlander"
+slug = "toyota-highlander"
+year_min = 2024
+
+[[market]]
+make = "Toyota"
+model = "Sienna"
+slug = "toyota-sienna"
+year_min = 2024
+
+[[market]]
+make = "Kia"
+model = "Telluride"
+slug = "kia-telluride"
+year_min = 2024
+
+[[market]]
+make = "Kia"
+model = "Sorento"
+slug = "kia-sorento"
+year_min = 2024
+
+[[market]]
+make = "Kia"
+model = "Sportage"
+slug = "kia-sportage"
+year_min = 2025
+
+[[market]]
+make = "Hyundai"
+model = "Tucson"
+slug = "hyundai-tucson"
+year_min = 2025
+
+[[market]]
+make = "Volvo"
+model = "V60 Cross Country"
+slug = "volvo-v60_cross_country"
+year_min = 2023
+
+[[market]]
+make = "Mercedes-Benz"
+model = "C-Class"
+slug = "mercedes_benz-c_class"
+year_min = 2024
+
+# Cars.com names Mercedes SUVs "<model>_class"; if a slug returns nothing the
+# run logs "No market curve for ..." and the model simply keeps the internal
+# benchmark, so a wrong guess is cheap and self-reporting.
+[[market]]
+make = "Mercedes-Benz"
+model = "GLA 250"
+slug = "mercedes_benz-gla_class"
+year_min = 2024
+
+[[market]]
+make = "Mercedes-Benz"
+model = "GLB 250"
+slug = "mercedes_benz-glb_class"
+year_min = 2024
 
 # ---------------------------------------------------------------------------
 # Sources. Both run Dealer.com, so identical code reads them.
