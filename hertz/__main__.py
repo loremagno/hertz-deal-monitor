@@ -96,6 +96,8 @@ def main(argv: list[str] | None = None) -> int:
                         help="re-poll every watch now, ignoring poll windows")
     parser.add_argument("--curve-pages", type=int, default=2,
                         help="Cars.com pages per model when refitting curves (default 2, ~24 cars each)")
+    parser.add_argument("--curves-only", default="",
+                        help="comma-separated Cars.com slugs to refit, instead of all of them")
     parser.add_argument("--curves", action="store_true",
                         help="refit the Cars.com market curves and write docs/market_curves.json, "
                              "then exit (run locally; the runner is usually challenged)")
@@ -105,7 +107,9 @@ def main(argv: list[str] | None = None) -> int:
     setup_logging(cfg)
     if args.curves:
         with Store(cfg.db_path) as store:
-            seed = pipeline.refresh_market_curves(cfg, store, pages=args.curve_pages)
+            only = {s.strip() for s in args.curves_only.split(",") if s.strip()}
+            seed = pipeline.refresh_market_curves(cfg, store, pages=args.curve_pages,
+                                                  only=only or None)
         print(f"{len(seed['curves'])} market curve(s) in docs/{pipeline.CURVE_SEED}")
         return 0
     logger.info("=== Hertz deal monitor starting ===")

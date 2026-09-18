@@ -144,7 +144,7 @@ def market_curves(session, cfg: Config, store: Store, max_age_hours: float = 24.
 
 
 def refresh_market_curves(cfg: Config, store: Store, pause_seconds: float = 45.0,
-                          pages: int = 3) -> dict:
+                          pages: int = 3, only: set[str] | None = None) -> dict:
     """Refit every market curve and write the committed seed.
 
     Meant to run locally: a residential connection gets through where the
@@ -157,7 +157,11 @@ def refresh_market_curves(cfg: Config, store: Store, pause_seconds: float = 45.0
     now = clock.now_iso()
     seed: dict = {"seeded_at": now, "curves": {}}
     first = True
-    for (make, slug), (model_key, year_min) in market_curve_targets(cfg).items():
+    targets = market_curve_targets(cfg)
+    if only:
+        targets = {k: v for k, v in targets.items() if k[1] in only}
+        logger.info("Refitting only: %s", ", ".join(sorted(only)))
+    for (make, slug), (model_key, year_min) in targets.items():
         comps: list = []
         seen: set = set()
         for page in range(1, pages + 1):

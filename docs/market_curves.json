@@ -1,6 +1,82 @@
 {
- "seeded_at": "2026-09-18T16:05:04",
+ "seeded_at": "2026-09-18T17:24:27",
  "curves": {
+  "market_curve:mazda-cx_5:y2024:v2": {
+   "fetched_at": "2026-09-18T17:24:27",
+   "year_min": 2024,
+   "curve": {
+    "intercept": 10.396223820770588,
+    "per_10k_miles": -0.0392451815331056,
+    "per_year": -0.0440449456360612,
+    "per_trim_tier": 0.06056234183617944,
+    "n": 24,
+    "rmse": 0.06738776320565647,
+    "median_price": 27825,
+    "median_mileage": 24723,
+    "trim_counts": {
+     "tier 2": 10,
+     "tier 0": 10,
+     "tier 3": 4
+    },
+    "per_certified": 0.005505771117215462
+   }
+  },
+  "market_curve:genesis-gv80:y2024:v2": {
+   "fetched_at": "2026-09-18T17:24:27",
+   "year_min": 2024,
+   "curve": {
+    "intercept": 11.073849970629142,
+    "per_10k_miles": -0.13567983619213422,
+    "per_year": 0.02151852291837665,
+    "per_trim_tier": -0.0022915886621744366,
+    "n": 44,
+    "rmse": 0.11344225507159306,
+    "median_price": 47058,
+    "median_mileage": 24329,
+    "trim_counts": {
+     "tier 1.5": 40,
+     "tier 3": 2,
+     "tier 2": 2
+    },
+    "per_certified": 0.10049643333425648
+   }
+  },
+  "market_curve:mercedes_benz-gla_250:y2024:v2": {
+   "fetched_at": "2026-09-18T17:24:27",
+   "year_min": 2024,
+   "curve": {
+    "intercept": 10.785397285251069,
+    "per_10k_miles": -0.08356199903673067,
+    "per_year": -0.0917543882388896,
+    "per_trim_tier": 1.9338354326492987e-09,
+    "n": 43,
+    "rmse": 0.07493402814047821,
+    "median_price": 33387,
+    "median_mileage": 16373,
+    "trim_counts": {
+     "tier 1.5": 43
+    },
+    "per_certified": 0.01991781828256831
+   }
+  },
+  "market_curve:mercedes_benz-glb_250:y2024:v2": {
+   "fetched_at": "2026-09-18T17:24:27",
+   "year_min": 2024,
+   "curve": {
+    "intercept": 10.717454895382243,
+    "per_10k_miles": -0.07529568137385183,
+    "per_year": -0.0384999681352059,
+    "per_trim_tier": 2.4122285283079193e-09,
+    "n": 24,
+    "rmse": 0.0771330387262897,
+    "median_price": 36393,
+    "median_mileage": 15848,
+    "trim_counts": {
+     "tier 1.5": 24
+    },
+    "per_certified": -0.02312801460552334
+   }
+  },
   "market_curve:mazda-cx_50_hybrid:y2025:v2": {
    "fetched_at": "2026-09-18T16:05:04",
    "year_min": 2025,

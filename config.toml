@@ -303,19 +303,21 @@ model = "C-Class"
 slug = "mercedes_benz-c_class"
 year_min = 2024
 
-# Cars.com names Mercedes SUVs "<model>_class"; if a slug returns nothing the
-# run logs "No market curve for ..." and the model simply keeps the internal
-# benchmark, so a wrong guess is cheap and self-reporting.
+# Slugs read from Cars.com's own Model filter on 2026-09-18, not guessed:
+# it lists both a generic "gla_class" and the specific "gla_250", and the
+# specific one matches what Hertz writes. If a slug returns nothing the run
+# logs "No market curve for ..." and the model keeps the internal benchmark,
+# so a mistake is cheap and self-reporting.
 [[market]]
 make = "Mercedes-Benz"
 model = "GLA 250"
-slug = "mercedes_benz-gla_class"
+slug = "mercedes_benz-gla_250"
 year_min = 2024
 
 [[market]]
 make = "Mercedes-Benz"
 model = "GLB 250"
-slug = "mercedes_benz-glb_class"
+slug = "mercedes_benz-glb_250"
 year_min = 2024
 
 # ---------------------------------------------------------------------------

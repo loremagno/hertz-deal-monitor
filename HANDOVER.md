@@ -166,10 +166,21 @@ car, which the old benchmark could not show because it compared Hertz with
 Hertz. Caveat worth keeping: Cars.com asking prices are negotiable while
 Hertz is no-haggle, so part of that gap is bargaining room, not discount.
 
-19 of 23 curves fitted on 2026-09-18 (n = 24 to 61, RMSE 0.040 to 0.097).
-Missing: mazda-cx_5 and genesis-gv80 were Cloudflare-blocked that run, and
-`mercedes_benz-gla_class` / `glb_class` are unverified slug guesses. A model
-without a curve keeps the internal benchmark and the board says "hertz".
+All 23 curves fitted on 2026-09-18 (n = 24 to 61, RMSE 0.040 to 0.113).
+The first pass got 19; the four stragglers came in on a second, targeted
+pass (`--curves-only genesis-gv80,mazda-cx_5,...`, added for exactly this).
+
+Two lessons from those four. The CX-5 and GV80 slugs were right all along
+and had simply been Cloudflare-blocked, so **a missing curve usually means
+blocked, not wrong**; retry before re-guessing. The Mercedes slugs were
+genuinely wrong, and the fix was to read Cars.com's own Model filter out of
+the `CarsWeb.SearchController.index` payload rather than guess a third time:
+it lists both a generic `mercedes_benz-gla_class` and a specific
+`mercedes_benz-gla_250`, and the specific one is what Hertz writes.
+
+Watch the GV80: its curve fits at RMSE 0.113, just inside the 0.12 guard,
+on the model with the most inventory rows. A model without a usable curve
+keeps the internal benchmark and the board says "hertz".
 
 **Two benchmarks, blended.** Where a Cars.com curve exists for the model
 (`benchmark.fit_curve`: log price on mileage, age, trim rung and a certified
