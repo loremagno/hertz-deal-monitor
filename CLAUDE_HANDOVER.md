@@ -506,7 +506,38 @@ NOT done from the audit, in priority order: reclaim the wasted crawl (retune
 or drop the 2026 sweep, the two CX-70 Hertz/Byers lanes, Hertz XC60, CX-50
 Hybrid at Enterprise); a single "today" panel; the wagon-tab decay.
 
+## Session 2026-09-18: why the market "got worse", and the fleet-drop detector
+
+Lorenzo asked why the market got so much worse. Answer, with evidence: it
+did not. Three separate things, only one real.
+1. His shortlist was picked over. 31 of 78 CX-50 Hybrids sold in 8 days,
+   the cheap drivable ones in about 2 days each.
+2. Nationally flat to falling. Mean CX-50 Hybrid $31,161 -> $30,877; Hertz
+   LOT cars are marked down hard (median -$370, 72% falling).
+3. The real distortion: RENT2BUY PRICES DRIFT UP. Across 2,034 R2B cars the
+   median price change is $0 with 32% rising and +297 miles added, against
+   lot cars at median -$370 with 72% falling. 29% of R2B cars gained price
+   AND mileage at once, which no real market does. Five of his seven
+   surviving drivable CX-50 Hybrids are R2B and rose $953-$1,684 while
+   adding 139-736 miles. Those opening numbers are estimates on cars still
+   out on rent, revised toward reality. His two genuine lot cars moved $0
+   and +$200. NOT YET ACTED ON: the board scores R2B estimates as if firm.
+
+He then gave the key domain insight: Hertz offloads a model in waves and
+demand catches up, so be there for the flurry. Built `detect_fleet_drops`;
+see HANDOVER "Fleet drops". The structural point worth remembering: a
+model-wide price drop is INVISIBLE to the residual because the model fixed
+effect absorbs it, so this had to be a count detector, not a price one.
+Tuned by replay over 9 days (4 drivable, 2.0x = 2.3 alerts/week).
+
+Measured and honest: burst arrivals were NOT cheaper in this sample, and
+model price levels were flat through each wave. The alert buys first pick,
+not a discount, and says so.
+
 ## Pending / Next Steps
+- [ ] Treat a Rent2Buy price as provisional rather than firm, and track
+      whether a given car's estimate is drifting up or holding. Offered,
+      not yet approved.
 - [x] Enterprise Car Sales: built as a low-mileage lane (see above). Was: Its search API is fully
       replayable through Playwright's request API with the page's own headers
       (anonymous bearer token from `generate-anonymous-access-token` with the

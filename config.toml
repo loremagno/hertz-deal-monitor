@@ -59,6 +59,29 @@ max_shipping = 499
 # enabled on the repo for this to work.
 repo = "loremagno/hertz-deal-monitor"
 
+[fleet_drop]
+# Lorenzo, from having bought at Hertz before: "they start offloading a
+# model, a bunch of listings go up, then demand catches up; we need to be
+# there catching that flurry." The residual cannot see this. A model-wide
+# price drop is absorbed by that model's own fixed effect, so three hundred
+# cheap CX-50s would each read as average against a benchmark they
+# themselves just moved. So this watches counts instead, against the same
+# model's own recent arrival rate, and reports where its price level sits.
+#
+# Judged on cars inside the radius, because a wave of ninety Atlases in
+# Texas is not an opportunity at $2 a mile in delivery. Fires when a watched
+# model brings in at least `min_drivable` cars you could drive to AND that
+# is at least `multiple` times what that model usually brings. Only arrivals
+# matching a watch count, or a flood of base-trim Sportages fires every run.
+#
+# Tuned by replaying nine days of real arrivals: at 4 and 2.0 it fired twice,
+# on a 24-car Palisade wave (4 drivable) and a 69-car CX-50 wave (9 drivable),
+# about twice a week. At 3 and 2.0 it fired seven times, which is noise.
+alert = true
+min_drivable = 4
+multiple = 2.0
+window_days = 14
+
 [condition]
 # Reading a car's history costs two page loads and the answer is good for a
 # fortnight, so the board can afford a verdict on every car Lorenzo could

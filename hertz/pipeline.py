@@ -394,6 +394,7 @@ class RunResult:
     failed_entries: list = field(default_factory=list)   # (label, error) skipped this run
     new_models: list = field(default_factory=list)       # (make, model, count, min price) first seen this run
     condition: dict = field(default_factory=dict)        # {"checked", "reports", "skipped"}
+    fleet_drops: list = field(default_factory=list)      # models Hertz just offloaded in bulk
 
 
 def collect(
@@ -568,6 +569,86 @@ def enrich(session: ingest.BrowserSession, store: Store, candidates: list[Scored
             if report is not None:
                 store.save_autocheck(report)
                 scored.autocheck = report
+
+
+def detect_fleet_drops(store: Store, cfg: Config, listings: list[Listing],
+                       new_vins: set[str], polled_pairs: set[tuple[str, str]]) -> list[dict]:
+    """Record this run's per-model arrivals and spot a fleet offload.
+
+    Lorenzo's read of Hertz, from having bought there before: they offload a
+    model in waves, a flurry of listings goes up, and demand catches up
+    within days. Being present for the flurry is the whole game, and the
+    residual cannot see it. A model-wide price drop is absorbed by that
+    model's own fixed effect, so three hundred cheap CX-50s would each read
+    as perfectly average against a benchmark they themselves just moved.
+    So this watches COUNTS, against that pair's own recent history, plus
+    the model's own price level.
+
+    Only arrivals that actually match a watch are counted, or a flood of
+    base-trim Sportages would fire every time.
+    """
+    by_pair: dict[tuple[str, str], list[Listing]] = {}
+    for listing in listings:
+        by_pair.setdefault(((listing.source or "hertz"), listing.model.lower()), []).append(listing)
+
+    drops: list[dict] = []
+    for source, model in sorted(polled_pairs):
+        cars = by_pair.get((source, model), [])
+        arrivals = [c for c in cars if c.vin in new_vins]
+        matched = [c for c in arrivals if score.match_watch(c, cfg) is not None]
+        drivable = [c for c in matched
+                    if c.geodist is not None and c.geodist <= cfg.alert_radius_miles]
+        prices = sorted(c.price for c in cars if c.price)
+        median_price = prices[len(prices) // 2] if prices else None
+        cheapest = min((c.price for c in matched if c.price), default=None)
+
+        history = store.model_poll_history(source, model, cfg.fleet_window_days,
+                                           exclude_latest=False)
+        store.record_model_poll(source, model, len(cars), len(arrivals), len(matched),
+                                len(drivable), cheapest, median_price)
+        if not cfg.fleet_alert or not matched:
+            continue
+        # Two earlier polls at least: the first sight of a pair lists its
+        # whole stock as new, which is a baseline and not a wave.
+        if len(history) < 2:
+            continue
+
+        # Judged on the cars he could actually drive to. A wave of ninety
+        # Atlases in Texas is not an opportunity: delivery runs $2 a mile.
+        # Both tests are on the drivable count, one absolute and one against
+        # this pair's own recent rate, and both must pass.
+        typical_all = sorted(h["matched"] or 0 for h in history)
+        typical = typical_all[len(typical_all) // 2]
+        typical_near_all = sorted(h["drivable"] or 0 for h in history)
+        typical_near = typical_near_all[len(typical_near_all) // 2]
+        enough = len(drivable) >= cfg.fleet_min_drivable
+        surge = len(drivable) >= cfg.fleet_multiple * max(typical_near, 1)
+        if not (enough and surge):
+            continue
+
+        # Where the model's own price level sits against its recent norm,
+        # which is the part a residual can never show.
+        levels = [h["median_price"] for h in history if h["median_price"]]
+        level_before = sorted(levels)[len(levels) // 2] if levels else None
+        drops.append({
+            "source": source, "model": cars[0].model if cars else model,
+            "arrived": len(matched), "drivable": len(drivable),
+            # Report the comparison the rule actually made: drivable against
+            # this pair's usual drivable haul. `typical` is the national
+            # figure, kept for context only.
+            "typical": typical, "typical_drivable": typical_near, "cheapest": cheapest,
+            "median_price": median_price, "median_before": level_before,
+            "examples": [
+                {"label": c.label, "price": c.price, "miles": c.odometer,
+                 "distance": None if c.geodist is None else round(c.geodist),
+                 "url": c.url}
+                for c in sorted(drivable or matched,
+                                key=lambda c: c.price or 9 * 10 ** 9)[:5]
+            ],
+        })
+        logger.info("Fleet drop: %s listed %d %s (typical %d), %d drivable, cheapest %s",
+                    source, len(matched), model, typical, len(drivable), cheapest)
+    return drops
 
 
 def attach_known_conditions(store: Store, scored_list: list[Scored]) -> int:
@@ -806,6 +887,14 @@ def run(cfg: Config, dry_run: bool = False, force: bool = False) -> RunResult:
                 if delta and delta < 0:
                     result.price_drops.append((listing.vin, -delta))
             store.mark_inactive(seen, polled_pairs)
+
+            # A wave of listings for one model is the event Lorenzo most
+            # wants: Hertz offloads in bulk and demand catches up in days.
+            try:
+                result.fleet_drops = detect_fleet_drops(
+                    store, cfg, listings, set(result.new_vins), polled_pairs)
+            except Exception as exc:
+                logger.warning("Fleet-drop detection skipped: %s", exc)
 
             # Safe to reset the poll windows now that the rows are committed.
             for entry in polled_entries:

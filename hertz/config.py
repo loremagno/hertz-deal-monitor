@@ -235,6 +235,14 @@ class Config:
     condition_survey_seconds: int = 360
     condition_retry_days: int = 14
 
+    # Fleet drops: Hertz offloads a model in waves. A wave is only a wave
+    # against that model's own recent arrival rate, so the detector needs a
+    # window, a multiple and an absolute floor.
+    fleet_alert: bool = True
+    fleet_min_drivable: int = 4
+    fleet_multiple: float = 2.0
+    fleet_window_days: int = 14
+
     # scoring
     min_comps: int = 12
     min_abs_discount: int = 400
@@ -358,6 +366,10 @@ def load(path: Path = CONFIG_PATH) -> Config:
         condition_survey_per_run=int(raw.get("condition", {}).get("survey_per_run", 30)),
         condition_survey_seconds=int(raw.get("condition", {}).get("survey_seconds", 360)),
         condition_retry_days=int(raw.get("condition", {}).get("retry_days", 14)),
+        fleet_alert=bool(raw.get("fleet_drop", {}).get("alert", True)),
+        fleet_min_drivable=int(raw.get("fleet_drop", {}).get("min_drivable", 4)),
+        fleet_multiple=float(raw.get("fleet_drop", {}).get("multiple", 2.0)),
+        fleet_window_days=int(raw.get("fleet_drop", {}).get("window_days", 14)),
         min_comps=int(scoring.get("min_comps", 12)),
         min_abs_discount=int(scoring.get("min_abs_discount", 400)),
         market_blend_k=float(scoring.get("market_blend_k", 20.0)),

@@ -73,6 +73,25 @@ CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
 -- that renders nothing to a headless browser, and a few Hertz pages carry
 -- no link at all. `outcome` is 'report', 'carfax' or 'none'; `history_url`
 -- keeps the link so the board can offer it without another page load.
+-- One row every time a (source, model) pair is polled. The fleet-drop
+-- detector needs a denominator: Hertz offloads a model in waves, and a
+-- "burst" is only a burst relative to what that pair normally brings in.
+-- Arrival counts alone are confounded by polling cadence, since a lane
+-- polled every 48 hours looks bursty every 48 hours.
+CREATE TABLE IF NOT EXISTS model_polls (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source TEXT NOT NULL,
+    model TEXT NOT NULL,
+    polled_at TEXT NOT NULL,
+    seen INTEGER,
+    arrivals INTEGER,
+    matched INTEGER,
+    drivable INTEGER,
+    cheapest INTEGER,
+    median_price INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_model_polls ON model_polls(source, model, polled_at);
+
 CREATE TABLE IF NOT EXISTS condition_attempts (
     vin TEXT PRIMARY KEY,
     tried_at TEXT NOT NULL,
@@ -248,6 +267,30 @@ class Store:
         return drop if drop > 0 else None
 
     # -- autocheck --------------------------------------------------------
+
+    def record_model_poll(self, source: str, model: str, seen: int, arrivals: int,
+                          matched: int, drivable: int, cheapest: int | None,
+                          median_price: int | None) -> None:
+        self.conn.execute(
+            """INSERT INTO model_polls
+                 (source, model, polled_at, seen, arrivals, matched, drivable, cheapest, median_price)
+               VALUES (?,?,?,?,?,?,?,?,?)""",
+            (source, model.lower(), _now(), seen, arrivals, matched, drivable,
+             cheapest, median_price))
+        self.conn.commit()
+
+    def model_poll_history(self, source: str, model: str, days: int = 14,
+                           exclude_latest: bool = True) -> list[dict]:
+        """Earlier polls of this pair, newest first, for the flurry baseline."""
+        cutoff = (datetime.now() - timedelta(days=days)).isoformat(timespec="seconds")
+        rows = self.conn.execute(
+            """SELECT polled_at, seen, arrivals, matched, drivable, cheapest, median_price
+                 FROM model_polls
+                WHERE source = ? AND model = ? AND polled_at >= ?
+                ORDER BY polled_at DESC""",
+            (source, model.lower(), cutoff)).fetchall()
+        out = [dict(r) for r in rows]
+        return out[1:] if exclude_latest and out else out
 
     def condition_attempt(self, vin: str) -> dict | None:
         """The last attempt to read this car's history, or None."""

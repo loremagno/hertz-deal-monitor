@@ -112,6 +112,56 @@ def send_deal_alerts(cfg: Config, alerts: list[Scored], board_html: str) -> int:
     return count
 
 
+def send_fleet_drops(cfg: Config, drops: list[dict], board_url: str = "") -> int:
+    """One message per model Hertz has just offloaded in bulk.
+
+    Urgent by design. The whole point is to be there while the wave is
+    fresh, and the measured half-life of a cheap drivable car is about two
+    days.
+    """
+    if not drops:
+        return 0
+    for drop in drops:
+        near = drop["drivable"]
+        title = (f"{drop['source'].title()}: {drop['arrived']} {drop['model']} just listed"
+                 + (f", {near} within reach" if near else ""))
+        usual = drop.get("typical_drivable", 0)
+        lines = [f"{near} within {cfg.alert_radius_miles} mi against a usual {usual}; "
+                 f"{drop['arrived']} listed in all."]
+        if drop.get("cheapest"):
+            lines.append(f"Cheapest matching: {_money(drop['cheapest'])}")
+        before, now = drop.get("median_before"), drop.get("median_price")
+        if before and now:
+            move = 100.0 * (now - before) / before
+            lines.append(f"Model median {_money(now)} against {_money(before)} lately ({move:+.1f}%)")
+        for car in drop["examples"][:4]:
+            where = f", {car['distance']} mi away" if car.get("distance") is not None else ""
+            miles = f", {car['miles']:,} mi" if car.get("miles") else ""
+            lines.append(f"- {car['label']} {_money(car['price'])}{miles}{where}")
+        send_push(cfg, title, "\n".join(lines),
+                  url=(drop["examples"][0]["url"] if drop["examples"] else board_url),
+                  priority="high")
+
+    total = sum(d["arrived"] for d in drops)
+    names = ", ".join(f"{d['arrived']} {d['model']}" for d in drops[:4])
+    html = ["<h2>A fleet drop just landed</h2>",
+            "<p>Hertz offloads a model in waves and demand catches up within days. "
+            "These models just arrived well above their usual rate.</p>"]
+    for drop in drops:
+        html.append(f"<h3>{drop['arrived']} &times; {drop['model']} "
+                    f"({drop['source']}), {drop['drivable']} within {cfg.alert_radius_miles} mi</h3>")
+        html.append(f"<p>Usually {drop.get('typical_drivable', 0)} within range; "
+                    f"{drop['arrived']} listed in all. "
+                    f"Cheapest matching {_money(drop.get('cheapest'))}.</p><ul>")
+        for car in drop["examples"]:
+            where = f", {car['distance']} mi away" if car.get("distance") is not None else ""
+            html.append(f"<li><a href=\"{car['url']}\">{car['label']}</a> "
+                        f"{_money(car['price'])}{where}</li>")
+        html.append("</ul>")
+    send_email(cfg, f"Fleet drop: {names}" if names else f"Fleet drop: {total} cars", "".join(html))
+    return len(drops)
+
+
 def send_digest(cfg: Config, subject: str, board_html: str) -> None:
     send_email(cfg, subject, board_html)
 

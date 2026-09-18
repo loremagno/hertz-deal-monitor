@@ -194,6 +194,7 @@ def build(result, cfg: Config, dream: dict | None, store, suv: dict | None = Non
         # never surveyed, so counting them could never reach 100%.
         "condition_coverage": _coverage(watched, cfg),
         "skipped_sources": [label for label, _ in getattr(result, "failed_entries", [])],
+        "fleet_drops": getattr(result, "fleet_drops", []),
         "watches": watches,
         "listings": [_row(s, cfg, groups, extras.get(s.listing.vin)) for s in watched],
         "dream": dream or {"rows": [], "counts": {}, "skipped": []},

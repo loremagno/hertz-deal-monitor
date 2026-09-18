@@ -245,6 +245,57 @@ all 120 Palisades still active, 2,129 vehicles fetched.
 
 ---
 
+## Fleet drops
+
+Lorenzo, from having bought at Hertz before: "they start offloading a model,
+a bunch of listings go up, then demand catches up; we need to be there
+catching that flurry." That event is real and the monitor was blind to it.
+
+**Why the residual cannot see it.** A model-wide price move is absorbed by
+that model's own fixed effect. If Hertz dumped three hundred CX-50s at 10%
+under their usual level, the CX-50 dummy would shift down with them and
+every one would read as average against a benchmark they themselves had
+just moved. The "vs model" column is a within-model measure by construction,
+so a fleet drop is invisible to it. The detector therefore watches COUNTS,
+plus the model's own price level over time.
+
+`pipeline.detect_fleet_drops` records one `model_polls` row per (source,
+model) polled, with seen, arrivals, matched, drivable, cheapest and median
+price. Arrival counts alone are confounded by cadence, since a lane polled
+every 48 hours looks bursty every 48 hours, so the baseline is that pair's
+own median over `window_days`.
+
+It fires when a watched model brings at least `min_drivable` (4) cars inside
+the radius AND that is at least `multiple` (2.0) times its usual drivable
+haul. Both tests are on drivable cars: a wave of ninety Atlases in Texas is
+not an opportunity at $2 a mile. Only arrivals that match a watch count, or
+a flood of base-trim Sportages would fire every run. A pair needs two prior
+polls before it can fire, since the first sight of a pair lists its whole
+stock as new.
+
+Tuned by replaying nine days of real arrivals through the detector:
+
+| min_drivable | multiple | alerts / week |
+|---|---|---|
+| 3 | 2.0 | 5.4 |
+| 4 | 2.0 | **2.3 (chosen)** |
+| 4 | 3.0 | 1.6 |
+| 5 | 2.0 | 0.8 |
+
+At the chosen setting it caught a 24-car Palisade wave (4 drivable, usually
+1) and two CX-50 waves (9 and 4 drivable, usually 2). The alert is high
+priority and names the drivable count, the usual haul, the cheapest match
+and the model's price level against its recent norm.
+
+**One caveat measured and worth keeping.** Over these nine days, cars
+arriving in a batch of 20 or more were NOT cheaper than trickle arrivals
+(mean residual −0.15% against +0.04%, and a smaller share below −3%), and
+model price levels were flat through each wave. So the value of the alert
+here is first pick of a bigger choice, not a discount. That may change; the
+price-level line in the alert is there to show it when it does.
+
+---
+
 ## Condition coverage
 
 Every car within `alert_radius_miles` that sits on a watch and comes from a

@@ -305,6 +305,13 @@ def main(argv: list[str] | None = None) -> int:
             sent = notify.send_deal_alerts(cfg, result.alerts, board_html)
             logger.info("Sent %d deal alert(s)", sent)
 
+            # A fleet drop is the event worth interrupting for.
+            if result.fleet_drops:
+                sent = notify.send_fleet_drops(
+                    cfg, result.fleet_drops,
+                    "https://loremagno.github.io/hertz-deal-monitor/")
+                logger.info("Sent %d fleet-drop alert(s)", sent)
+
             # One quiet push per run for models Hertz has started selling.
             if result.new_models:
                 lines = [f"{mk} {md}: {n} car{'s' if n != 1 else ''} from ${p:,}"
