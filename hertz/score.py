@@ -22,7 +22,7 @@ import math
 import re
 from dataclasses import dataclass
 
-from .config import DEALER_PICKUP_SOURCES, Config, WatchEntry
+from .config import DEALER_PICKUP_SOURCES, DEALER_SOURCE_NAMES, Config, WatchEntry
 from .models import AutoCheck, Listing, Scored
 from .trims import UNKNOWN as TRIM_UNKNOWN, trim_tier
 
@@ -141,7 +141,7 @@ class Hedonic:
 
     def features(self, listing: Listing) -> list[float] | None:
         """Design row: [1, odo, odo^2, model-year dummies, trim tier, trim unknown,
-        rent2buy, model dummies].
+        rent2buy, franchise dealer, model dummies].
 
         Model-year dummies rather than a linear age: the first-year drop is
         a cliff, and a straight line through 2024-2026 priced a 2025 above
@@ -166,6 +166,14 @@ class Hedonic:
         row.append(tier)
         row.append(1.0 if tier == TRIM_UNKNOWN else 0.0)
         row.append(1.0 if listing.is_rent2buy else 0.0)
+        # Seller channel. A franchise dealer's certified asking price sits a
+        # level above Hertz, Avis and Enterprise for the same car, and the
+        # model dummies must not absorb that: without this term the first
+        # sweep of 160 dealer CPO rows lifted the CX-50 level and every
+        # ex-rental CX-50 read five points cheaper than the day before.
+        # CarMax stays out of it on purpose: its XC60 residuals were
+        # calibrated against the rental channels and the market curve.
+        row.append(1.0 if (listing.source or "hertz") in DEALER_SOURCE_NAMES else 0.0)
         key = _normalize_model(listing)
         row.extend(1.0 if key == mk else 0.0 for mk in self.model_keys)
         return row

@@ -462,6 +462,16 @@ carries `pricing.SICRule`, the manufacturer cash it advertises, kept as
 zero: you drive there. Byers's used rows had been charged the Hertz
 per-mile tariff, $165 at ten miles, since the start.
 
+**The hedonic carries a franchise-dealer indicator** (`config.DEALER_SOURCE_NAMES`:
+the `kind = "dealer"` sources plus the locator), beside the Rent2Buy one. A
+dealer's certified asking price sits a level above Hertz, Avis and
+Enterprise for the same car, and on the first cloud run with 160 dealer CPO
+rows in the fit the CX-50 level rose and an Enterprise CX-50 went from
+-5.7% to -10.3% overnight, which sent an alert. With the term, dealer CPO
+rows are judged against dealer-level asks (and the market curve), the
+rental channels against their own. CarMax is deliberately not in the set:
+its XC60 residuals were calibrated without it.
+
 **Watches can name several sources** (`sources = [...]`, kept alongside the
 legacy `source`), require certification (`require_certified`), require a
 stock kind (`require_stock = "new" | "used"`), and cap their own alert

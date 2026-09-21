@@ -621,6 +621,20 @@ says; the radius is now enforced on the seller zip in `dream._fetch_model`.
 (5) Ohio doc-fee cap 2026: $398; Germain Columbus charges $250, Byers
 $387-398, Germain West $398.
 
+**First cloud run (35634771732, forced, green, 19 min).** Mazda USA from the
+runner works: 53 dealers within 300 mi (my local probe had read only the
+first page of the dealer list), 8,320 new and 663 certified cars, 1,328
+matching rows stored as a silent baseline; Byers new/CPO read; the Mazda
+seed adopted; board 1,928 listings, 135 Mazda rows within 75 mi. It also
+sent NINE alerts at once: six locator CPO cars clearing the -5% certified
+bar at -0.8 sigma (value alerts are not suppressed on a new source's first
+sweep, only arrivals are), an Enterprise CX-50 that moved from -5.7% to
+-10.3% because 160 dealer CPO asks lifted the CX-50 level in the pooled
+fit, plus the Byers CPO Turbo Premium arriving in his colours (correct).
+Fixed after the run: a franchise-dealer indicator in the hedonic (HANDOVER
+"New cars"), the other-colours certified lane at -7% and -1 sigma with a
+150-mile alert radius, the colour lane at -0.5 sigma.
+
 **Not done / caveats.** Germain's own pages (Dealer Inspire) are not read:
 the locator covers their stock but not their advertised prices, which come
 only through Cars.com's 24-row pages. The CPO rows from dealers sit in the

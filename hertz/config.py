@@ -26,6 +26,14 @@ CONDITION_SOURCES = ("hertz", "avis", "byers-mazda", "byers-volvo")
 # these run their own reader and have no `[[source]]` entry.
 DEALER_PICKUP_SOURCES = ("mazdausa",)
 
+# Every franchise-dealer source name, filled in by `load()` from the
+# `kind = "dealer"` sources plus the pickup sources above. The hedonic
+# carries an indicator for them: a dealer's certified asking price sits a
+# level above the ex-rental channels for the same car, and pooling the two
+# without it moved the CX-50 level up the first time 160 dealer CPO rows
+# arrived, turning an Enterprise car from -5.7% into -10.3% overnight.
+DEALER_SOURCE_NAMES: set[str] = set(DEALER_PICKUP_SOURCES)
+
 
 _BODY_WORDS = {"suv", "crossover", "sedan", "hatchback", "wagon", "coupe", "convertible", "van",
                "minivan", "truck", "pickup"}
@@ -523,6 +531,7 @@ def load(path: Path = CONFIG_PATH) -> Config:
     }
     if not cfg.sources:
         cfg.sources = {"hertz": Source("hertz")}
+    DEALER_SOURCE_NAMES.update(name for name, src in cfg.sources.items() if src.kind == "dealer")
 
     cfg.db_path = _resolve_db_path(raw.get("paths", {}))
     cfg.github_repo = str(raw.get("github", {}).get("repo", ""))
