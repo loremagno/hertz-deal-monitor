@@ -17,6 +17,7 @@ from . import autocheck as autocheck_mod
 from . import benchmark as bm
 from . import carmax as carmax_mod
 from . import enterprise as enterprise_mod
+from . import mazdausa as mazdausa_mod
 from . import clock, geo, ingest, score
 from .config import CONDITION_SOURCES, Config
 from .models import Listing, Scored
@@ -290,6 +291,49 @@ def collect_enterprise(cfg: Config, store: Store) -> list[Listing]:
     return out
 
 
+def collect_mazdausa(cfg: Config, store: Store) -> list[Listing]:
+    """Sweep Mazda USA's inventory locator in its own browser, before the
+    main session opens: every due watch naming the "mazdausa" source
+    contributes its models; new and certified stock at every dealer within
+    the alert radius comes back with colours, trims and stickers.
+
+    A VIN the store already holds from a dealer's own feed is left to that
+    feed: Byers's page carries the doc fee, the internet price and the
+    manufacturer cash, and the locator carries only the sticker. Without
+    that rule the row's source would flip between the two every poll.
+    """
+    entries = [w for w in cfg.watch if "mazdausa" in w.sources and _entry_due(store, w)]
+    if not entries:
+        return []
+    models: list[str] = []
+    for w in entries:
+        for m in w.models:
+            if m not in models:
+                models.append(m)
+    if not models:
+        logger.warning("Mazda USA watches must name models; nothing to sweep")
+        return []
+    home = geo.parse_coordinates(cfg.coordinates)
+    try:
+        with ingest.BrowserSession(headless=True, postal_code=cfg.zip,
+                                   city_state=cfg.city_state, coordinates=cfg.coordinates,
+                                   cookie_domains=()) as session:
+            cars = mazdausa_mod.fetch(session, cfg.zip, cfg.alert_radius_miles, models)
+    except Exception as exc:
+        logger.warning("Mazda USA sweep skipped: %s", exc)
+        return []
+    held = store.sources_for(c.vin for c in cars)
+    deferred = [c for c in cars if held.get(c.vin) not in (None, mazdausa_mod.SOURCE)]
+    cars = [c for c in cars if held.get(c.vin) in (None, mazdausa_mod.SOURCE)]
+    out = [c for c in cars if any(w.matches(c) for w in entries)]
+    if out and home:
+        _, discovered = geo.annotate_distances(out, home, store.load_geocache())
+        store.save_geocache(discovered)
+    logger.info("Mazda USA: %d of %d cars match a watch (%d left to the dealer's own feed)",
+                len(out), len(cars), len(deferred))
+    return out
+
+
 def _normalize_key(entry) -> str:
     """Match `score._normalize_model`: "make|model", lowercased."""
     model = (entry.models[0] if entry.models else "").strip().lower()
@@ -439,13 +483,13 @@ def collect(
         # Entries on a non-Dealer.com source (CarMax) are swept by their own
         # reader. Falling through to Hertz here issued a phantom Hertz query
         # for the CarMax entry's model on every run, logged as carmax:XC60=0.
-        if entry.source not in cfg.sources:
-            # CarMax and Enterprise have their own passes, which mark their
-            # entries polled only when the sweep returned cars.
-            if entry.source not in ("carmax", "enterprise"):
+        dealer_sources = [s for s in entry.sources if s in cfg.sources]
+        if not dealer_sources:
+            # CarMax, Enterprise and Mazda USA have their own passes, which
+            # mark their entries polled only when the sweep returned cars.
+            if not (set(entry.sources) & {"carmax", "enterprise", "mazdausa"}):
                 polled_entries.append(entry)
             continue
-        source = cfg.sources[entry.source]
 
         # One source going dark must not take the run down. A 20-second
         # dataLayer timeout on Byers Mazda (a side quest with zero stock)
@@ -454,8 +498,10 @@ def collect(
         # kept, its poll window is NOT reset (it retries next run), and it is
         # reported. Only when every entry fails is the run itself a failure.
         try:
+          for src_name in dealer_sources:
+            source = cfg.sources[src_name]
             for model in entry.models:
-                key = f"{entry.source}:{model}"
+                key = f"{src_name}:{model}"
                 if key in per_model:
                     continue
                 years = None
@@ -464,9 +510,9 @@ def collect(
                     years = list(range(entry.year_min, top + 1))
                 listings = ingest.fetch_model_nationwide(
                     session, model, entry.max_pages, source, years,
-                    expected=store.active_count(model, entry.source))
+                    expected=store.active_count(model, src_name))
                 per_model[key] = len(listings)
-                polled.add((entry.source, model.lower()))
+                polled.add((src_name, model.lower()))
                 for listing in listings:
                     by_vin.setdefault(listing.vin, listing)
 
@@ -475,7 +521,7 @@ def collect(
             # A sweep entry passes its band, mileage cap and body styles to
             # Hertz, which applies them server-side.
             for make in entry.makes:
-                key = f"{entry.source}:make:{make}"
+                key = f"{src_name}:make:{make}"
                 if key in per_model:
                     continue
                 years = None
@@ -490,7 +536,7 @@ def collect(
                 per_model[key] = len(listings)
                 # A capped make sweep must not "sell" the models it did not
                 # reach: only models it actually returned count as polled.
-                polled.update((entry.source, l.model.lower()) for l in listings)
+                polled.update((src_name, l.model.lower()) for l in listings)
                 for listing in listings:
                     by_vin.setdefault(listing.vin, listing)
         except Exception as exc:
@@ -505,7 +551,8 @@ def collect(
     for label, coverage in ingest.COVERAGE.items():
         store.set_meta(f"coverage:{label}", coverage)
 
-    attempted = [e for e in cfg.watch if e.source in cfg.sources and _entry_due(store, e)]
+    attempted = [e for e in cfg.watch
+                 if any(s in cfg.sources for s in e.sources) and _entry_due(store, e)]
     if attempted and len(failed_entries) == len(attempted):
         # Every Dealer.com source failed: that is the scraper or the network,
         # not one dealer's bad afternoon, and it deserves the loud path.
@@ -545,7 +592,8 @@ def enrich(session: ingest.BrowserSession, store: Store, candidates: list[Scored
         # CarMax detail pages refuse automation even from real Chrome, and
         # cost a 90-180s cooldown each when tried. They also carry no
         # AutoCheck we can read, so there is nothing to gain by opening them.
-        if (listing.source or "") == "carmax":
+        # A new car has no history and no delivery quote to read either.
+        if (listing.source or "") == "carmax" or listing.is_new:
             continue
 
         cached = store.get_autocheck(listing.vin)
@@ -704,7 +752,7 @@ def survey_conditions(session: ingest.BrowserSession, store: Store,
     due: list[Scored] = []
     for scored in scored_list:
         listing = scored.listing
-        if (listing.source or "hertz") not in CONDITION_SOURCES:
+        if (listing.source or "hertz") not in CONDITION_SOURCES or listing.is_new:
             continue
         if listing.geodist is None or listing.geodist > cfg.alert_radius_miles:
             continue
@@ -781,6 +829,7 @@ def run(cfg: Config, dry_run: bool = False, force: bool = False) -> RunResult:
         # own too, since its token lives in a page context.
         carmax_listings = collect_carmax(cfg, store)
         enterprise_listings = collect_enterprise(cfg, store)
+        mazdausa_listings = collect_mazdausa(cfg, store)
 
         with ingest.BrowserSession(
             headless=True,
@@ -828,6 +877,16 @@ def run(cfg: Config, dry_run: bool = False, force: bool = False) -> RunResult:
                 polled_pairs.update(("enterprise", c.model.lower()) for c in enterprise_listings)
                 for w in cfg.watch:
                     if w.source == "enterprise" and _entry_due(store, w):
+                        polled_entries.append(w)
+            # The locator's rows join after the dealer feeds, so a VIN the
+            # dealer's own page returned this run keeps that page as its source.
+            seen_dealer = {l.vin for l in listings}
+            mazdausa_listings = [c for c in mazdausa_listings if c.vin not in seen_dealer]
+            listings.extend(mazdausa_listings)
+            if mazdausa_listings:
+                polled_pairs.update(("mazdausa", c.model.lower()) for c in mazdausa_listings)
+                for w in cfg.watch:
+                    if "mazdausa" in w.sources and _entry_due(store, w) and w not in polled_entries:
                         polled_entries.append(w)
             curves = market_curves(session, cfg, store)
             result.curves = curves
@@ -944,9 +1003,13 @@ def run(cfg: Config, dry_run: bool = False, force: bool = False) -> RunResult:
             # Cars cut by real money this run, for the markdown path below.
             cut_now = {vin: drop for vin, drop in result.price_drops
                        if drop >= cfg.markdown_min_drop}
+            radius_of = {w.label: (w.alert_radius_miles or cfg.alert_radius_miles)
+                         for w in cfg.watch}
             for scored in result.watched:
                 distance = scored.listing.geodist
-                if distance is None or distance > cfg.alert_radius_miles:
+                radius = min(cfg.alert_radius_miles,
+                             radius_of.get(scored.matched_label, cfg.alert_radius_miles))
+                if distance is None or distance > radius:
                     continue
                 if score.value_gate(scored, cfg)[0]:
                     provisional.append(scored)
@@ -980,7 +1043,19 @@ def run(cfg: Config, dry_run: bool = False, force: bool = False) -> RunResult:
                 # A new arrival still has to be clean; it just does not have
                 # to be a bargain. Condition is never waived.
                 report = scored.autocheck
-                if report is not None and report.is_clean:
+                if scored.listing.is_new:
+                    # A new car at a dealer: nothing to read, the factory
+                    # warranty is the condition. Say what it is against
+                    # sticker and what cash the dealer advertises.
+                    ok = True
+                    l = scored.listing
+                    reasons = [f"Newly listed at {l.lot}: new car, "
+                               f"{l.exterior_color or 'colour unknown'} / {l.interior_color or 'interior unknown'}"]
+                    if scored.residual_pct is not None and l.msrp:
+                        reasons.append(f"{scored.residual_pct:+.1f}% vs the ${l.msrp:,} sticker"
+                                       + (f", dealer advertises ${l.incentive:,} manufacturer cash on top"
+                                          if l.incentive else ""))
+                elif report is not None and report.is_clean:
                     ok = True
                     reasons = [f"Newly listed at {scored.listing.lot}"] + [
                         r for r in reasons if "below predicted" in r or "AutoCheck" in r
@@ -1003,16 +1078,18 @@ def run(cfg: Config, dry_run: bool = False, force: bool = False) -> RunResult:
             if not ok and scored.vin in cut_now and _wants_markdown_alert(scored, cfg):
                 report = scored.autocheck
                 clean = (report is not None and report.is_clean) or (
-                    report is None and scored.listing.certified)
+                    report is None and scored.listing.certified) or scored.listing.is_new
                 if clean:
                     ok = True
                     drop = cut_now[scored.vin]
+                    sigma = (f" ({scored.residual_sigma:+.2f} sigma)"
+                             if scored.residual_sigma is not None else "")
+                    against = "the sticker" if scored.benchmark == "msrp" else "its model"
                     reasons = [
                         f"Price cut ${drop:,} to ${scored.listing.price:,}, now "
-                        f"{scored.residual_pct:+.1f}% vs its model "
-                        f"({scored.residual_sigma:+.2f} sigma) at {scored.listing.lot}"
+                        f"{scored.residual_pct:+.1f}% vs {against}{sigma} at {scored.listing.lot}"
                     ] + [r for r in reasons if "AutoCheck" in r or "Certified" in r
-                         or "certified" in r]
+                         or "certified" in r or "New car" in r]
                 elif report is not None:
                     reasons = [f"Price cut, but AutoCheck: {'; '.join(report.concerns)}"]
 

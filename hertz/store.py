@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS listings (
     city_mpg REAL, highway_mpg REAL,
     stock_number TEXT, status TEXT, certified INTEGER, classification TEXT, source TEXT,
     url TEXT, image_url TEXT, delivery_quote INTEGER,
+    stock TEXT, msrp INTEGER, incentive INTEGER, quoted_doc_fee INTEGER,
     first_seen TEXT, last_seen TEXT, active INTEGER DEFAULT 1
 );
 
@@ -114,7 +115,8 @@ LISTING_COLUMNS = [
     "inventory_date", "fuel_type", "normal_fuel_type", "drive_line",
     "body_style", "engine", "exterior_color", "interior_color", "city_mpg",
     "highway_mpg", "stock_number", "status", "certified", "classification",
-    "source", "url", "image_url", "delivery_quote",
+    "source", "url", "image_url", "delivery_quote", "stock", "msrp",
+    "incentive", "quoted_doc_fee",
 ]
 
 
@@ -132,6 +134,11 @@ class Store:
             "classification": "TEXT",
             "source": "TEXT",
             "delivery_quote": "INTEGER",
+            # Franchise dealers (2026-09-21): new or used, and the sticker.
+            "stock": "TEXT",
+            "msrp": "INTEGER",
+            "incentive": "INTEGER",
+            "quoted_doc_fee": "INTEGER",
         },
     }
 
@@ -436,6 +443,19 @@ class Store:
             params.append(source)
         row = self.conn.execute(sql, params).fetchone()
         return int(row["n"]) if row else 0
+
+    def sources_for(self, vins) -> dict[str, str]:
+        """{vin: source} for the VINs the store holds, whatever their state.
+        The Mazda USA pass defers to a dealer's own feed for a VIN it carries."""
+        vins = [v for v in set(vins) if v]
+        out: dict[str, str] = {}
+        for i in range(0, len(vins), 500):
+            chunk = vins[i:i + 500]
+            rows = self.conn.execute(
+                f"SELECT vin, COALESCE(source, 'hertz') AS source FROM listings "
+                f"WHERE vin IN ({','.join('?' for _ in chunk)})", chunk).fetchall()
+            out.update({r["vin"]: r["source"] for r in rows})
+        return out
 
     def known_models(self, source: str = "hertz") -> set[str]:
         """Every make|model this source has ever listed, active or not.

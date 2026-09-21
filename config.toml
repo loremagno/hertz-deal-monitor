@@ -96,7 +96,10 @@ retry_days = 14
 [preferences]
 # Soft preferences, not filters. A car that misses them still appears on the
 # board and can still alert; the board and the alert say how it differs.
-colors = ["blue", "slate", "gray", "grey", "graphite", "machine"]
+# 2026-09-21, for the new/CPO Mazda watch: "ideally green or grey". Green
+# is Mazda's Cypress (2.5 S and Turbo only, never the Hybrid); grey is
+# Polymetal or Machine Gray. Blue stays from the CX-50 Hybrid days.
+colors = ["blue", "slate", "gray", "grey", "graphite", "machine", "polymetal", "cypress", "green"]
 trims = ["Premium Plus"]
 odometer_ideal = 20000
 odometer_tolerance = 8000     # "ideally under 20k, but not much more"
@@ -104,6 +107,9 @@ odometer_tolerance = 8000     # "ideally under 20k, but not much more"
 # both, because how much you will drive is the open question.
 miles_per_year = 12000
 holding_years = 5
+# The dealer tab's default "Away" and its count: Columbus plus Springfield
+# and Dayton. The tab still holds every dealer within the alert radius.
+dealer_radius_miles = 75
 
 [scoring]
 # A residual is only trusted when the car's model has at least this many
@@ -329,15 +335,31 @@ name = "hertz"
 base_url = "https://www.hertzcarsales.com"
 search_path = "/all-inventory/index.htm"   # includes the Rent2Buy fleet
 
+# Franchise dealers are `kind = "dealer"`: their feed's `msrp` is the
+# manufacturer's sticker (not Hertz's pre-doc price), the advertised price
+# carries the state doc fee, and you drive there rather than pay delivery.
 [[source]]
 name = "byers-mazda"
 base_url = "https://www.byersmazda.com"
-search_path = "/used-inventory/index.htm"
+search_path = "/used-inventory/index.htm"   # certified and plain used together
+kind = "dealer"
+
+# Byers's NEW inventory, same Dealer.com feed with a `pricing` block: the
+# sticker, the $398 Ohio doc fee, a $50 delivery line, and the manufacturer
+# cash the dealer advertises ("SICRule"). 26 CX-50/CX-70 on 2026-09-21,
+# listed at sticker plus fees, so "vs sticker" reads about +0.2% there and
+# the negotiation is the whole game.
+[[source]]
+name = "byers-mazda-new"
+base_url = "https://www.byersmazda.com"
+search_path = "/new-inventory/index.htm"
+kind = "dealer"
 
 [[source]]
 name = "byers-volvo"
 base_url = "https://www.byersvolvo.com"
 search_path = "/certified-inventory/index.htm"   # certified pre-owned only
+kind = "dealer"
 
 # Avis Car Sales: the second ex-rental channel, and another Dealer.com site,
 # so the Hertz reader works unchanged. 1,594 cars nationwide on 2026-09-14,
@@ -583,6 +605,105 @@ min_sigma = -2.0
 national = false
 poll_hours = 48
 max_pages = 12
+alert_on_new = false
+new_max_residual_pct = 0.0
+
+# ---------------------------------------------------------------------------
+# New and certified Mazda CX-50 / CX-70 at dealers (Lorenzo, 2026-09-21):
+# NA, turbo or hybrid, Premium or higher, ideally green or grey, terracotta
+# interior loved. Four lanes, all on the "mazda" tab. The two tier-A lanes
+# REQUIRE the colours and alert on every arrival and on markdowns; the two
+# tier-B lanes take any colour, sit on the board, and alert only on a real
+# discount. `require_trims` is any-of: "Premium" admits 2.5 S Premium,
+# Hybrid Premium, Hybrid Premium Plus, 2.5 Turbo Premium Plus, 3.3 Turbo
+# Premium / Premium Plus / S Premium and excludes Select, Preferred and the
+# bare 2.5 Turbo. The Turbo Meridian Edition is admitted in the colour lanes
+# only, because it is the CX-50 trim that carries terracotta leather.
+#
+# On a NEW car "vs model" is the pre-doc price against the sticker (Byers
+# lists at sticker plus the $398 doc fee, so it reads about +0.2%; the
+# manufacturer cash is shown separately). A certified car is scored like
+# every other used car. Sources are Dealer.com pages of the dealer itself,
+# read every few hours from the cloud; the wider market is the Cars.com
+# sweep on the same tab (hertz/dream.py, MAZDA_MODELS).
+# ---------------------------------------------------------------------------
+
+# "mazdausa" is Mazda USA's own inventory locator (hertz/mazdausa.py): new
+# and certified stock at every dealer within the alert radius, twenty of
+# them from Cincinnati to Cleveland, Pittsburgh, Detroit and Indianapolis,
+# with exterior AND interior colour, trim and sticker. It is what covers
+# Germain's two Columbus stores (Dealer Inspire, not Dealer.com). A VIN that
+# Byers's own page carries stays with that page, which also knows the doc
+# fee, the internet price and the manufacturer cash.
+[[watch]]
+tier = "A"
+group = "mazda"
+label = "Mazda in your colours (new)"
+markdown_alert = true
+sources = ["byers-mazda-new", "mazdausa"]
+require_stock = "new"
+alert_radius_miles = 75         # arrivals alert from the Columbus area only; the board shows all 300 mi
+models = ["CX-50", "CX-50 Hybrid", "CX-70"]
+require_trims = ["Premium", "Turbo Meridian"]
+require_exterior = ["cypress", "green", "gray", "grey", "graphite", "polymetal", "machine"]
+threshold_pct = -6.0            # vs sticker, before manufacturer cash
+year_min = 2025
+odometer_max = 500
+poll_hours = 4
+max_pages = 3
+alert_on_new = true
+new_max_residual_pct = 99.0     # any price: a car in your spec is worth a message
+
+[[watch]]
+tier = "A"
+group = "mazda"
+label = "Mazda in your colours (certified)"
+markdown_alert = true
+sources = ["byers-mazda", "mazdausa"]
+require_certified = true
+require_stock = "used"
+alert_radius_miles = 75
+models = ["CX-50", "CX-50 Hybrid", "CX-70"]
+require_trims = ["Premium", "Turbo Meridian"]
+require_exterior = ["cypress", "green", "gray", "grey", "graphite", "polymetal", "machine"]
+threshold_pct = -3.0
+year_min = 2024
+odometer_max = 30000
+poll_hours = 4
+max_pages = 3
+alert_on_new = true
+new_max_residual_pct = 99.0
+
+[[watch]]
+tier = "B"
+group = "mazda"
+label = "Mazda, other colours (new)"
+sources = ["byers-mazda-new", "mazdausa"]
+require_stock = "new"
+models = ["CX-50", "CX-50 Hybrid", "CX-70"]
+require_trims = ["Premium"]
+threshold_pct = -7.0            # a real dealer discount off sticker, before cash
+year_min = 2025
+odometer_max = 500
+poll_hours = 6
+max_pages = 3
+alert_on_new = false
+new_max_residual_pct = 0.0
+
+[[watch]]
+tier = "B"
+group = "mazda"
+label = "Mazda, other colours (certified)"
+sources = ["byers-mazda", "mazdausa"]
+require_certified = true
+require_stock = "used"
+models = ["CX-50", "CX-50 Hybrid", "CX-70"]
+require_trims = ["Premium"]
+threshold_pct = -5.0
+year_min = 2024
+odometer_max = 30000
+poll_hours = 6
+max_pages = 3
 alert_on_new = false
 new_max_residual_pct = 0.0
 

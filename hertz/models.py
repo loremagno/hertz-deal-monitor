@@ -6,6 +6,7 @@ history), or a `Scored` listing (a listing plus the economics we derive).
 """
 from __future__ import annotations
 
+import re
 from dataclasses import asdict, dataclass, field
 from datetime import date, datetime
 
@@ -79,6 +80,24 @@ class Listing:
     # Filled in later, from the vehicle detail page.
     delivery_quote: int | None = None
 
+    # Franchise-dealer fields. `stock` is "new" or "used" as the dealer's
+    # feed says (blank on the rental channels, which sell only used cars);
+    # `msrp` is the manufacturer's sticker, which a dealer feed carries on
+    # new cars and often on late-model used ones. NEVER confused with
+    # Hertz's mislabelled `msrp` field, which is its pre-doc-fee price and
+    # is stored above as `no_haggle_price`: `ingest.fetch_page` moves the
+    # value into this slot for sources of kind "dealer".
+    stock: str = ""
+    msrp: int | None = None
+    # From the dealer feed's `pricing` block: the manufacturer cash the
+    # dealer is advertising on top of its price ("SICRule", $1,000 on a
+    # CX-50, $3,000 on a Turbo in September 2026) and the doc fee the
+    # advertised price already carries. Byers's internet price is sticker
+    # plus the $398 Ohio doc fee plus a $50 delivery line, so without the
+    # fee the "discount" would read as a $449 markup.
+    incentive: int | None = None
+    quoted_doc_fee: int | None = None
+
     @property
     def is_rent2buy(self) -> bool:
         """True for cars still in the rental fleet, sold through Rent2Buy.
@@ -91,6 +110,12 @@ class Listing:
         """
         return self.classification.strip().lower() == "fleet" or "renttwobuy" in self.url.lower() \
             or "/rent2buy/" in self.url.lower()
+
+    @property
+    def is_new(self) -> bool:
+        """A new car on a franchise dealer's lot: no history to read, a
+        sticker to negotiate from, and the full factory warranty."""
+        return (self.stock or "").strip().lower() == "new"
 
     def _inventory_date(self) -> date | None:
         if not self.inventory_date:
@@ -144,6 +169,23 @@ class Listing:
         return max(0.0, now - (self.year - 0.5))
 
     @property
+    def price_is_sticker(self) -> bool:
+        """True when the row's price IS the sticker because the source knows
+        no dealer price: Mazda USA's locator lists new cars at MSRP. Such a
+        row has no discount to report and no markdown to alert on."""
+        return self.is_new and (self.source or "") == "mazdausa"
+
+    @property
+    def sticker_pct(self) -> float | None:
+        """Pre-doc-fee price against the manufacturer's sticker, in percent;
+        negative is under sticker. None without a sticker, and None when the
+        price is only the sticker restated."""
+        if not self.msrp or not self.price or self.price_is_sticker:
+            return None
+        base = float(self.no_haggle_price or self.price)
+        return 100.0 * (base / float(self.msrp) - 1.0)
+
+    @property
     def label(self) -> str:
         return " ".join(p for p in (str(self.year), self.make, self.model, self.trim) if p).strip()
 
@@ -164,6 +206,13 @@ class Listing:
         engine = " ".join(
             str(raw.get(k) or "").strip() for k in ("engineSize", "engine")
         ).strip()
+
+        # Dealer.com names the condition in one of three fields depending on
+        # the site's vintage; Byers writes `newOrUsed`/`inventoryType`,
+        # Hertz leaves `type` null. Anything that says "new" is new.
+        condition = " ".join(str(raw.get(k) or "") for k in ("newOrUsed", "inventoryType", "type")).lower()
+        pricing = raw.get("pricing") if isinstance(raw.get("pricing"), dict) else {}
+        stock = "new" if re.search(r"\bnew\b", condition) else ("used" if "used" in condition else "")
 
         return cls(
             vin=vin,
@@ -199,6 +248,9 @@ class Listing:
             classification=str(raw.get("classification") or "").strip(),
             url=(base_url + link) if link.startswith("/") else link,
             image_url=image_url,
+            stock=stock,
+            incentive=to_int(pricing.get("SICRule")) or None,
+            quoted_doc_fee=to_int(pricing.get("documentFee")) or None,
         )
 
     def to_row(self) -> dict:

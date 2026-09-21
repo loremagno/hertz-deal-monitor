@@ -22,7 +22,7 @@ import math
 import re
 from dataclasses import dataclass
 
-from .config import Config, WatchEntry
+from .config import DEALER_PICKUP_SOURCES, Config, WatchEntry
 from .models import AutoCheck, Listing, Scored
 from .trims import UNKNOWN as TRIM_UNKNOWN, trim_tier
 
@@ -47,6 +47,14 @@ def delivery_cost(listing: Listing, cfg: Config) -> float:
         return 0.0
     if listing.delivery_quote is not None:
         return float(listing.delivery_quote)
+    # A franchise dealer is somewhere you drive to. The per-mile fallback
+    # is Hertz's delivery tariff and was quietly adding $165 to every Byers
+    # car ten miles away. A new car is always collected.
+    if listing.is_new or (listing.source or "") in DEALER_PICKUP_SOURCES:
+        return 0.0
+    src = cfg.sources.get(listing.source or "hertz") if cfg.sources else None
+    if src is not None and getattr(src, "kind", "rental") == "dealer":
+        return 0.0
     if listing.geodist is None:
         return 0.0
     return cfg.delivery_base + cfg.delivery_per_mile * float(listing.geodist)
@@ -100,9 +108,11 @@ def fit_price(listing: Listing, doc_fee: int = 0) -> float | None:
     """
     if not listing.price:
         return None
+    if listing.no_haggle_price:
+        # Known pre-doc price: Hertz lot cars, and dealer feeds that quote
+        # their doc fee (Byers: internet price less $398).
+        return float(listing.no_haggle_price)
     if (listing.source or "hertz") == "hertz":
-        if listing.no_haggle_price:
-            return float(listing.no_haggle_price)
         return float(listing.price) - doc_fee
     return float(listing.price)
 
@@ -143,6 +153,11 @@ class Hedonic:
         them as mid-ladder made every one of them a 15% "bargain".
         """
         if listing.odometer is None or not listing.year:
+            return None
+        if listing.is_new:
+            # A new car is not a used car with five miles on it: it has a
+            # sticker to be judged against, and it would drag every used
+            # model dummy upward. Kept out of the fit and never placed by it.
             return None
         odo = listing.odometer / 10000.0
         row = [1.0, odo, odo * odo]
@@ -266,6 +281,8 @@ def fit_hedonic(listings: list[Listing], ridge: float = 1e-6) -> Hedonic | None:
     doc_fee = typical_doc_fee(listings)
     usable = []
     for l in listings:
+        if l.is_new:
+            continue
         p = fit_price(l, doc_fee)
         if p and p > 1000 and l.odometer is not None and l.year:
             usable.append(l)
@@ -416,6 +433,9 @@ def preference_fit(listing: Listing, cfg: Config) -> tuple[int, list[str]]:
     tier = interior_tier(listing.interior_color)
     if tier == "mid":
         matches += 1
+        # Terracotta is the one he loves (2026-09-21); it counts twice.
+        if "terracotta" in (listing.interior_color or "").lower():
+            matches += 1
     elif tier == "light":
         misses.append(f"{listing.interior_color}: light-brown interior, lighter than you like")
 
@@ -464,6 +484,26 @@ def score_listing(
     if entry:
         scored.tier = entry.tier.upper()
         scored.matched_label = entry.label
+
+    if listing.is_new:
+        # A new car's benchmark is its sticker. "vs model" on a new car
+        # reads as percent under MSRP on the pre-doc price, which is what a
+        # dealer negotiation is about; the hedonic and the used-market
+        # curves never see it. No sigma: a sticker has no spread.
+        pct = listing.sticker_pct
+        if listing.price_is_sticker:
+            scored.benchmark = "sticker"      # the locator's price is the sticker itself
+            scored.comp_n = 1
+            return scored
+        if pct is None or not listing.price:
+            return scored
+        pre = float(listing.no_haggle_price or listing.price)
+        scored.benchmark = "msrp"
+        scored.comp_n = 1
+        scored.residual_pct = pct
+        scored.residual_sigma = None
+        scored.predicted_landed = float(listing.msrp) + (float(listing.price) - pre)
+        return scored
 
     # Two benchmarks, blended by how much each knows about this model.
     #
@@ -547,7 +587,7 @@ def value_gate(scored: Scored, cfg: Config) -> tuple[bool, list[str]]:
 
     if scored.residual_pct is None:
         return False, ["no price prediction available"]
-    if scored.comp_n < cfg.min_comps:
+    if scored.comp_n < cfg.min_comps and scored.benchmark != "msrp":
         return False, [f"only {scored.comp_n} comparable listings (need {cfg.min_comps})"]
 
     discount = (scored.predicted_landed or 0) - float(listing.price or 0)
@@ -566,6 +606,11 @@ def value_gate(scored: Scored, cfg: Config) -> tuple[bool, list[str]]:
                 if scored.residual_sigma is not None else "no sigma for this residual"
             ]
 
+    if scored.benchmark == "msrp":
+        return True, [
+            f"${discount:,.0f} ({scored.residual_pct:+.1f}%) under the "
+            f"${float(listing.msrp):,.0f} sticker before any manufacturer cash"
+        ]
     return True, [
         f"${discount:,.0f} ({scored.residual_pct:+.1f}%) below predicted price, "
         f"on {scored.comp_n} comparable listings"
@@ -582,6 +627,19 @@ def qualifies(scored: Scored, cfg: Config) -> tuple[bool, list[str]]:
     passed, reasons = value_gate(scored, cfg)
     if not passed:
         return False, reasons
+
+    if scored.listing.is_new:
+        # Nothing to read on a new car; the condition gate is the factory.
+        reasons.append("New car: full factory warranty, no history to check")
+        if scored.listing.incentive:
+            reasons.append(f"Dealer advertises ${scored.listing.incentive:,} manufacturer "
+                           "cash on top; the sticker comparison above is before it")
+        if scored.price_drop_30d:
+            reasons.append(f"price cut ${scored.price_drop_30d:,} in the last 30 days")
+        days = scored.listing.days_on_lot
+        if days and days > 60:
+            reasons.append(f"on the lot {days} days, so the dealer is paying floor plan on it")
+        return True, reasons
 
     if (scored.listing.source or "") == "carmax":
         # CarMax exposes no history report we can read, so condition is

@@ -552,7 +552,93 @@ retry: mazda-cx_5 and genesis-gv80 (both Cloudflare-blocked), plus the
 guessed slugs mercedes_benz-gla_class / glb_class (the GLA has 42 rows in
 inventory, so the right slug is worth finding).
 
+## Session 2026-09-21: new and certified Mazda at dealers, and how to negotiate
+
+Lorenzo: "I want to pivot a bit here; to new/certified mazdas cx-50 or even
+cx-70 at dealers; NA, turbo, or hybrids, all premium or higher trim; ideally
+green or grey; I love the terracotta interior (other colors could work as
+well, less preferred). SUGGEST negotiation strategies, focusing on Columbus
+area dealers (but I'm open to more)."
+
+**Built** (see HANDOVER "New cars: the sticker benchmark, the locator and
+the Mazda tab"):
+- `Listing.stock` / `msrp` / `incentive` / `quoted_doc_fee` (+ store
+  migration), `Source.kind = "dealer"`, `WatchEntry.sources` (a list),
+  `require_certified`, `require_stock`, `alert_radius_miles`.
+- New cars are scored against the STICKER (`benchmark = "msrp"`), never by
+  the hedonic (excluded from the fit) nor by a used-market curve; the
+  condition gate passes on the factory warranty; arrival and markdown
+  alerts work on them; push text names colours, sticker and cash.
+- Byers Mazda's new page (`byers-mazda-new`) and its used page (certified
+  via `require_certified`). Its feed's `pricing` block gives the sticker,
+  the $398 doc fee, a $50 delivery line and the manufacturer cash
+  ("SICRule": $1,000 CX-50 2.5 S, $1,500 Hybrid, $3,000 Turbo, $3,500
+  CX-70 in September). Byers lists every new car at sticker + fees.
+- `hertz/mazdausa.py`: Mazda USA's inventory locator (two endpoints,
+  documented in the module), 20 dealers within 300 mi, new + certified,
+  with interior colour, trim, sticker and in-transit ETA. It is what covers
+  Germain's two Columbus stores, which run Dealer Inspire (Algolia behind a
+  WordPress ajax handler; not built). Its new-car rows carry the sticker as
+  the price and are marked "sticker only" (`benchmark = "sticker"`,
+  `Listing.price_is_sticker`); a VIN that Byers's own feed carries stays
+  with Byers (`store.sources_for`).
+- Cars.com sweep `dream.MAZDA_MODELS` (5 queries: CX-50 gray|green, CX-50
+  gray|green + brown interior = terracotta, CX-50 Hybrid gray, CX-70 gray,
+  CX-70 gray + beige|brown = Tan Nappa), `stock_type=new_cpo`, the trims
+  facet (`trims[]`, slugs in dream.py), sorted cheapest first, two pages
+  where it matters. `DreamModel` gained `stock_type/trims/sort/pages`;
+  `MarketComp` gained `msrp/stock_type`; `python -m hertz --seed mazda`
+  writes `docs/mazda_seed.json` (164 rows on the first seed, all five
+  sweeps answered from this IP). `refresh_sweep` in `__main__` replaces the
+  duplicated SUV cache block and serves the Mazda sweep too.
+- Dashboard: "New & CPO Mazda" tab (group `mazda`), columns Sticker, vs
+  sticker, Mfr cash, chips `new` / `terracotta` / `ETA` / `sticker only`;
+  default "Away" = `[preferences] dealer_radius_miles` (75); Cars.com rows
+  join it; footer sentence on the sticker benchmark. Budget tab includes
+  the Cars.com Mazda rows.
+- `docs/negotiation.md`: the strategy memo (programs through Sept 30,
+  invoice/holdback, advertised discounts within 300 mi, per-trim targets,
+  the playbook, three cars to act on).
+
+**Verified locally** (scratch DB copies, the real sites): Byers new 26 +
+CPO 3 rows read with sticker/cash/doc fee; Mazda USA 1,168 Premium+ rows
+within 300 mi (125 within 75), Germain West and Columbus both present with
+"Terracotta Leather" and "Black Leather with Brown" interiors, in-transit
+ETAs; Cars.com 164 rows; the rebuilt page renders the tab. Delivery is now
+0 on dealer rows (Byers used cars were being charged $165).
+
+**Findings worth keeping.** (1) Byers has a Polymetal Gray / Terracotta
+2026 Turbo Meridian (sticker $42,980) that arrived this month, and Germain
+West has two more in the same colours. (2) Within 300 mi the going
+advertised discount before cash is 6-8% on the Turbo CX-50 and 8% on the
+CX-70 (Germain West CX-70 Turbo Premium -8.1% six miles away); Byers
+advertises 0%. (3) Cypress green exists only on the 2.5 S and Turbo, never
+the Hybrid; terracotta only on the Turbo Meridian and Turbo Premium Plus;
+the CX-70's non-black interiors are Greige (Preferred/Premium) and Tan
+Nappa (S Premium trims). (4) Cars.com's vehicle array appends "shippable"
+rows from anywhere after the organic 24, whatever `include_shippable`
+says; the radius is now enforced on the seller zip in `dream._fetch_model`.
+(5) Ohio doc-fee cap 2026: $398; Germain Columbus charges $250, Byers
+$387-398, Germain West $398.
+
+**Not done / caveats.** Germain's own pages (Dealer Inspire) are not read:
+the locator covers their stock but not their advertised prices, which come
+only through Cars.com's 24-row pages. The CPO rows from dealers sit in the
+hedonic and read high against it (a 3,868-mile CPO Turbo Premium at +15%)
+because the Mazda trim ladder has no turbo rung; harmless for alerts
+(certified lanes fire only on real discounts) but the number is not a
+verdict. Mazda USA from GitHub's runner is untested until the first cloud
+run. The `--seed mazda` sweep takes about seven minutes on this machine.
+
 ## Pending / Next Steps
+- [ ] Mazda USA from the runner: confirm the first cloud run logs "Mazda USA: N of M cars
+      match a watch" rather than "Mazda USA sweep skipped". If Akamai blocks the
+      datacenter IP, the pass needs the same seed-from-home treatment as Cars.com.
+- [ ] Germain's advertised prices: a Dealer Inspire reader (admin-ajax
+      `getDealerListings`, Algolia settings in `window.di_search_settings`) would
+      give Germain's own discounts every run instead of Cars.com's sample.
+- [ ] Refresh `docs/mazda_seed.json` weekly from this machine (`python -m hertz
+      --seed mazda`); the runner rarely gets past Cloudflare.
 - [ ] Treat a Rent2Buy price as provisional rather than firm, and track
       whether a given car's estimate is drifting up or holding. Offered,
       not yet approved.

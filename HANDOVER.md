@@ -18,6 +18,10 @@ Primary target a 2025+ Mazda CX-50 Hybrid; several secondary watches.
 | Hertz Car Sales | **works** | Dealer.com `window.DDC.dataLayer.vehicles`, headless Chromium |
 | Byers Volvo (certified) | **works** | same Dealer.com reader, different base URL |
 | Byers Mazda | **works** | same; zero CX-70 stock at time of writing |
+| Byers Mazda, new page | **works** | `byers-mazda-new`, `/new-inventory/index.htm`, same Dealer.com reader; the feed's `pricing` block carries sticker, doc fee ($398), a $50 delivery line and the manufacturer cash; 116 new Mazdas, 26 CX-50/CX-70 on 2026-09-21 |
+| Mazda USA locator | **works (API)** | `hertz/mazdausa.py`: `GET /handlers/dealer.ajax` for the dealers within a radius, `POST /api/inventorysearch` (form-encoded, 200 a page, `ResultsStart` is a page number, `Vehicle[Carline][]` codes from the response's own `Filters.Models`) for new (`n`) and certified (`c`) stock; VIN, trim, exterior AND interior descriptions, sticker, in-transit ETA, dealer site URL; no dealer price on new cars |
+| Germain Mazda (two Columbus stores) | **not built** | Dealer Inspire, not Dealer.com: WordPress `admin-ajax.php` action `getDealerListings` over Algolia (`window.di_search_settings`); the locator covers their stock, Cars.com their advertised prices |
+| Cars.com (new and CPO) | **works** | `stock_type=new_cpo`, `trims[]` facet (slugs in `dream.MAZDA_MODELS`), `sort=list_price`, `msrp` and `stockType` in the vehicle array; the array appends far "shippable" rows after the organic 24, so the radius is enforced on our side |
 | Avis Car Sales | **works** | Dealer.com like Hertz: `/used-inventory/index.htm`, `window.DDC.dataLayer`, server-side `odometer`/`model`/`year`; 1,594 cars on 2026-09-14, 26% under 25k miles, 29 CX-50 Hybrids; postal codes present; no Rent2Buy; delivery by the per-mile fallback |
 | Enterprise Car Sales | **works (API)** | `hertz/enterprise.py`: opens the site's results page once to capture the headers of its own search (anonymous bearer token; plain HTTP gets "no Route matched"), then replays `POST api.ehi.com/vehicle/sales/retail/inventory/search/template` per make through the browser context's request API, 200 hits a page. Hits carry VIN, odometer, trim, exterior AND interior colour, mpg, postal code, sale price, KBB value. Stock skews high-mileage (median 54k within 300 mi, 5% under 25k), so the reader applies the mileage cap and model-year floor at the API. Stored as certified (109-point inspection, 12/12 powertrain warranty, 7-day repurchase). |
 | Cars.com (search) | **works** | listings read from the page's own `<search-provider data-vehicle-array>` JSON (trim as written, VIN, price, mileage, exterior-colour bucket, seller zip, CPO flag); page size clamped to 24; one request per browser session; colour facets (`exterior_color_slugs[]`, `interior_color_slugs[]`) filter server-side |
@@ -85,6 +89,16 @@ but they will re-emerge if the guards are removed.
     Pages site here went live at `www.lorenzomagnolfi.com/hertz-deal-monitor/`
     on 2026-09-09 before being deleted. **Never enable Pages on this repo.**
     The dashboard is the Claude artifact plus the email digest.
+13. **A dealer feed's `msrp` is the sticker, Hertz's is a pre-doc price.** The
+    same Dealer.com field, two meanings; `Source.kind` decides. Read as a
+    no-haggle price, Byers's sticker became the tax base and a CPO car's
+    "pre-doc price" sat above its asking price.
+14. **Cars.com's vehicle array is longer than the page.** The organic 24 come
+    first, sorted as asked; a tail of "shippable" listings from anywhere
+    follows, in its own order, whatever `include_shippable` says. A 300-mile
+    search returned Cary NC and Minnesota. Filter on the seller zip.
+15. **Mazda USA's `Price` on a new car IS the sticker.** The locator knows no
+    dealer price; a row from it must never read as "0.0% under sticker".
 12. **The Actions runner image ships Google's Chrome apt repo pre-configured**,
     and it intermittently serves a stale index that fails *every*
     `apt-get update` with a hash-sum mismatch, even for unrelated packages.
@@ -416,6 +430,88 @@ of committed price history: 931 cars were cut by $250 or more, 25 of them
 were drivable and watched but not primary targets, and the rule fired
 exactly once, on a certified XC60 thirteen miles away cut $600 to -5.3%.
 About one a week.
+
+---
+
+## New cars: the sticker benchmark, the locator and the Mazda tab
+
+Lorenzo, 2026-09-21: new or certified CX-50 / CX-70 at dealers, NA, turbo
+or hybrid, Premium or higher, ideally green or grey, terracotta interior
+loved; and a negotiation strategy for the Columbus dealers
+(`docs/negotiation.md`).
+
+**A new car is not a used car with five miles on it.** It has a sticker,
+and the only number a buyer negotiates is the dealer's discount from it,
+before the manufacturer's cash. So a new car (`Listing.stock == "new"`) is
+excluded from the hedonic fit and never placed by it or by a used-market
+curve; `score_listing` gives it `benchmark = "msrp"` and `residual_pct` =
+pre-doc price against MSRP (`Listing.sticker_pct`). The value gate skips
+the comps test for that benchmark; `qualifies` passes on the factory
+warranty (there is no history to read, and the condition survey and the
+detail-page enrichment skip new cars); arrival, value and markdown alerts
+all work; the push names colours, sticker and the advertised cash.
+
+**Dealer feeds are read with `Source.kind = "dealer"`.** On Hertz and Avis
+the Dealer.com `msrp` field is a pre-doc price (`no_haggle_price`); on a
+franchise dealer it is the manufacturer's sticker, on new cars and as the
+original sticker on late-model used ones. `ingest.fetch_page` moves it into
+`Listing.msrp` for dealer sources and recovers the pre-doc price from the
+feed's quoted doc fee (`pricing.documentFee`) instead. Byers's feed also
+carries `pricing.SICRule`, the manufacturer cash it advertises, kept as
+`Listing.incentive` and shown as "Mfr cash". Delivery on a dealer row is
+zero: you drive there. Byers's used rows had been charged the Hertz
+per-mile tariff, $165 at ten miles, since the start.
+
+**Watches can name several sources** (`sources = [...]`, kept alongside the
+legacy `source`), require certification (`require_certified`), require a
+stock kind (`require_stock = "new" | "used"`), and cap their own alert
+radius (`alert_radius_miles`, inside the global one). The four Mazda lanes
+(group `mazda`) are: tier A "in your colours" new and certified (exterior
+cypress/green/gray/grey/polymetal/machine required, terracotta preferred,
+the Turbo Meridian admitted because it is the CX-50 trim that carries
+terracotta; arrivals and markdowns alert, but only within 75 miles), and
+tier B "other colours" new and certified (board only, alert at -7% under
+sticker or -5% vs model).
+
+**Mazda USA's locator** (`hertz/mazdausa.py`, own browser pass like
+Enterprise, `pipeline.collect_mazdausa`) covers every dealer within the
+alert radius: twenty of them, 1,168 Premium-or-better CX-50 / Hybrid /
+CX-70 rows on 2026-09-21, 125 within 75 miles, with interior colour and
+in-transit ETA (kept as `inventory_date`, so `available_from` shows it).
+Its new-car rows carry the sticker as the price and no dealer price:
+`Listing.price_is_sticker` makes `sticker_pct` None, the benchmark reads
+"sticker", the tab shows a "sticker only" chip, and no discount or markdown
+can ever be claimed for them. A VIN that Byers's own feed holds is left to
+Byers (`store.sources_for`), which knows the doc fee, the internet price
+and the cash; otherwise the row's source would flip every poll.
+
+**The Cars.com Mazda sweep** (`dream.MAZDA_MODELS`, `build_mazda`,
+`docs/mazda_seed.json`, `python -m hertz --seed mazda`) supplies advertised
+prices: `stock_type=new_cpo`, the `trims[]` facet so a 24-row page sorted
+cheapest first is all wanted trims, gray or green outside, and a second
+sweep per model asking for the interior bucket (CX-50 "brown" = terracotta,
+CX-70 "beige"/"brown" = Tan Nappa). New rows are ranked against their
+sticker, used rows against the model's curve fitted on the used rows only.
+`refresh_sweep` in `__main__` is the one cache-seed-merge routine for the
+SUV and Mazda sweeps.
+
+**The Mazda tab** (`docs/index.html`, group `mazda` plus `mazda_market`):
+Sticker, Price, vs sticker, Mfr cash, Landed, Own cost, vs model, Days,
+Condition ("new car" for new rows); chips `new`, `cert`, `terracotta`,
+`ETA <date>`, `sticker only`, `trim?`; default "Away" is
+`[preferences] dealer_radius_miles` (75), the Columbus area, and the tab's
+count is over that radius; clear it for the 300-mile field.
+
+**Facts fixed on 2026-09-21.** Cypress green is offered on the CX-50 2.5 S
+and Turbo only, never on the Hybrid (Cars.com: black, blue, gray, red,
+white). Terracotta leather is on the Turbo Meridian Edition and the Turbo
+Premium Plus; the Hybrid's non-black interiors are red and "Black Leather
+with Brown". The CX-70's are Greige (Preferred, Premium) and Tan Nappa
+(S Premium, S Premium Plus). Ohio's 2026 doc-fee cap is $398. September
+programs (through the 30th): CX-50 $1,000 / $1,500 (Hybrid) / $3,000
+(Turbo) customer cash or 0% for 36 months; CX-70 $3,500 or 0%/36; CPO
+CX-70 3.9%. Advertised discounts before cash within 300 mi: 6-8% on the
+Turbo CX-50, 8% on the CX-70 (Germain West, six miles); Byers 0%.
 
 ---
 

@@ -219,7 +219,7 @@ def _events(prev: dict | None, cur: dict) -> list[str]:
 
 
 def run(cfg: Config, store: Store, dream_doc: dict | None, suv_doc: dict | None,
-        dry_run: bool = False) -> dict:
+        dry_run: bool = False, extra_docs: list | None = None) -> dict:
     """Check every followed car, report changes, and describe the set for the page."""
     doc = {"enabled": False, "repo": os.environ.get("GITHUB_REPOSITORY") or cfg.github_repo or "",
            "new_issue_url": "", "reason": "", "rows": []}
@@ -246,7 +246,7 @@ def run(cfg: Config, store: Store, dream_doc: dict | None, suv_doc: dict | None,
     doc["enabled"] = True
 
     market: dict = {}
-    for source_doc in (dream_doc, suv_doc):
+    for source_doc in (dream_doc, suv_doc, *(extra_docs or [])):
         for r in (source_doc or {}).get("rows", []) or []:
             url = r.get("url") or ""
             if not url:

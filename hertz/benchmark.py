@@ -105,6 +105,8 @@ class MarketComp:
     seller_zip: str = ""
     certified: bool = False
     trim_status: str = ""    # dream/SUV sweeps: "ok", "unknown" or "" (no rule)
+    msrp: int = 0            # new cars: the sticker, as the array carries it
+    stock_type: str = ""     # "new", "used", "certified" (Cars.com's own word, lowercased)
 
     @property
     def age_years(self) -> float:
@@ -198,6 +200,10 @@ def parse_vehicle_array(raw: str) -> list[MarketComp]:
         seen.add(key)
         seller = v.get("seller") or {}
         trim = (v.get("trim") or "").strip()
+        try:
+            msrp = int(float(v.get("msrp") or 0))
+        except (TypeError, ValueError):
+            msrp = 0
         title = " ".join(x for x in (v.get("make"), v.get("model"), trim) if x)
         listing_id = v.get("listingId") or ""
         out.append(MarketComp(
@@ -209,6 +215,8 @@ def parse_vehicle_array(raw: str) -> list[MarketComp]:
             exterior=(v.get("exteriorColor") or "").strip().lower(),
             seller_zip=str(seller.get("zip") or "").strip()[:5],
             certified=bool(v.get("cpoIndicator")),
+            msrp=msrp,
+            stock_type=str(v.get("stockType") or "").strip().lower(),
         ))
     return out
 

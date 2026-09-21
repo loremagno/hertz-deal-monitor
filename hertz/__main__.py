@@ -84,6 +84,86 @@ def due_for_digest(store: Store, every_days: int) -> bool:
         return True
 
 
+def merge_sweep(old: dict | None, fresh: dict) -> dict:
+    """Merge a sweep per model: a model that answered replaces its old rows;
+    a model that was blocked keeps its last good rows. Overwriting the whole
+    cache on a partial refresh once turned a three-model tab into a
+    one-model tab for twelve hours."""
+    old = old or {"rows": [], "counts": {}, "skipped": []}
+    answered = set(fresh.get("counts") or {})
+    rows = [r for r in old.get("rows", []) if r.get("model") not in answered]
+    rows += list(fresh.get("rows", []))
+    rows.sort(key=lambda r: (r.get("market_pct") is None, r.get("market_pct") or 0.0,
+                             r.get("price") or 0))
+    return {"rows": rows,
+            "counts": {**(old.get("counts") or {}), **(fresh.get("counts") or {})},
+            "skipped": list(fresh.get("skipped") or []),
+            "seeded_at": clock.now_iso()}
+
+
+def refresh_sweep(store: Store, cfg, key: str, builder: str, force: bool,
+                  hours: float = 12.0) -> dict | None:
+    """One Cars.com sweep with its cache, its committed seed and its window.
+
+    `key` names the meta slots (`<key>_json`, `<key>_at`) and the seed file
+    (docs/<key>_seed.json); `builder` is the dream-module function to call
+    when a refresh is due. A committed seed is adopted when the cache has no
+    rows OR the seed's own `seeded_at` is newer than the cache stamp, never
+    by file mtime (a fresh checkout resets every mtime). Cars.com blocks
+    GitHub's runners on all but the first request of a session, so the
+    cloud rarely fills a sweep from scratch; `python -m hertz --seed <key>`
+    on a residential connection writes the seed the cloud then adopts.
+    """
+    cached = store.get_meta(f"{key}_json")
+    stamp = store.get_meta(f"{key}_at")
+    seed_path = cfg.base_dir / "docs" / f"{key}_seed.json"
+    has_rows = False
+    if cached:
+        try:
+            has_rows = bool(json.loads(cached).get("rows"))
+        except Exception:
+            has_rows = False
+    if seed_path.exists():
+        try:
+            sd = json.loads(seed_path.read_text(encoding="utf-8"))
+            seeded = sd.get("seeded_at")
+            cache_time = datetime.fromisoformat(stamp) if stamp else None
+            seed_time = datetime.fromisoformat(seeded) if seeded else None
+            if sd.get("rows") and (not has_rows or (seed_time and (cache_time is None or seed_time > cache_time))):
+                cached = json.dumps(sd)
+                stamp = (seed_time or clock.now()).isoformat(timespec="seconds")
+                store.set_meta(f"{key}_json", cached)
+                store.set_meta(f"{key}_at", stamp)
+                logger.info("%s sweep: adopted the committed seed", key)
+        except Exception as exc:
+            logger.warning("%s seed unreadable: %s", key, exc)
+    fresh = False
+    if stamp:
+        try:
+            fresh = clock.now() - datetime.fromisoformat(stamp) < timedelta(hours=hours)
+        except ValueError:
+            fresh = False
+    if cached and fresh and not force:
+        return json.loads(cached)
+    try:
+        from . import dream   # pulls in Playwright; only when refreshing
+        fresh_doc = dream.to_json(getattr(dream, builder)(cfg))
+        doc = merge_sweep(json.loads(cached) if cached else None, fresh_doc)
+        store.set_meta(f"{key}_json", json.dumps(doc))
+        if fresh_doc.get("counts"):
+            store.set_meta(f"{key}_at", doc["seeded_at"])
+            # Keep the committed seed current whenever a model answers, so
+            # the seed is never older than the last good fetch.
+            try:
+                seed_path.write_text(json.dumps(doc), encoding="utf-8")
+            except Exception as exc:
+                logger.warning("%s seed not updated: %s", key, exc)
+        return doc
+    except Exception as exc:
+        logger.warning("%s sweep not refreshed: %s", key, exc)
+        return json.loads(cached) if cached else None
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="hertz", description="Hertz Car Sales deal monitor")
     parser.add_argument("--dry-run", action="store_true",
@@ -101,6 +181,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--curves", action="store_true",
                         help="refit the Cars.com market curves and write docs/market_curves.json, "
                              "then exit (run locally; the runner is usually challenged)")
+    parser.add_argument("--seed", choices=["dream", "suv", "mazda"], default="",
+                        help="refresh one Cars.com sweep now, write docs/<name>_seed.json, "
+                             "then exit (run locally; the runner is usually challenged)")
     args = parser.parse_args(argv)
 
     cfg = config.load()
@@ -111,6 +194,14 @@ def main(argv: list[str] | None = None) -> int:
             seed = pipeline.refresh_market_curves(cfg, store, pages=args.curve_pages,
                                                   only=only or None)
         print(f"{len(seed['curves'])} market curve(s) in docs/{pipeline.CURVE_SEED}")
+        return 0
+    if args.seed:
+        builder = {"dream": "build", "suv": "build_suv", "mazda": "build_mazda"}[args.seed]
+        with Store(cfg.db_path) as store:
+            doc = refresh_sweep(store, cfg, args.seed, builder, force=True)
+        rows = (doc or {}).get("rows", [])
+        print(f"{args.seed} sweep: {len(rows)} row(s) in docs/{args.seed}_seed.json; "
+              f"skipped: {', '.join((doc or {}).get('skipped', [])) or 'none'}")
         return 0
     logger.info("=== Hertz deal monitor starting ===")
 
@@ -222,81 +313,30 @@ def main(argv: list[str] | None = None) -> int:
                 logger.warning("Dream tab not refreshed: %s", exc)
                 dream_doc = json.loads(cached) if cached else None
 
-        # The Cars.com SUV sweep (XC60 Plus within 300 mi) rides the same
-        # cache-and-seed logic as the wagons, in its own slot, so a blocked
-        # run keeps the last good rows and a committed seed fills a cold
-        # start. The rows land on the SUV tab beside the Hertz/Byers/CarMax
-        # cars, marked as Cars.com so their missing colour and history are
-        # not mistaken for clean ones.
-        suv_doc = None
-        suv_cached = store.get_meta("suv_json")
-        suv_stamp = store.get_meta("suv_at")
-        suv_seed = cfg.base_dir / "docs" / "suv_seed.json"
-        suv_has_rows = False
-        if suv_cached:
-            try:
-                suv_has_rows = bool(json.loads(suv_cached).get("rows"))
-            except Exception:
-                suv_has_rows = False
-        if suv_seed.exists():
-            try:
-                sd = json.loads(suv_seed.read_text(encoding="utf-8"))
-                st_ = sd.get("seeded_at")
-                ct_ = datetime.fromisoformat(suv_stamp) if suv_stamp else None
-                stt = datetime.fromisoformat(st_) if st_ else None
-                if sd.get("rows") and (not suv_has_rows or (stt and (ct_ is None or stt > ct_))):
-                    suv_cached = json.dumps(sd)
-                    suv_stamp = (stt or clock.now()).isoformat(timespec="seconds")
-                    store.set_meta("suv_json", suv_cached)
-                    store.set_meta("suv_at", suv_stamp)
-                    logger.info("SUV sweep: adopted the committed seed")
-            except Exception as exc:
-                logger.warning("SUV seed unreadable: %s", exc)
-        suv_fresh = False
-        if suv_stamp:
-            try:
-                suv_fresh = clock.now() - datetime.fromisoformat(suv_stamp) < timedelta(hours=12)
-            except ValueError:
-                suv_fresh = False
-        if suv_cached and suv_fresh and not args.dream:
-            suv_doc = json.loads(suv_cached)
-        else:
-            try:
-                from . import dream
-                fresh_suv = dream.to_json(dream.build_suv(cfg))
-                old = json.loads(suv_cached) if suv_cached else {"rows": [], "counts": {}, "skipped": []}
-                answered = set(fresh_suv["counts"])
-                rows = [r for r in old["rows"] if r["model"] not in answered] + fresh_suv["rows"]
-                rows.sort(key=lambda r: (r["market_pct"] is None, r["market_pct"] or 0.0, r["price"]))
-                now_iso = clock.now_iso()
-                suv_doc = {"rows": rows, "counts": {**old.get("counts", {}), **fresh_suv["counts"]},
-                           "skipped": fresh_suv["skipped"], "seeded_at": now_iso}
-                store.set_meta("suv_json", json.dumps(suv_doc))
-                if answered:
-                    store.set_meta("suv_at", now_iso)
-                    try:
-                        suv_seed.write_text(json.dumps(suv_doc), encoding="utf-8")
-                    except Exception as exc:
-                        logger.warning("SUV seed not updated: %s", exc)
-            except Exception as exc:
-                logger.warning("SUV sweep not refreshed: %s", exc)
-                suv_doc = json.loads(suv_cached) if suv_cached else None
+        # The Cars.com SUV sweep (XC60 Plus within 300 mi) and the new/CPO
+        # Mazda sweep ride the same cache-and-seed logic as the wagons, each
+        # in its own slot (see refresh_sweep), so a blocked run keeps the
+        # last good rows and a committed seed fills a cold start.
+        suv_doc = refresh_sweep(store, cfg, "suv", "build_suv", args.dream)
+        mazda_doc = refresh_sweep(store, cfg, "mazda", "build_mazda", args.dream)
 
         # Followed cars: read the repo's open "follow" issues, report what
         # changed on each, and hand the set to the page. Never fatal.
         follow_doc = None
         try:
             from . import follow
-            follow_doc = follow.run(cfg, store, dream_doc, suv_doc, dry_run=args.dry_run)
+            follow_doc = follow.run(cfg, store, dream_doc, suv_doc, dry_run=args.dry_run,
+                                    extra_docs=[mazda_doc])
         except Exception as exc:
             logger.warning("Follow check skipped: %s", exc)
 
         # One JSON document drives the published dashboard (docs/index.html).
         try:
-            doc = dashboard.build(result, cfg, dream_doc, store, suv_doc, follow_doc)
+            doc = dashboard.build(result, cfg, dream_doc, store, suv_doc, follow_doc, mazda_doc)
             dashboard.write(doc, cfg.base_dir / "docs" / "data.json")
-            logger.info("Dashboard data written: %d listings, %d dream rows",
-                        len(doc["listings"]), len(doc["dream"]["rows"]))
+            logger.info("Dashboard data written: %d listings, %d dream rows, %d Mazda market rows",
+                        len(doc["listings"]), len(doc["dream"]["rows"]),
+                        len(doc["mazda_market"]["rows"]))
         except Exception as exc:
             logger.warning("Dashboard data could not be written: %s", exc)
 

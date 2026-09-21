@@ -49,6 +49,11 @@ class Source:
     base_url: str = BASE_URL
     search_path: str = SEARCH_PATH
     fixed_params: dict = field(default_factory=dict)
+    # "rental" (Hertz, Avis: the feed's `msrp` is a pre-doc-fee price, the
+    # car is delivered for a fee) or "dealer" (a franchise store: `msrp` is
+    # the manufacturer's sticker, the price carries the state doc fee, and
+    # you drive there to collect). Decides how the feed's fields are read.
+    kind: str = "rental"
 
     def url(self, params: dict) -> str:
         merged = {**self.fixed_params, **params}
@@ -118,6 +123,7 @@ class BrowserSession:
         channel: str | None = None,
         cookie_domains: tuple[str, ...] = (
             ".hertzcarsales.com", ".byersvolvo.com", ".byersmazda.com",
+            ".aviscarsales.com",
         ),
         carmax_store_id: str = "7176",
     ):
@@ -304,6 +310,17 @@ def fetch_page(session: BrowserSession, params: dict,
     ]
     for listing in listings:
         listing.source = source.name
+        if source.kind == "dealer":
+            # On a franchise dealer's feed the `msrp` field really is the
+            # sticker (on new cars, and on late-model used cars as the
+            # original sticker), not Hertz's pre-doc price. Move it, and
+            # recover the pre-doc price from the quoted doc fee instead:
+            # Byers's internet price is sticker + $398 doc + $50 delivery.
+            listing.msrp = listing.no_haggle_price
+            if listing.price and listing.quoted_doc_fee:
+                listing.no_haggle_price = listing.price - listing.quoted_doc_fee
+            else:
+                listing.no_haggle_price = None
     logger.info("  %s -> %d rows (of %d total)", url, len(listings), total)
     return listings, total
 

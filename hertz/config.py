@@ -22,6 +22,10 @@ CONFIG_PATH = BASE_DIR / "config.toml"
 # dashboard having to import the pipeline (and with it, Playwright).
 CONDITION_SOURCES = ("hertz", "avis", "byers-mazda", "byers-volvo")
 
+# Sources you drive to. Dealer.com sources say so with `kind = "dealer"`;
+# these run their own reader and have no `[[source]]` entry.
+DEALER_PICKUP_SOURCES = ("mazdausa",)
+
 
 _BODY_WORDS = {"suv", "crossover", "sedan", "hatchback", "wagon", "coupe", "convertible", "van",
                "minivan", "truck", "pickup"}
@@ -80,6 +84,22 @@ class WatchEntry:
     max_pages: int = 6
 
     source: str = "hertz"
+    # Every source this watch reads. A franchise dealer's new and used
+    # stock live on two pages, i.e. two sources, and one watch should cover
+    # both without being written twice. `source` stays the first of them
+    # for the code paths that key on a single name (CarMax, Enterprise).
+    sources: list[str] = field(default_factory=list)
+    # Only cars the seller certifies. A dealer's used page lists certified
+    # and plain used cars together; this keeps the plain ones out.
+    require_certified: bool = False
+    # "new" or "used": a source that carries both (the Mazda USA locator)
+    # must not put a 300-mile certified car on the new-car lane.
+    require_stock: str = ""
+    # This lane's own alert radius, inside the global one. The locator
+    # covers twenty dealers within 300 miles and a grey Premium arrives at
+    # one of them most days; the colour lanes alert on arrival, so they
+    # keep to the Columbus area while the board still shows the rest.
+    alert_radius_miles: int | None = None
     year_max: int = 9999
     # Fire when a matching car FIRST appears, not only when it is cheap.
     # New inventory is the event worth knowing about: a good car that arrives
@@ -134,7 +154,12 @@ class WatchEntry:
             return False
         if listing.year and listing.year > self.year_max:
             return False
-        if self.source and (listing.source or "hertz") != self.source:
+        allowed = self.sources or ([self.source] if self.source else [])
+        if allowed and (listing.source or "hertz") not in allowed:
+            return False
+        if self.require_certified and not listing.certified:
+            return False
+        if self.require_stock and (listing.stock or "used") != self.require_stock:
             return False
         if listing.odometer is not None and listing.odometer > self.odometer_max:
             return False
@@ -254,6 +279,8 @@ class Config:
     pref_trims: list[str] = field(default_factory=list)
     odometer_ideal: int = 0
     odometer_tolerance: int = 0
+    # The Columbus-area radius for the dealer tab's default view and count.
+    dealer_radius_miles: int = 75
 
     carmax_max_shipping: int = 499
 
@@ -407,6 +434,7 @@ def load(path: Path = CONFIG_PATH) -> Config:
         pref_trims=list(prefs.get("trims", [])),
         odometer_ideal=int(prefs.get("odometer_ideal", 0)),
         odometer_tolerance=int(prefs.get("odometer_tolerance", 0)),
+        dealer_radius_miles=int(prefs.get("dealer_radius_miles", 75)),
         carmax_max_shipping=int(raw.get("carmax", {}).get("max_shipping", 499)),
         condition_survey_per_run=int(raw.get("condition", {}).get("survey_per_run", 30)),
         condition_survey_seconds=int(raw.get("condition", {}).get("survey_seconds", 360)),
@@ -452,7 +480,12 @@ def load(path: Path = CONFIG_PATH) -> Config:
             require_interior=list(w.get("require_interior", [])),
             poll_hours=float(w.get("poll_hours", 24.0)),
             max_pages=int(w.get("max_pages", 6)),
-            source=str(w.get("source", "hertz")),
+            source=str(w.get("source") or (list(w.get("sources", [])) or ["hertz"])[0]),
+            sources=[str(x) for x in (w.get("sources") or [w.get("source") or "hertz"])],
+            require_certified=bool(w.get("require_certified", False)),
+            require_stock=str(w.get("require_stock", "")),
+            alert_radius_miles=(None if w.get("alert_radius_miles") is None
+                                else int(w.get("alert_radius_miles"))),
             group=str(w.get("group", "hertz")),
             year_max=int(w.get("year_max", 9999)),
             alert_on_new=bool(w.get("alert_on_new", False)),
@@ -484,6 +517,7 @@ def load(path: Path = CONFIG_PATH) -> Config:
             base_url=str(sd.get("base_url", "https://www.hertzcarsales.com")),
             search_path=str(sd.get("search_path", "/all-inventory/index.htm")),
             fixed_params=dict(sd.get("fixed_params", {})),
+            kind=str(sd.get("kind", "rental")),
         )
         for sd in raw.get("source", [])
     }

@@ -62,6 +62,18 @@ radius query returns the whole national inventory while looking normal.
 Lot postcodes plus haversine reproduce Hertz's own figures closely (their
 "86 mi" to Cincinnati against a computed 83) and work from any IP.
 
+Franchise dealers (2026-09-21) are read three ways. A dealer on Dealer.com
+(Byers Mazda) is a `[[source]]` with `kind = "dealer"`: same reader, but its
+`msrp` field is the manufacturer's sticker and its `pricing` block carries
+the doc fee and the advertised manufacturer cash. Mazda USA's own inventory
+locator (`hertz/mazdausa.py`, two JSON endpoints) lists new and certified
+stock at every dealer within the radius with interior colour, trim, sticker
+and in-transit ETA, which is how Germain's two Columbus stores (Dealer
+Inspire, not Dealer.com) are covered. Cars.com adds advertised prices for
+the same cars (`stock_type=new_cpo`, the `trims[]` facet, cheapest first).
+A new car is judged against its sticker, never by the used-car model; the
+"New & CPO Mazda" tab and `docs/negotiation.md` are the result.
+
 Including Rent2Buy makes mainstream models enormous — Palisade alone is over
 1,100 vehicles. So tier A is polled hourly and in full, while tier B is
 polled daily, cheapest-first, and page-capped. Truncation is always logged.

@@ -25,7 +25,9 @@ def _row(s, cfg: Config, groups: dict | None = None, extra: dict | None = None) 
     l = s.listing
     report = s.autocheck
     if report is None:
-        if l.certified:
+        if l.is_new:
+            condition, condition_kind = "new car", "new"
+        elif l.certified:
             condition, condition_kind = "certified, not independently read", "cert"
         elif s.history_url:
             condition, condition_kind = "Carfax linked, not read", "none"
@@ -45,7 +47,14 @@ def _row(s, cfg: Config, groups: dict | None = None, extra: dict | None = None) 
         "label": l.label,
         "year": l.year, "make": l.make, "model": l.model, "trim": l.trim,
         "source": l.source or "hertz",
-        "type": "certified" if l.certified else ("rent2buy" if l.is_rent2buy else "lot"),
+        "type": ("new" if l.is_new else "certified" if l.certified
+                 else "rent2buy" if l.is_rent2buy else "lot"),
+        "stock": l.stock or "used",
+        # Franchise dealers: the sticker, the pre-doc price against it, and
+        # the manufacturer cash the dealer advertises on top.
+        "msrp": l.msrp,
+        "msrp_pct": None if l.sticker_pct is None else round(l.sticker_pct, 1),
+        "incentive": l.incentive,
         "color": l.exterior_color, "interior": l.interior_color,
         "interior_tier": interior_tier(l.interior_color),
         "lot": l.lot, "city": l.city, "state": l.state,
@@ -85,6 +94,7 @@ def _coverage(watched, cfg: Config) -> dict:
     """Condition verdicts across the drivable, history-bearing part of the board."""
     rows = [s for s in watched
             if (s.listing.source or "hertz") in CONDITION_SOURCES
+            and not s.listing.is_new
             and s.listing.geodist is not None
             and s.listing.geodist <= cfg.alert_radius_miles]
     read = sum(1 for s in rows if s.autocheck is not None)
@@ -98,7 +108,7 @@ def _coverage(watched, cfg: Config) -> dict:
 
 
 def build(result, cfg: Config, dream: dict | None, store, suv: dict | None = None,
-          follow: dict | None = None) -> dict:
+          follow: dict | None = None, mazda: dict | None = None) -> dict:
     """Assemble the document the page renders."""
     scored = [s for s in result.all_scored if s.listing.price]
     watched = [s for s in scored if s.tier]
@@ -164,7 +174,8 @@ def build(result, cfg: Config, dream: dict | None, store, suv: dict | None = Non
 
     groups = {w.label: w.group for w in cfg.watch}
     watches = [
-        {"label": w.label, "tier": w.tier, "source": w.source, "models": w.models,
+        {"label": w.label, "tier": w.tier,
+         "source": ", ".join(w.sources) if w.sources else w.source, "models": w.models,
          "group": w.group,
          "poll_hours": w.poll_hours, "year_min": w.year_min or None,
          "year_max": None if w.year_max >= 9999 else w.year_max,
@@ -175,7 +186,8 @@ def build(result, cfg: Config, dream: dict | None, store, suv: dict | None = Non
 
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "home": {"zip": cfg.zip, "radius_miles": cfg.alert_radius_miles},
+        "home": {"zip": cfg.zip, "radius_miles": cfg.alert_radius_miles,
+                 "dealer_radius_miles": cfg.dealer_radius_miles},
         "model": {"n": result.hedonic_n, "log_rmse": round(result.hedonic_rmse, 4)},
         "economics": {"tax_rate": cfg.sales_tax_rate, "delivery_base": cfg.delivery_base,
                       "delivery_per_mile": cfg.delivery_per_mile, "title_reg_fees": cfg.title_reg_fees,
@@ -201,6 +213,10 @@ def build(result, cfg: Config, dream: dict | None, store, suv: dict | None = Non
         # Cars.com rows for the SUV tab. No colour, no history, no VIN: the
         # page marks them as Cars.com and never shows them as clean.
         "suv_market": suv or {"rows": [], "counts": {}, "skipped": []},
+        # Cars.com new and certified Mazda rows for the Mazda tab: sticker
+        # and stock type ride along; still no history, still no interior
+        # unless the sweep asked for it.
+        "mazda_market": mazda or {"rows": [], "counts": {}, "skipped": []},
         # Followed cars (GitHub issues) with their current state and change log.
         "follow": follow or {"enabled": False, "repo": cfg.github_repo, "new_issue_url": "",
                              "reason": "not checked this run", "rows": []},

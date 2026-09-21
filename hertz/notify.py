@@ -81,6 +81,18 @@ def send_email(cfg: Config, subject: str, html: str, text: str = "") -> bool:
 
 def alert_push_text(scored: Scored) -> tuple[str, str]:
     listing = scored.listing
+    if listing.is_new:
+        # A new car at a dealer: colours, sticker and the cash on the table
+        # are the decision, not a delivery quote and a history verdict.
+        title = f"New: {listing.label} - {_money(listing.price)}"
+        lines = [f"{listing.exterior_color or 'colour ?'} / {listing.interior_color or 'interior ?'}"]
+        if listing.msrp:
+            lines.append(f"Sticker {_money(listing.msrp)}"
+                         + (f", {scored.residual_pct:+.1f}% vs sticker" if scored.residual_pct is not None else ""))
+        if listing.incentive:
+            lines.append(f"Dealer advertises {_money(listing.incentive)} manufacturer cash on top")
+        lines.append(f"{listing.lot} | {listing.geodist:.0f} mi away" if listing.geodist is not None else listing.lot)
+        return title, "\n".join(lines)
     title = f"{listing.label} - {_money(listing.price)}"
     lines = [
         f"Landed {_money(scored.landed_cost)} incl. {_money(scored.delivery)} delivery",
@@ -103,10 +115,11 @@ def send_deal_alerts(cfg: Config, alerts: list[Scored], board_html: str) -> int:
 
     count = len(alerts)
     lead = alerts[0].listing
+    who = "Hertz" if (lead.source or "hertz") == "hertz" else (lead.lot or lead.source or "Dealer")
     subject = (
-        f"Hertz deal: {lead.label} at {_money(lead.price)}"
+        f"{who} deal: {lead.label} at {_money(lead.price)}"
         if count == 1
-        else f"Hertz: {count} deals matched, best {lead.label} at {_money(lead.price)}"
+        else f"{who}: {count} deals matched, best {lead.label} at {_money(lead.price)}"
     )
     send_email(cfg, subject, board_html)
     return count

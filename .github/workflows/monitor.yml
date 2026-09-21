@@ -114,7 +114,7 @@ jobs:
         run: |
           git config user.name  "hertz-monitor[bot]"
           git config user.email "hertz-monitor@users.noreply.github.com"
-          git add -A data docs/data.json docs/dream_seed.json docs/suv_seed.json
+          git add -A data docs/data.json docs/dream_seed.json docs/suv_seed.json docs/mazda_seed.json
           if git diff --staged --quiet; then
             echo "No inventory changes to record."
           else
