@@ -189,7 +189,11 @@
       terracotta leather), 2025 or newer. Byers Mazda's new and certified pages are read every few hours;
       Cars.com adds the market within 300 mi, new and CPO, asked for gray or green outside, with a second
       sweep asking for its brown/terracotta interior bucket. Green means Mazda's <b>Cypress</b>, offered on
-      the 2.5 S and Turbo only, never on the Hybrid; grey is Polymetal or Machine Gray. Mazda USA's own
+      the 2.5 S and Turbo only, never on the Hybrid; grey is Polymetal or Machine Gray.
+      <b>Rims are 19 inch or larger</b> on the two colour lanes (Lorenzo, 21 September): on the CX-50 that
+      is a trim filter, not a styling note, because the Meridian Edition rides on 18-inch all-terrains and
+      the Hybrid keeps 17s until Premium Plus. So the lanes are 2.5 S Premium, 2.5 Turbo, Turbo Premium
+      Plus (all 20 inch), Hybrid Premium Plus (19) and any CX-70 (21). Mazda USA's own
       locator adds every dealer within 300 mi (Germain's two Columbus stores among them) with interior
       colour, trim, sticker and in-transit ETA, but no dealer price: those rows say <span class="chip dim">sticker
       only</span>, and the dealer's advertised price is on its site or in the Cars.com row for the same car.
@@ -808,6 +812,8 @@
     {key:'source', label:'Source', fmt: v => esc(SOURCE_NAMES[v] || v)},
     {key:'color', label:'Colour'},
     {key:'interior', label:'Interior', fmt: interiorCell},
+    {key:'wheels', label:'Rims', right:true, fmt: v => v == null ? '<span class="dim">—</span>'
+        : `<span class="${v >= 19 ? 'good' : 'dim'}">${v}"</span>`},
     {key:'lot', label:'Dealer'},
     {key:'distance', label:'Away', right:true, fmt: int},
     {key:'miles', label:'Miles', right:true, fmt: int},
@@ -854,6 +860,7 @@
     {type:'select', key:'source', label:'Source'},
     {type:'select', key:'color', label:'Colour'},
     {type:'select', key:'interior_tier', label:'Interior'},
+    {type:'select', key:'wheels', label:'Rims'},
     {type:'max', key:'distance', label:'Away', value: data.home.dealer_radius_miles || 75},
     {type:'max', key:'landed', label:'Landed', placeholder:'45000'},
   ], rows => mazdaTable.update(rows));

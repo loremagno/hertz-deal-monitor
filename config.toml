@@ -642,10 +642,19 @@ label = "Mazda in your colours (new)"
 markdown_alert = true
 sources = ["byers-mazda-new", "mazdausa"]
 require_stock = "new"
-alert_radius_miles = 75         # arrivals alert from the Columbus area only; the board shows all 300 mi
+# 150 mi, not 75: the nearest terracotta car with big wheels is 90 miles
+# away (Dover) and the only Cypress one is at Troy, 174. A 75-mile alert
+# radius would have been silent on both.
+alert_radius_miles = 150
 models = ["CX-50", "CX-50 Hybrid", "CX-70"]
-require_trims = ["Premium", "Turbo Meridian"]
-require_exterior = ["cypress", "green", "gray", "grey", "graphite", "polymetal", "machine"]
+require_trims = ["Premium", "Turbo", "Meridian"]
+min_wheel_inches = 18           # 19-20 preferred, but Lorenzo will take the Meridian's 18-inch
+                                # all-terrains (2026-09-21); still drops every 17-inch car, i.e.
+                                # S Select, S Preferred, Hybrid Preferred and Hybrid Premium
+# Cypress is the only green Mazda makes here, and only on the 2.5 S and
+# Turbo; Polymetal and Machine are the two greys he will take.
+require_exterior = ["cypress", "polymetal", "machine gray", "machine grey"]
+require_interior = ["terracotta", "brown", "cognac", "caramel", "saddle", "tan"]
 threshold_pct = -6.0            # vs sticker, before manufacturer cash
 year_min = 2025
 odometer_max = 500
@@ -662,10 +671,12 @@ markdown_alert = true
 sources = ["byers-mazda", "mazdausa"]
 require_certified = true
 require_stock = "used"
-alert_radius_miles = 75
+alert_radius_miles = 150
 models = ["CX-50", "CX-50 Hybrid", "CX-70"]
-require_trims = ["Premium", "Turbo Meridian"]
-require_exterior = ["cypress", "green", "gray", "grey", "graphite", "polymetal", "machine"]
+require_trims = ["Premium", "Turbo", "Meridian"]
+min_wheel_inches = 18
+require_exterior = ["cypress", "polymetal", "machine gray", "machine grey"]
+require_interior = ["terracotta", "brown", "cognac", "caramel", "saddle", "tan"]
 threshold_pct = -3.0
 min_sigma = -0.5
 year_min = 2024
@@ -683,7 +694,8 @@ sources = ["byers-mazda-new", "mazdausa"]
 require_stock = "new"
 alert_radius_miles = 150        # value alerts from the wider region; the board shows all 300 mi
 models = ["CX-50", "CX-50 Hybrid", "CX-70"]
-require_trims = ["Premium"]
+require_trims = ["Premium", "Turbo", "Meridian"]
+min_wheel_inches = 18
 threshold_pct = -7.0            # a real dealer discount off sticker, before cash
 year_min = 2025
 odometer_max = 500
@@ -701,7 +713,8 @@ require_certified = true
 require_stock = "used"
 alert_radius_miles = 150
 models = ["CX-50", "CX-50 Hybrid", "CX-70"]
-require_trims = ["Premium"]
+require_trims = ["Premium", "Turbo", "Meridian"]
+min_wheel_inches = 18
 # -7% AND a full sigma: on the first locator sweep -5% alone fired six CPO
 # cars at -0.8 sigma, which on a 6% market curve is ordinary variation.
 threshold_pct = -7.0

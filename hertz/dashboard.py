@@ -17,6 +17,7 @@ from pathlib import Path
 from . import market
 from .config import CONDITION_SOURCES, Config
 from .score import interior_tier, preference_fit
+from .trims import wheel_inches
 
 
 def _row(s, cfg: Config, groups: dict | None = None, extra: dict | None = None) -> dict:
@@ -56,6 +57,7 @@ def _row(s, cfg: Config, groups: dict | None = None, extra: dict | None = None) 
         "msrp_pct": None if l.sticker_pct is None else round(l.sticker_pct, 1),
         "incentive": l.incentive,
         "color": l.exterior_color, "interior": l.interior_color,
+        "wheels": wheel_inches(l.model, l.trim),
         "interior_tier": interior_tier(l.interior_color),
         "lot": l.lot, "city": l.city, "state": l.state,
         "distance": None if l.geodist is None else round(l.geodist),

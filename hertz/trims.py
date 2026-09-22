@@ -73,6 +73,41 @@ UNKNOWN = 1.5
 _COMPILED: dict[str, tuple[tuple[re.Pattern, int], ...]] = {}
 
 
+# Wheel diameter by model and trim, from Mazda's own 2026 packaging release
+# and confirmed against Wheel-Size's fitment data (2026-09-21). Lorenzo
+# wants 19 inch or larger, which on the CX-50 is a real trim filter rather
+# than a styling note: the Meridian Edition rides on 18s with all-terrain
+# tires and the Hybrid keeps the Preferred's 17s all the way up to Premium,
+# so "Premium or better" does NOT imply a big wheel. Ordered, first match
+# wins, so the longer phrase precedes the shorter one it contains.
+_WHEELS: dict[str, tuple[tuple[str, int], ...]] = {
+    # 225/65R17, 18 inch all-terrain on the Meridian, 245/45R20 above.
+    "cx-50": (("meridian", 18), ("premium plus", 20), ("premium", 20),
+              ("turbo", 20), ("preferred", 17), ("select", 17)),
+    # 225/65R17 on Preferred AND Premium; 225/55R19 only on Premium Plus.
+    "cx-50 hybrid": (("premium plus", 19), ("premium", 17), ("preferred", 17)),
+    "cx-70": (("", 21),)   # every 3.3 trim is on 21s
+}
+
+
+def wheel_inches(model: str | None, trim: str | None) -> int | None:
+    """Wheel diameter for a model and trim, or None when unknown.
+
+    None means "not in the table", and a caller filtering on wheel size
+    keeps such a car rather than hiding it: an unclassified model must not
+    vanish from the board, the same rule the colour preferences follow.
+    """
+    key = (model or "").strip().lower()
+    rungs = _WHEELS.get(key)
+    if rungs is None:
+        return None
+    text = (trim or "").strip().lower()
+    for phrase, inches in rungs:
+        if not phrase or phrase in text:
+            return inches
+    return None
+
+
 def _ladder(make: str | None) -> tuple[tuple[re.Pattern, int], ...]:
     key = (make or "").strip().lower()
     if key not in _COMPILED:

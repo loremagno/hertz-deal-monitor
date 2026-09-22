@@ -112,7 +112,8 @@ def _carline_codes(filters: dict, models: list[str]) -> dict[str, str]:
     return out
 
 
-def _listing(v: dict, dealer: dict | None, cond: str) -> Listing | None:
+def _listing(v: dict, dealer: dict | None, cond: str,
+             asked_model: str = "") -> Listing | None:
     vin = str(v.get("Vin") or "").strip().upper()
     if len(vin) != 17:
         return None
@@ -123,6 +124,15 @@ def _listing(v: dict, dealer: dict | None, cond: str) -> Listing | None:
     model = name
     if year and name.startswith(str(year)):
         model = name[len(str(year)):].strip()
+    # A sizeable minority of records come back with a sparse Model object:
+    # no Name and no TrimName, only Description ("2026 CX-50 2.5 TURBO
+    # MERIDIAN EDITION"). Both fields then land empty, the car matches no
+    # watch at all, and it disappears silently. On 2026-09-21 that hid 30
+    # of the 41 terracotta cars within 120 miles, every one a Meridian,
+    # which is precisely the trim Lorenzo is hunting. The carline we asked
+    # for supplies the model; Description supplies the trim.
+    if not model:
+        model = asked_model
     price = to_int(v.get("Price"))
     is_new = cond == "n"
     msrp = price if is_new else (to_int(v.get("BaseMsrp")) or None)
@@ -133,9 +143,24 @@ def _listing(v: dict, dealer: dict | None, cond: str) -> Listing | None:
     url = str(v.get("DealerSiteURL") or "").strip()
     if not url and v.get("DetailsPageURL"):
         url = BASE + str(v["DetailsPageURL"])
+    # TrimName is empty on a sizeable minority of records (about 30 of the
+    # 41 terracotta cars within 120 mi on 2026-09-21, every one a Meridian
+    # Edition), and an empty trim is worse than a wrong one here: it fails
+    # `require_trims` and `wheel_inches` alike, so the cars Lorenzo most
+    # wants vanish from their lane. Fall back to the marketing description
+    # with its "<year> <model>" prefix removed, then to the internal code.
+    trim = str(info.get("TrimName") or "").strip()
+    if not trim:
+        desc = str(info.get("Description") or "").strip()
+        for prefix in (f"{year} {model}", model, f"{year}"):
+            prefix = str(prefix).strip().upper()
+            if prefix and desc.upper().startswith(prefix):
+                desc = desc[len(prefix):].strip()
+        trim = desc.title() if desc else str(info.get("Trim") or "").strip()
+
     return Listing(
         vin=vin, year=year, make="Mazda", model=model,
-        trim=str(info.get("TrimName") or "").strip(),
+        trim=trim,
         price=price,
         no_haggle_price=None,           # the locator quotes no doc fee
         odometer=to_int(v.get("Mileage")) or 0,
@@ -192,7 +217,8 @@ def fetch(session, zip_code: str, radius_miles: int, models: list[str],
                     resp = _search(req, ids, cond, carline=code, page=page_no)
                     vehicles = resp.get("Vehicles") or []
                     for v in vehicles:
-                        listing = _listing(v, by_id.get(str(v.get("DealerId"))), cond)
+                        listing = _listing(v, by_id.get(str(v.get("DealerId"))), cond,
+                                           asked_model=model)
                         if listing is not None:
                             out.setdefault(listing.vin, listing)
                             got += 1

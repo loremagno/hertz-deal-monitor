@@ -103,6 +103,13 @@ class WatchEntry:
     # "new" or "used": a source that carries both (the Mazda USA locator)
     # must not put a 300-mile certified car on the new-car lane.
     require_stock: str = ""
+    # Smallest wheel this lane will show, in inches. Lorenzo, 2026-09-21:
+    # "I want 19 or 20 rims". On the CX-50 that is a trim filter, not a
+    # styling one (see trims.wheel_inches): it drops the 18-inch Meridian
+    # and the 17-inch Hybrid Premium, both of which "Premium or better"
+    # would otherwise admit. A car whose wheels cannot be determined is
+    # kept, never hidden.
+    min_wheel_inches: int = 0
     # This lane's own alert radius, inside the global one. The locator
     # covers twenty dealers within 300 miles and a grey Premium arrives at
     # one of them most days; the colour lanes alert on arrival, so they
@@ -169,6 +176,11 @@ class WatchEntry:
             return False
         if self.require_stock and (listing.stock or "used") != self.require_stock:
             return False
+        if self.min_wheel_inches:
+            from .trims import wheel_inches
+            inches = wheel_inches(listing.model, listing.trim)
+            if inches is not None and inches < self.min_wheel_inches:
+                return False
         if listing.odometer is not None and listing.odometer > self.odometer_max:
             return False
         if self.price_min and listing.price and listing.price < self.price_min:
@@ -492,6 +504,7 @@ def load(path: Path = CONFIG_PATH) -> Config:
             sources=[str(x) for x in (w.get("sources") or [w.get("source") or "hertz"])],
             require_certified=bool(w.get("require_certified", False)),
             require_stock=str(w.get("require_stock", "")),
+            min_wheel_inches=int(w.get("min_wheel_inches", 0)),
             alert_radius_miles=(None if w.get("alert_radius_miles") is None
                                 else int(w.get("alert_radius_miles"))),
             group=str(w.get("group", "hertz")),
