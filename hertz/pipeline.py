@@ -302,9 +302,14 @@ def collect_mazdausa(cfg: Config, store: Store) -> list[Listing]:
     manufacturer cash, and the locator carries only the sticker. Without
     that rule the row's source would flip between the two every poll.
     """
-    entries = [w for w in cfg.watch if "mazdausa" in w.sources and _entry_due(store, w)]
-    if not entries:
+    # Every Mazda USA lane is matched on every sweep, not only the lanes that
+    # are due. The lanes poll on different cadences, and matching only the
+    # due ones dropped cars that belonged to a lane that was not, which then
+    # read as sold until that lane came round again.
+    all_entries = [w for w in cfg.watch if "mazdausa" in w.sources]
+    if not any(_entry_due(store, w) for w in all_entries):
         return []
+    entries = all_entries
     models: list[str] = []
     for w in entries:
         for m in w.models:
@@ -884,9 +889,18 @@ def run(cfg: Config, dry_run: bool = False, force: bool = False) -> RunResult:
             mazdausa_listings = [c for c in mazdausa_listings if c.vin not in seen_dealer]
             listings.extend(mazdausa_listings)
             if mazdausa_listings:
-                polled_pairs.update(("mazdausa", c.model.lower()) for c in mazdausa_listings)
+                # Only a model whose new AND certified sweeps both reached the
+                # API's total may have its unseen cars marked sold.
+                for model in {c.model for c in mazdausa_listings}:
+                    flags = [v for k, v in mazdausa_mod.COMPLETE.items()
+                             if k.split(":", 1)[1].lower() == model.lower()]
+                    if flags and all(flags):
+                        polled_pairs.add(("mazdausa", model.lower()))
+                    else:
+                        logger.warning("Mazda USA %s sweep incomplete; none of its cars marked sold",
+                                       model)
                 for w in cfg.watch:
-                    if "mazdausa" in w.sources and _entry_due(store, w) and w not in polled_entries:
+                    if "mazdausa" in w.sources and w not in polled_entries:
                         polled_entries.append(w)
             curves = market_curves(session, cfg, store)
             result.curves = curves
@@ -940,9 +954,15 @@ def run(cfg: Config, dry_run: bool = False, force: bool = False) -> RunResult:
                 "SELECT DISTINCT source FROM listings").fetchall()}
             source_of = {l.vin: (l.source or "hertz") for l in listings}
             seen: set[str] = set()
+            # The first complete Mazda USA sweep stores about a third more
+            # cars than any earlier one ever saw. Those are not arrivals, so
+            # that sweep is a silent baseline, like a new source's first.
+            rebaseline = bool(mazdausa_listings) and not store.get_meta("mazdausa_complete_since")
             for listing in listings:
                 change = store.upsert(listing)
                 seen.add(listing.vin)
+                if change["is_new"] and rebaseline and (listing.source or "") == "mazdausa":
+                    continue
                 if change["is_new"] and (listing.source or "hertz") in known_sources:
                     result.new_vins.append(listing.vin)
                 elif change["is_new"]:
@@ -952,6 +972,9 @@ def run(cfg: Config, dry_run: bool = False, force: bool = False) -> RunResult:
                 if delta and delta < 0:
                     result.price_drops.append((listing.vin, -delta))
             store.mark_inactive(seen, polled_pairs)
+            if rebaseline and mazdausa_mod.COMPLETE and all(mazdausa_mod.COMPLETE.values()):
+                store.set_meta("mazdausa_complete_since", clock.now_iso())
+                logger.info("Mazda USA: first complete sweep stored as a silent baseline")
 
             # A wave of listings for one model is the event Lorenzo most
             # wants: Hertz offloads in bulk and demand catches up in days.

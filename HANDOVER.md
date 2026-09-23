@@ -99,6 +99,16 @@ but they will re-emerge if the guards are removed.
     search returned Cary NC and Minnesota. Filter on the seller zip.
 15. **Mazda USA's `Price` on a new car IS the sticker.** The locator knows no
     dealer price; a row from it must never read as "0.0% under sticker".
+16. **Mazda USA's inventory API cannot be paged.** It sorts on model year,
+    which ties on every car of one year, so page order is unstable: on
+    2026-09-22 a 1,439-row sweep of new CX-50s returned 975 distinct VINs,
+    two back-to-back sweeps agreed on under 70%, and their union still missed
+    166. Every missed car was marked sold and later re-announced as an
+    arrival. `mazdausa._collect` now reads a model in one call when it fits a
+    page and dealer by dealer when it does not, checks the distinct count
+    against `TotalVehicles`, and the pipeline marks a model's cars sold only
+    when its new and certified sweeps were both complete
+    (`mazdausa.COMPLETE`). First complete sweep: 1,439 of 1,439.
 12. **The Actions runner image ships Google's Chrome apt repo pre-configured**,
     and it intermittently serves a stale index that fails *every*
     `apt-get update` with a hash-sum mismatch, even for unrelated packages.

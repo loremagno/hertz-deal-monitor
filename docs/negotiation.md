@@ -1,5 +1,14 @@
 # Buying a CX-50 around Columbus: the spec, the price, the script
 
+> **Update, 22 September, night.** Earlier counts below undercount by about a
+> third: the Mazda USA locator was dropping cars at random until tonight's
+> fix. A complete sweep finds 83 terracotta turbos in Cypress, Polymetal or
+> Ingot within 300 miles. The green-and-terracotta frontrunner is now
+> **Mazda of Bedford, 2026 2.5 Turbo, Cypress, Terracotta, 20-inch, $39,955,
+> 123 miles, in Ohio, at the dealer** (VIN 7MMVABCY4TN624181), ahead of
+> Suburban Troy's $40,510 on price, distance and state. #1 Cochran Wexford
+> has another at $39,395, in transit. Expect 7 to 8% off before cash, not 12%.
+
 Rewritten 2026-09-21 after the spec sharpened. Live numbers are on the
 board's "New & CPO Mazda" tab; this file is the method and the targets.
 

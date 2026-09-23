@@ -644,6 +644,36 @@ because the Mazda trim ladder has no turbo rung; harmless for alerts
 verdict. Mazda USA from GitHub's runner is untested until the first cloud
 run. The `--seed mazda` sweep takes about seven minutes on this machine.
 
+## Session 2026-09-22 (night): the locator could not be paged
+
+Lorenzo asked whether anything new had arrived and whether his frontrunners
+still stood. The stored board said four shortlisted S Premiums were sold;
+dealer-by-dealer queries found every one on its lot. Cause: Mazda USA's
+inventory API sorts on model year, every 2026 ties, and pages come back in
+an unstable order, so each sweep saw about two thirds of the cars, marked
+the rest sold, and re-announced them later as arrivals (HANDOVER trap 16).
+Fixed in `mazdausa._collect` (one call when the model fits a page, dealer by
+dealer otherwise, distinct count checked against `TotalVehicles`) and in
+`pipeline.run` (a model's cars are marked sold only when both its sweeps
+were complete; the first complete sweep is a silent baseline via meta
+`mazdausa_complete_since`, since it stores about a third more cars than any
+earlier sweep saw). Also `collect_mazdausa` now matches every Mazda USA
+lane on every sweep rather than only the due ones, which had been dropping
+cars that belonged to a lane off its cadence.
+
+What the fix revealed, verified by a complete local sweep: 83 terracotta
+turbos in Cypress, Polymetal or Ingot within 300 mi, not the 21 to 26 the
+paged sweeps showed; four Cypress-and-terracotta base 2.5 Turbos, cheapest
+Mazda of Bedford at $39,955 (123 mi, Ohio, at the dealer, the car that
+alerted at 05:00 on 09-22 and then looked sold) and #1 Cochran Wexford at
+$39,395 (in transit). The Jake Sweeney Polymetal terracotta turbo I told
+Lorenzo on 09-21 had "sold" never left. The 16 pushes of the 04:49 UTC run
+on 09-22 were real in-spec cars announced as new only because earlier
+sweeps had missed them.
+
+Config: the two colour lanes are Cypress, Polymetal and Ingot; Machine Gray
+removed at Lorenzo's request.
+
 ## Pending / Next Steps
 - [ ] Mazda USA from the runner: confirm the first cloud run logs "Mazda USA: N of M cars
       match a watch" rather than "Mazda USA sweep skipped". If Akamai blocks the

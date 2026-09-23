@@ -653,7 +653,8 @@ min_wheel_inches = 18           # 19-20 preferred, but Lorenzo will take the Mer
                                 # S Select, S Preferred, Hybrid Preferred and Hybrid Premium
 # Cypress is the only green Mazda makes here, and only on the 2.5 S and
 # Turbo; Polymetal and Machine are the two greys he will take.
-require_exterior = ["cypress", "polymetal", "machine gray", "machine grey"]
+# 2026-09-22: no Machine Gray; Ingot Blue welcome on the turbo.
+require_exterior = ["cypress", "polymetal", "ingot"]
 require_interior = ["terracotta", "brown", "cognac", "caramel", "saddle", "tan"]
 threshold_pct = -6.0            # vs sticker, before manufacturer cash
 year_min = 2025
@@ -675,7 +676,8 @@ alert_radius_miles = 150
 models = ["CX-50", "CX-50 Hybrid", "CX-70"]
 require_trims = ["Premium", "Turbo", "Meridian"]
 min_wheel_inches = 18
-require_exterior = ["cypress", "polymetal", "machine gray", "machine grey"]
+# 2026-09-22: no Machine Gray; Ingot Blue welcome on the turbo.
+require_exterior = ["cypress", "polymetal", "ingot"]
 require_interior = ["terracotta", "brown", "cognac", "caramel", "saddle", "tan"]
 threshold_pct = -3.0
 min_sigma = -0.5

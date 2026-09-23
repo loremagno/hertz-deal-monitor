@@ -50,6 +50,11 @@ MAX_PAGES = 15          # 3,000 cars of one model within the radius; a safety st
 SOURCE = "mazdausa"
 TYPE_NAMES = {"n": "new", "c": "certified"}
 
+# "n:CX-50" -> whether the last sweep of that condition and model reached the
+# API's own total. The pipeline marks cars sold only for models whose sweeps
+# were complete, so a short sweep can never "sell" a car still on the lot.
+COMPLETE: dict[str, bool] = {}
+
 
 def _dealers(req, zip_code: str, radius_miles: int) -> list[dict]:
     """Every dealer within the radius, paged until the reported total."""
@@ -188,6 +193,55 @@ def _listing(v: dict, dealer: dict | None, cond: str,
     )
 
 
+def _collect(req, ids: list[str], cond: str, code: str, model: str,
+             by_id: dict, out: dict) -> int:
+    """Every car of one model and condition, fetched deterministically.
+
+    The inventory API sorts by model year, which ties on every car of one
+    year, so paging a large result set returns an unstable order. On
+    2026-09-22 a 1,439-row sweep of new CX-50s within 300 miles came back
+    with only 975 distinct VINs, the rest duplicates; two back-to-back
+    sweeps agreed on under 70% of cars, and their union still missed 166.
+    Every missed car was marked sold, then announced as a new arrival when
+    a later sweep happened to catch it, and four of Lorenzo's shortlisted
+    cars read as gone while all of them were on their lots.
+
+    A result that fits in one page has no paging to go wrong. So a model
+    whose total fits is read in one call, a larger one dealer by dealer,
+    and the distinct count is checked against the API's own total.
+    """
+    head = _search(req, ids, cond, carline=code, page=1)
+    total = to_int(head.get("TotalVehicles")) or 0
+    got: dict[str, Listing] = {}
+
+    def take(vehicles):
+        for v in vehicles:
+            listing = _listing(v, by_id.get(str(v.get("DealerId"))), cond, asked_model=model)
+            if listing is not None:
+                got.setdefault(listing.vin, listing)
+
+    if total <= PAGE_SIZE:
+        take(head.get("Vehicles") or [])
+    else:
+        for did in ids:
+            for page_no in range(1, MAX_PAGES + 1):
+                vehicles = _search(req, [did], cond, carline=code, page=page_no).get("Vehicles") or []
+                take(vehicles)
+                if len(vehicles) < PAGE_SIZE:
+                    break
+            time.sleep(0.1)
+    # A car sold or added between the first call and the last moves the
+    # count by one or two; anything more is a genuinely short sweep.
+    complete = len(got) >= total - max(2, total // 200)
+    COMPLETE[f"{cond}:{model}"] = complete
+    logger.info("  Mazda USA %s %s: %d distinct of %d reported%s", TYPE_NAMES.get(cond, cond),
+                model, len(got), total,
+                "" if complete else " (INCOMPLETE: nothing will be marked sold)")
+    for vin, listing in got.items():
+        out.setdefault(vin, listing)
+    return len(got)
+
+
 def fetch(session, zip_code: str, radius_miles: int, models: list[str],
           types: tuple[str, ...] = ("n", "c")) -> list[Listing]:
     """Every new and certified unit of the wanted models at every dealer
@@ -209,20 +263,9 @@ def fetch(session, zip_code: str, radius_miles: int, models: list[str],
             logger.info("Mazda USA: %d %s car(s) at %d dealers; models resolved: %s",
                         total, TYPE_NAMES.get(cond, cond), len(ids),
                         ", ".join(f"{m}={c}" for m, c in codes.items()) or "none")
+            for model in models:
+                if model not in codes:
+                    COMPLETE[f"{cond}:{model}"] = False
             for model, code in codes.items():
-                got = 0
-                for page_no in range(1, MAX_PAGES + 1):
-                    if page_no > 1:
-                        time.sleep(1.0)
-                    resp = _search(req, ids, cond, carline=code, page=page_no)
-                    vehicles = resp.get("Vehicles") or []
-                    for v in vehicles:
-                        listing = _listing(v, by_id.get(str(v.get("DealerId"))), cond,
-                                           asked_model=model)
-                        if listing is not None:
-                            out.setdefault(listing.vin, listing)
-                            got += 1
-                    if len(vehicles) < PAGE_SIZE:
-                        break
-                logger.info("  Mazda USA %s %s: %d row(s)", TYPE_NAMES.get(cond, cond), model, got)
+                _collect(req, ids, cond, code, model, by_id, out)
     return list(out.values())
