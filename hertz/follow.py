@@ -288,7 +288,7 @@ def run(cfg: Config, store: Store, dream_doc: dict | None, suv_doc: dict | None,
             reported += 1
             for e in events:
                 log.append({"at": now, "text": e})
-            if not dry_run:
+            if not dry_run and not cfg.quiet:
                 notify.send_push(cfg, f"Followed: {f.title}", "\n".join(events),
                                  url=f.listing_url or cur.get("url") or f.issue_url,
                                  priority="high")

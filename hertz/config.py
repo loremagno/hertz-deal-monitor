@@ -359,6 +359,16 @@ class Config:
     enable_push: bool = True
     digest_every_days: int = 3
     realert_price_drop: int = 500
+    # Quiet mode. When `push_models` is set, the only alerts are cars that
+    # arrived this run, from `push_sources`, of those models, and that clear
+    # the value gate on price; arrivals, markdowns, fleet drops, new-model and
+    # skipped-source pushes and follow pushes all go silent. Empty = off.
+    push_sources: list[str] = field(default_factory=list)
+    push_models: list[str] = field(default_factory=list)
+
+    @property
+    def quiet(self) -> bool:
+        return bool(self.push_models)
 
     smtp_server: str = "smtp.gmail.com"
     smtp_port: int = 587
@@ -475,6 +485,8 @@ def load(path: Path = CONFIG_PATH) -> Config:
         enable_push=bool(alerts.get("enable_push", True)),
         digest_every_days=int(alerts.get("digest_every_days", 3)),
         realert_price_drop=int(alerts.get("realert_price_drop", 500)),
+        push_sources=[str(s).lower() for s in alerts.get("push_sources", [])],
+        push_models=[str(m).lower() for m in alerts.get("push_models", [])],
         smtp_server=str(email.get("smtp_server", "smtp.gmail.com")),
         smtp_port=int(email.get("smtp_port", 587)),
         ntfy_server=str(push.get("server", "https://ntfy.sh")),

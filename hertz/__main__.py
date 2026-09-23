@@ -344,22 +344,22 @@ def main(argv: list[str] | None = None) -> int:
         if not result.ok:
             logger.error("Run failed: %s", result.error)
             if not args.dry_run:
-                notify.send_failure_alert(cfg, result.error or "unknown error")
+                notify.send_failure_alert(cfg, result.error or "unknown error", push=not cfg.quiet)
             return 1
 
         if not args.dry_run:
             sent = notify.send_deal_alerts(cfg, result.alerts, board_html)
             logger.info("Sent %d deal alert(s)", sent)
 
-            # A fleet drop is the event worth interrupting for.
-            if result.fleet_drops:
+            # A fleet drop is the event worth interrupting for, unless quiet.
+            if result.fleet_drops and not cfg.quiet:
                 sent = notify.send_fleet_drops(
                     cfg, result.fleet_drops,
                     "https://loremagno.github.io/hertz-deal-monitor/")
                 logger.info("Sent %d fleet-drop alert(s)", sent)
 
             # One quiet push per run for models Hertz has started selling.
-            if result.new_models:
+            if result.new_models and not cfg.quiet:
                 lines = [f"{mk} {md}: {n} car{'s' if n != 1 else ''} from ${p:,}"
                          for mk, md, n, p in result.new_models[:12]]
                 if len(result.new_models) > 12:
@@ -376,7 +376,7 @@ def main(argv: list[str] | None = None) -> int:
             # notification every two hours.
             if result.failed_entries:
                 labels = ", ".join(label for label, _ in result.failed_entries)
-                if store.get_meta("skipped_sources") != labels:
+                if store.get_meta("skipped_sources") != labels and not cfg.quiet:
                     # (the label carries no counts, so a steady state stays quiet)
                     notify.send_push(
                         cfg, "Hertz monitor: a source was skipped",

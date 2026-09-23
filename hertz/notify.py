@@ -179,18 +179,19 @@ def send_digest(cfg: Config, subject: str, board_html: str) -> None:
     send_email(cfg, subject, board_html)
 
 
-def send_failure_alert(cfg: Config, error: str) -> None:
+def send_failure_alert(cfg: Config, error: str, push: bool = True) -> None:
     """A broken scraper looks exactly like a quiet market. Say so loudly.
 
     The previous version of this project returned zero results for months
     without anyone noticing, which is the failure this exists to prevent.
     """
-    send_push(
-        cfg,
-        "Hertz monitor FAILED",
-        f"The run did not complete:\n{error}\n\nInventory data is stale until this is fixed.",
-        priority="urgent",
-    )
+    if push:
+        send_push(
+            cfg,
+            "Hertz monitor FAILED",
+            f"The run did not complete:\n{error}\n\nInventory data is stale until this is fixed.",
+            priority="urgent",
+        )
     send_email(
         cfg,
         "Hertz monitor failed",

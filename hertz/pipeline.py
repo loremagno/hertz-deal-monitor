@@ -1061,6 +1061,7 @@ def run(cfg: Config, dry_run: bool = False, force: bool = False) -> RunResult:
         for scored in provisional:
             ok, reasons = score.qualifies(scored, cfg)
             is_new = scored.vin in new_vins
+            on_price = ok     # cleared the value gate itself, not an arrival or markdown path
 
             if not ok and is_new and _wants_new_alert(scored, cfg):
                 # A new arrival still has to be clean; it just does not have
@@ -1120,6 +1121,13 @@ def run(cfg: Config, dry_run: bool = False, force: bool = False) -> RunResult:
             scored.reasons = reasons
             if not ok:
                 logger.info("  %s not alerting: %s", scored.vin, "; ".join(reasons))
+                continue
+            if cfg.quiet and not (
+                    on_price and is_new
+                    and (scored.listing.source or "hertz").lower() in (cfg.push_sources or ["hertz"])
+                    and (scored.listing.model or "").lower() in cfg.push_models):
+                logger.info("  %s quiet mode: not a new %s deal on a target model",
+                            scored.vin, "/".join(cfg.push_sources or ["hertz"]))
                 continue
             if not store.should_alert(scored.vin, scored.listing.price, cfg.realert_price_drop):
                 logger.info("  %s already alerted at this price", scored.vin)

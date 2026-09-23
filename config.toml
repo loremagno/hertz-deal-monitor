@@ -158,6 +158,13 @@ enable_push = true
 digest_every_days = 3
 # Never re-alert the same VIN unless its price falls another N dollars.
 realert_price_drop = 500
+# Quiet mode (Lorenzo, 2026-09-23: "stop notifications; ONLY new additions on
+# Hertz that are great deals for the models we target"). Only a car that is
+# new this run, sold by one of `push_sources`, of one of `push_models`, and
+# under its benchmark by its lane's threshold with a clean AutoCheck alerts.
+# Delete both lines to restore every alert.
+push_sources = ["hertz"]
+push_models = ["CX-50", "CX-50 Hybrid", "CX-70"]
 
 [email]
 smtp_server = "smtp.gmail.com"
@@ -386,6 +393,27 @@ poll_hours = 0.25
 max_pages = 10
 alert_on_new = true
 new_max_residual_pct = 3.0
+
+[[watch]]
+tier = "A"
+group = "primary"
+label = "Mazda CX-50 / CX-70 (Hertz)"
+source = "hertz"
+models = ["CX-50", "CX-70"]
+# The shape Lorenzo would buy used: a CX-50 Turbo, Premium or Meridian on
+# 18-inch wheels or larger, a CX-70 Premium or above (the Preferred's rims
+# are out). A deal here has to beat a new Turbo at 7 to 8% off plus $3,000
+# cash, which is why the bar is 6% under the benchmark, not 3.
+require_trims = ["Premium", "Turbo", "Meridian"]
+exclude_trims = ["3.3 Turbo Preferred", "Preferred"]
+min_wheel_inches = 18
+threshold_pct = -6.0
+national = true
+year_min = 2025
+odometer_max = 30000
+poll_hours = 2
+max_pages = 5
+alert_on_new = false
 
 [[watch]]
 tier = "A"
