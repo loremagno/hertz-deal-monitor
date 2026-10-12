@@ -1,15 +1,46 @@
 # CLAUDE_HANDOVER.md — Car deal monitor
 
 Read this first when resuming. Stable technical context is in `HANDOVER.md`.
+**This repo is public: never write personal details here** (addresses, phone
+numbers, email accounts, dealer correspondence, purchase or insurance details).
 
 ## Last Session
-- **Date**: 2026-09-08 → 2026-09-09
+- **Date**: 2026-10-12 (Mon)
+- **Machine**: LoresLG (user `lorem`)
+- **Writer**: none (no Codex loop on this project; nothing claimed)
+- **Summary**: Retired the monitor at Lorenzo's request (the car was bought
+  in late September and the alerts were still arriving).
+
+## Current State: RETIRED 2026-10-12
+- The "Hertz deal monitor" workflow (id 354249976) is `disabled_manually` on
+  `loremagno/hertz-deal-monitor`, and its `schedule:` trigger is removed from
+  `monitor.yml`. No runs, pushes, digest emails or snapshot commits.
+- The four `HERTZ_*` repository secrets are deleted.
+- The Pages dashboard is replaced by a one-line "retired" page:
+  `docs/` now holds only that `index.html`; the old board, `data.json`, the
+  seeds, `market_curves.json` and `negotiation.md` moved to `legacy/docs/`.
+  Unpublishing Pages or archiving the repo needs the `loremagno` account
+  (admin); `LorenzoMagnolfi` has write access only, and the Pages DELETE
+  returns 404 for it.
+- Nothing else drives the monitor: no Claude scheduled task, cloud routine or
+  Windows scheduled task (checked 2026-10-12).
+- **To revive:** move `legacy/docs/*` back to `docs/`, restore the cron in
+  `monitor.yml`, re-add the four secrets, then `gh workflow enable 354249976`.
+
+### Session 2026-09-25 (summary)
+- The purchase this monitor was built for was agreed on 2026-09-25. The
+  dealer campaign ran entirely outside this repo; its material is private.
+- Observed and never fixed: `detect_fleet_drops` counted Mazda USA new-car
+  allocation batches as fleet drops. Fix, if ever revived: exclude source
+  `mazdausa`, or rows with a future `inventory_date`, from the detector.
+
+## Session 2026-09-08 → 09-09: the original build (historical record)
 - **Machine**: LORESLG (user `lorem`)
 - **Summary**: Built the monitor from scratch. The pre-existing `src/` had never
   worked (zero rows, Feb 2026 log shows both checkers failing); it is archived at
   `legacy/src/` and was not reused. New package is `hertz/`.
 
-## Current State
+### State as of 2026-09-09
 
 **Live on GitHub Actions since 2026-09-09 18:00 UTC**, every 2 hours. First
 green run (34385973008) collected 546 vehicles from Hertz + Byers, seeded the
@@ -675,7 +706,13 @@ Config: the two colour lanes are Cypress, Polymetal and Ingot; Machine Gray
 removed at Lorenzo's request.
 
 ## Pending / Next Steps
-- [ ] Mazda USA from the runner: confirm the first cloud run logs "Mazda USA: N of M cars
+**Project retired 2026-10-12; the items below are historical.**
+- [x] **Decide the monitor's future:** retired 2026-10-12 (see Current State).
+- [x] Root `ClaudeCodeProjects/CLAUDE.md` project map: owner is `loremagno`,
+      status retired (updated 2026-10-12).
+- [x] Mazda USA from the runner: confirmed on cloud run 35634771732 (53
+      dealers, 8,320 new and 663 certified cars; see Session 2026-09-21).
+      Was: confirm the first cloud run logs "Mazda USA: N of M cars
       match a watch" rather than "Mazda USA sweep skipped". If Akamai blocks the
       datacenter IP, the pass needs the same seed-from-home treatment as Cars.com.
 - [ ] Germain's advertised prices: a Dealer Inspire reader (admin-ajax
@@ -772,7 +809,9 @@ removed at Lorenzo's request.
       inactivation, phantom CarMax→Hertz query, same-model digest pick,
       dead-run ntfy ping) and residue removed. Verified offline; cloud run
       after these changes: see "Last cloud run" below once recorded.
-- [ ] **Public dashboard, safely.** Lorenzo accepts a public board but it must
+- [x] **Public dashboard, safely.** Done on 2026-09-13 through a second
+      personal account (`loremagno`) instead of an organization: the repo is
+      public there and Pages is live (verified 2026-09-25). Was: Lorenzo accepts a public board but it must
       not touch his website. Plan: he creates a free GitHub **organization**
       (a separate owner with no custom domain, so its project pages live at
       `<org>.github.io/…` and cannot inherit `www.lorenzomagnolfi.com`); then

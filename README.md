@@ -1,5 +1,8 @@
 # Hertz deal monitor
 
+> **Retired on 12 October 2026.** The scheduled run is off and the dashboard
+> is gone; the code stays here for reference.
+
 Watches Hertz Car Sales inventory for a genuinely good deal on a **2025+ Mazda
 CX-50 Hybrid** (and a short opportunistic list of alternatives), scores every
 car on landed cost, checks its accident history, and alerts only when both

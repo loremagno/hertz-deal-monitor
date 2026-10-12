@@ -1,12 +1,9 @@
 name: Hertz deal monitor
 
 on:
-  schedule:
-    # Every 2 hours, off the round hour so GitHub schedules it promptly.
-    # A private repo has 2,000 free Actions minutes a month; this cadence
-    # uses roughly 1,200. A 15-minute cron would exhaust the allowance in
-    # about four days and then stop silently.
-    - cron: "11 */2 * * *"
+  # Retired 2026-10-12: the 2-hour cron is removed and the workflow is
+  # disabled on GitHub. The old dashboard and seeds moved to legacy/docs/,
+  # so a manual run needs them restored to docs/ first.
   workflow_dispatch:
     inputs:
       digest:

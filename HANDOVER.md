@@ -4,10 +4,37 @@ Stable technical context. Architecture and setup live in `README.md`; this file
 records the operational knowledge that was expensive to acquire and is not
 recoverable by reading the code.
 
-**Repo**: `github.com/LorenzoMagnolfi/hertz-deal-monitor` (**private**)
+**Repo**: `github.com/loremagno/hertz-deal-monitor` (**public** since 2026-09-13; `LorenzoMagnolfi` has push rights as a collaborator, while visibility, Pages and secrets need `loremagno`). Dashboard: `https://loremagno.github.io/hertz-deal-monitor/` (Pages from `main` `/docs`; verified built on 2026-09-25). **Public repo: nothing personal goes here** (see Hosting decisions).
 **Local**: `ClaudeCodeProjects/Hertz/` (the folder name predates the multi-source scope)
 **Purpose**: alert Lorenzo when a good car appears within driving range of 43220.
 Primary target a 2025+ Mazda CX-50 Hybrid; several secondary watches.
+
+## Scope
+Used and, from 2026-09-21, new or certified cars from Hertz,
+Avis, Enterprise, Byers, CarMax, the Mazda USA locator and Cars.com. Every
+car is scored against a hedonic price model or the market curve (the sticker
+for new cars), gated on its history report, and published to the dashboard.
+**Retired 2026-10-12** after the purchase it was built for: the workflow is
+disabled, the cron and secrets are gone, and the dashboard moved to
+`legacy/docs/` (see `CLAUDE_HANDOVER.md` to revive). Architecture and setup
+details are in `README.md`.
+
+## Project Structure
+- `hertz/`: the package, including `pipeline`, `ingest`, `score`,
+  `benchmark`, `mazdausa`, `enterprise`, `dream`, `notify` and `dashboard`;
+- `config.toml`: the watches, sources, `[[market]]` curves and alert settings;
+- `docs/`: the Pages dashboard (`index.html` renders `data.json`), plus
+  seeds and curves refreshed locally;
+- `data/hertz.db`: the CI copy of the database (locally it lives in
+  `%LOCALAPPDATA%\HertzMonitor\`);
+- `.github/workflows/monitor.yml`: the scheduled run.
+
+## Workflow
+- GitHub Actions runs `python -m hertz` on the cron and commits the DB and
+  `docs/data.json`.
+- Locally, `python -m hertz --dry-run` scores and renders without sending.
+- Refresh the seeds from a home IP (`--seed mazda`, `--curves`) and commit
+  them.
 
 ---
 
@@ -87,7 +114,10 @@ but they will re-emerge if the guards are removed.
     His account has a user Pages site with the custom domain
     `www.lorenzomagnolfi.com`, and every *project* Pages site inherits it. A
     Pages site here went live at `www.lorenzomagnolfi.com/hertz-deal-monitor/`
-    on 2026-09-09 before being deleted. **Never enable Pages on this repo.**
+    on 2026-09-09 before being deleted. **Never enable Pages on any repo owned
+    by `LorenzoMagnolfi`.** Resolved on 2026-09-13 by moving this repo to a
+    second account, `loremagno`, which has no custom domain, so its Pages live
+    at `loremagno.github.io/…` and cannot inherit the website.
     The dashboard is the Claude artifact plus the email digest.
 13. **A dealer feed's `msrp` is the sticker, Hertz's is a pre-doc price.** The
     same Dealer.com field, two meanings; `Source.kind` decides. Read as a
@@ -567,18 +597,25 @@ score and render without sending anything.
 
 ---
 
-## Hosting decisions (settled 2026-09-09)
+## Hosting decisions (settled 2026-09-09, revised 2026-09-13)
 
-- **Repo is private.** It holds Lorenzo's home zip and car preferences. It was
-  public for a few hours to get free Pages; that was a mistake (trap 11).
-- **No GitHub Pages, ever, on this repo** (trap 11). Dashboard = the Claude
-  artifact, refreshed on request, plus the email digest.
-- **Cadence every 2 hours.** A private repo has 2,000 free Actions minutes a
-  month; this uses ~1,200. Faster refresh requires either a public repo
-  (unlimited minutes, but public zip/preferences) or a small VPS. Lorenzo has
-  asked for fast refreshes and has not yet chosen between these.
-- **Only `data/hertz.db` is committed by the workflow.** Rendered HTML and
-  JSON (~1.3 MB per run) go to a 14-day run artifact instead.
+- **The repo is public, under `loremagno`** (moved 2026-09-13 from
+  `LorenzoMagnolfi`, where it had been private). Public was the price of a
+  free Pages dashboard and unlimited Actions minutes. The 2026-09-09 plan
+  (private repo, no Pages, dashboard as a Claude artifact) is superseded.
+- **Nothing personal goes into this repo.** Car preferences and the stand-in
+  home zip in `config.toml` (43220, deliberately not the real one) are
+  accepted. Real addresses, phone numbers, email accounts, dealer
+  correspondence, quote sheets, insurance and purchase details are not: the
+  September 2026 dealer campaign was run entirely outside the repo for this
+  reason.
+- **Never enable Pages on a `LorenzoMagnolfi` repo** (trap 11).
+- **Cadence:** the cron asks for every 2 hours, but GitHub's scheduler
+  delivered a run every 3 to 7 hours during 2026-09-23 to 09-25. Faster needs
+  a self-hosted runner or a VPS.
+- **The workflow commits `data/hertz.db` and `docs/data.json`** each run
+  ("Record inventory snapshot … [skip ci]"). The Pages dashboard renders
+  `docs/data.json`.
 - The workflow is installed at `.github/workflows/monitor.yml`; the `gh`
   credential now carries `workflow` scope (`gh auth refresh -s workflow`).
   `gh` lives at `C:\GitHubCLI\gh.exe`, off PATH.

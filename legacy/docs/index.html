@@ -1,0 +1,1015 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Car Watch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --paper:#f7f5f1; --surface:#fffefc; --sunk:#efece6;
+    --ink:#14171b; --muted:#6f7178; --line:#ddd8ce;
+    --accent:#b8790a; --accent-soft:#f5e7cb;
+    --pass:#1c7a4f; --pass-soft:#e4f2ea;
+    --flag:#b0392a; --flag-soft:#f8e6e2;
+    --shadow:0 1px 2px rgba(20,23,27,.05), 0 8px 24px -16px rgba(20,23,27,.28);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#15171a; --surface:#1c1f24; --sunk:#212429;
+      --ink:#e9e7e2; --muted:#9a9ca3; --line:#31353c;
+      --accent:#e2a33c; --accent-soft:#3a2f1a;
+      --pass:#4ec98a; --pass-soft:#172b21;
+      --flag:#f0836f; --flag-soft:#2e1c19;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.7);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#15171a; --surface:#1c1f24; --sunk:#212429;
+    --ink:#e9e7e2; --muted:#9a9ca3; --line:#31353c;
+    --accent:#e2a33c; --accent-soft:#3a2f1a;
+    --pass:#4ec98a; --pass-soft:#172b21;
+    --flag:#f0836f; --flag-soft:#2e1c19;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.7);
+  }
+  *{box-sizing:border-box}
+  html{color-scheme:light dark}
+  body{margin:0; background:var(--paper); color:var(--ink);
+       font-family:"IBM Plex Sans",-apple-system,Segoe UI,Roboto,sans-serif;
+       line-height:1.5; -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1180px; margin:0 auto; padding:28px 20px 60px; display:flex; flex-direction:column; gap:22px}
+  h1,h2{font-family:Archivo,Segoe UI,sans-serif; margin:0; letter-spacing:-.018em; line-height:1.18; text-wrap:balance}
+  h1{font-size:clamp(24px,4vw,34px); font-weight:700}
+  h2{font-size:12.5px; font-weight:600; letter-spacing:.09em; text-transform:uppercase; color:var(--muted)}
+  .num{font-family:"IBM Plex Mono",ui-monospace,monospace; font-variant-numeric:tabular-nums}
+  header{display:flex; flex-direction:column; gap:8px; border-bottom:2px solid var(--ink); padding-bottom:14px}
+  .eyebrow{font-family:"IBM Plex Mono",monospace; font-size:11px; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); font-weight:600}
+  .sub{color:var(--muted); font-size:13.5px}
+  .sub b{color:var(--ink); font-weight:600}
+  .stale{color:var(--flag); font-weight:600}
+
+  /* tabs */
+  nav.tabs{display:flex; gap:4px; border-bottom:1px solid var(--line); overflow-x:auto}
+  nav.tabs button{appearance:none; background:none; border:0; border-bottom:2px solid transparent;
+    padding:10px 14px; font:inherit; font-weight:600; font-size:14px; color:var(--muted); cursor:pointer; white-space:nowrap}
+  nav.tabs button[aria-selected="true"]{color:var(--ink); border-bottom-color:var(--accent)}
+  nav.tabs button .n{font-family:"IBM Plex Mono",monospace; font-size:11px; color:var(--muted); margin-left:6px}
+  section[role=tabpanel]{display:flex; flex-direction:column; gap:14px}
+  section[role=tabpanel][hidden]{display:none}
+
+  /* controls */
+  .controls{display:flex; flex-wrap:wrap; gap:8px; align-items:center}
+  .controls label{font-size:12.5px; color:var(--muted); display:flex; align-items:center; gap:6px}
+  .controls select,.controls input{font:inherit; font-size:13px; padding:6px 8px; border:1px solid var(--line);
+    border-radius:6px; background:var(--surface); color:var(--ink)}
+  .controls input[type=number]{width:96px}
+  .controls .count{margin-left:auto; font-size:12.5px; color:var(--muted)}
+
+  /* cards */
+  .panel{background:var(--surface); border:1px solid var(--line); border-radius:11px; padding:18px;
+    display:flex; flex-direction:column; gap:12px; box-shadow:var(--shadow)}
+  .panel.pass{border-left:5px solid var(--pass)}
+  .panel.flag{border-left:5px solid var(--flag)}
+  .phead{display:flex; flex-wrap:wrap; align-items:baseline; gap:10px}
+  .phead .name{font-family:Archivo,sans-serif; font-weight:600; font-size:18px}
+  .where{color:var(--muted); font-size:13px}
+  .chip{font-family:"IBM Plex Mono",monospace; font-size:10.5px; font-weight:600; letter-spacing:.07em;
+    text-transform:uppercase; padding:3px 8px; border-radius:4px; white-space:nowrap}
+  .chip.pass{background:var(--pass-soft); color:var(--pass)}
+  .chip.flag{background:var(--flag-soft); color:var(--flag)}
+  .chip.r2b,.chip.warn{background:var(--accent-soft); color:var(--accent)}
+  .chip.dim{background:var(--sunk); color:var(--muted)}
+  .chip.brown{background:#efe2d2; color:#6b3f1d}
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .chip.brown{background:#3a2a1c; color:#e0b58a} }
+  :root[data-theme="dark"] .chip.brown{background:#3a2a1c; color:#e0b58a}
+  .split{display:grid; grid-template-columns:minmax(200px,250px) 1fr; gap:22px}
+  @media(max-width:660px){.split{grid-template-columns:1fr}}
+  .ledger{font-size:13.5px}
+  .ledger div{display:flex; justify-content:space-between; gap:14px; padding:4px 0}
+  .ledger div.total{border-top:1px solid var(--line); margin-top:4px; padding-top:8px; font-weight:600; font-size:16px}
+  .ledger .k{color:var(--muted)}
+  ul.why{margin:0; padding-left:17px; font-size:13.5px; display:flex; flex-direction:column; gap:4px}
+  .note{font-size:12.5px; padding:9px 12px; border-radius:7px; line-height:1.5}
+  .note.pass{background:var(--pass-soft)} .note.warn{background:var(--accent-soft)}
+  .note.flag{background:var(--flag-soft); color:var(--flag); font-weight:500}
+  a.cta{align-self:flex-start; text-decoration:none; font-weight:600; font-size:13px; background:var(--ink);
+    color:var(--paper); padding:8px 15px; border-radius:6px}
+  a{color:var(--accent)}
+  :focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+
+  /* table */
+  .scroll{overflow-x:auto; border:1px solid var(--line); border-radius:11px; background:var(--surface)}
+  table{border-collapse:collapse; width:100%; font-size:13px; min-width:760px}
+  th{background:var(--sunk); text-align:left; font-weight:600; font-size:11px; letter-spacing:.06em;
+    text-transform:uppercase; color:var(--muted); padding:9px 11px; white-space:nowrap; cursor:pointer; user-select:none}
+  th[aria-sort=ascending]::after{content:" ▲"} th[aria-sort=descending]::after{content:" ▼"}
+  td{padding:9px 11px; border-top:1px solid var(--line); white-space:nowrap}
+  td.veh{white-space:normal; min-width:200px}
+  .r{text-align:right}
+  tr.best td{background:var(--pass-soft)} tr.bad td{background:var(--flag-soft)}
+  tr.out td{opacity:.45; text-decoration:line-through}
+  tr.out td:last-child{text-decoration:none}
+  button.x{appearance:none; border:1px solid var(--line); background:var(--surface); color:var(--muted);
+    border-radius:5px; width:26px; height:24px; cursor:pointer; font-size:14px; line-height:1}
+  button.x:hover{color:var(--flag); border-color:var(--flag)}
+  td.act{white-space:nowrap}
+  button.x.star{margin-right:4px; font-size:15px}
+  button.x.star:hover{color:var(--accent); border-color:var(--accent)}
+  button.x.star.on{color:var(--accent); border-color:var(--accent); background:var(--accent-soft)}
+  #toast{position:fixed; left:50%; bottom:24px; transform:translateX(-50%); background:var(--ink); color:var(--paper);
+    padding:10px 14px; border-radius:8px; font-size:13px; line-height:1.45; box-shadow:var(--shadow);
+    max-width:min(92vw,560px); z-index:9}
+  #toast a{color:var(--accent-soft)}
+  #scenario{border:1px solid var(--line); border-radius:8px; background:var(--surface); padding:8px 12px; margin-top:6px}
+  #scenario .lead{font-weight:600; color:var(--ink); margin-right:4px}
+  .chip.wait{background:var(--pass-soft); color:var(--pass)} .chip.buy{background:var(--accent-soft); color:var(--accent)}
+  table.mini{min-width:0; font-size:12.5px} table.mini td,table.mini th{padding:6px 9px}
+  .good{color:var(--pass); font-weight:600} .badv{color:var(--flag); font-weight:600} .dim{color:var(--muted)}
+  .empty{color:var(--muted); font-size:14px; padding:18px}
+  footer{font-size:12px; color:var(--muted); line-height:1.6; border-top:1px solid var(--line); padding-top:14px;
+    display:flex; flex-direction:column; gap:8px}
+  footer b{color:var(--ink)}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Car watch · from <span id="zip"></span></div>
+    <h1>Deal board</h1>
+    <div class="sub" id="status">Loading…</div>
+    <div class="controls" id="scenario" hidden></div>
+  </header>
+
+  <nav class="tabs" role="tablist" id="tabs"></nav>
+
+  <section role="tabpanel" id="tab-target">
+    <div id="target-panels"></div>
+    <h2>Every CX-50 Hybrid on the watch <span class="dim" style="font-weight:400;text-transform:none;letter-spacing:0">&mdash; clear "Away" to see the whole country</span></h2>
+    <div class="controls" id="target-controls"></div>
+    <div class="scroll"><table id="target-table"></table></div>
+  </section>
+
+  <section role="tabpanel" id="tab-watch" hidden>
+    <div class="note warn">The named upgrade list at Hertz (Atlas, GV70/80, CX-90 above Preferred,
+      Palisade 2026, V60 Cross Country, Sorento/Santa Fe above base, Mercedes C/GLA/GLB/GLE) polled
+      daily, a broad list every two days, a <b>very discounted, any trim</b> lane that shows a car
+      only at 10% or more below prediction, and the <b>Hertz 2026 sweep</b>: every 2026 Audi, Mazda,
+      Volvo, Mercedes, VW, Honda, Toyota, Genesis, Lexus, Subaru, Hyundai or Kia priced $25&ndash;35k
+      under 25k miles as an SUV, sedan or wagon, base trims dropped, shown only at 6% or more below
+      its benchmark. A model Hertz has never sold before sends one push the run it appears. Alerts
+      only on an exceptional discount. Clear "Away" for the whole country.</div>
+    <div class="controls" id="watch-controls"></div>
+    <div class="scroll"><table id="watch-table"></table></div>
+  </section>
+
+  <section role="tabpanel" id="tab-suv" hidden>
+    <div class="note warn"><b>Volvo XC60</b>: Plus only, 2024&ndash;25, from Byers (certified), CarMax,
+      Hertz and Cars.com within 300 mi. <b>Mazda CX-70</b>: 3.3 turbo, Premium or Premium Plus (Turbo
+      and Turbo S, Preferred dropped) and <b>only gray or blue outside with a brown-family interior</b>,
+      from Hertz, Byers Mazda and Cars.com within 500 mi. Cars.com is asked for those colours up front
+      (its own buckets: gray/blue exterior, brown/beige interior), because it names each car's exterior
+      bucket but never its interior; a dealer who files Mazda's Tan as "beige" is caught, one who files
+      nothing is missed. Some dealers list only a trim abbreviation ("PR", "PF") that cannot be read;
+      those rows stay, marked <span class="chip warn">trim?</span>. Cars.com rows carry no history and
+      "landed" there is the asking price alone. A <span class="chip brown">brown interior</span> chip
+      marks the interiors you like; "light brown" marks the blond/beige ones you don't. Clear "Away"
+      for the whole country.</div>
+    <div class="controls" id="suv-controls"></div>
+    <div class="scroll"><table id="suv-table"></table></div>
+  </section>
+
+  <section role="tabpanel" id="tab-mazda" hidden>
+    <div class="note warn"><b>New and certified Mazda CX-50 / CX-70 at dealers</b>: Premium or better
+      (2.5 S Premium, Hybrid Premium / Premium Plus, 2.5 Turbo Premium Plus, CX-70 3.3 Turbo Premium and up;
+      the Turbo Meridian Edition is admitted <i>in your colours</i> because it is the CX-50 trim that carries
+      terracotta leather), 2025 or newer. Byers Mazda's new and certified pages are read every few hours;
+      Cars.com adds the market within 300 mi, new and CPO, asked for gray or green outside, with a second
+      sweep asking for its brown/terracotta interior bucket. Green means Mazda's <b>Cypress</b>, offered on
+      the 2.5 S and Turbo only, never on the Hybrid; grey is Polymetal or Machine Gray.
+      <b>Rims are 19 inch or larger</b> on the two colour lanes (Lorenzo, 21 September): on the CX-50 that
+      is a trim filter, not a styling note, because the Meridian Edition rides on 18-inch all-terrains and
+      the Hybrid keeps 17s until Premium Plus. So the lanes are 2.5 S Premium, 2.5 Turbo, Turbo Premium
+      Plus (all 20 inch), Hybrid Premium Plus (19) and any CX-70 (21). Mazda USA's own
+      locator adds every dealer within 300 mi (Germain's two Columbus stores among them) with interior
+      colour, trim, sticker and in-transit ETA, but no dealer price: those rows say <span class="chip dim">sticker
+      only</span>, and the dealer's advertised price is on its site or in the Cars.com row for the same car.
+      "Away" starts at the Columbus area; clear it for the whole 300 mi.
+      <b>vs sticker</b> is the dealer's pre-doc-fee price against MSRP <i>before</i> the manufacturer cash
+      in the "Mfr cash" column (Byers lists at sticker plus the $398 doc fee, so it reads about +0.2%
+      there; Cars.com dealers post 3&ndash;8% under). A new car shows "new car" under Condition: there is
+      no history to read. Certified rows are scored like every used car ("vs model"). Cars.com rows carry
+      no interior unless the sweep asked for it, and no history. Clear "Away" for the whole country.</div>
+    <div class="controls" id="mazda-controls"></div>
+    <div class="scroll"><table id="mazda-table"></table></div>
+  </section>
+
+  <section role="tabpanel" id="tab-dream" hidden>
+    <div class="note warn">Aspirational, not gated: open-market listings from Cars.com, 2022 or
+      newer, <b>$47,000 or less</b>, ranked within each model against a curve fitted on that model's
+      listings under the same cap. Station wagons only (the A4 allroad within 300 mi; the rest
+      nationwide). Nothing here has a history report and nothing here alerts
+      &mdash; Cars.com blocks its detail pages, so <b>colour and accident history are unknown for
+      every row</b>; a standout price here is as likely to be a bad history as a bargain. "vs curve"
+      is cheapness within the same model; Cars.com's own deal rating is alongside. Click a vehicle
+      to open its listing and read the report there.</div>
+    <div class="controls" id="dream-controls"></div>
+    <div class="scroll"><table id="dream-table"></table></div>
+  </section>
+
+  <section role="tabpanel" id="tab-budget" hidden>
+    <div class="note warn">Every car on the board, ranked by what it costs to <b>own</b> over the years and
+      mileage set at the top of the page: landed price, minus the expected resale from the model's own
+      depreciation and the fitted mileage slope, plus fuel at the car's EPA figure, plus a reserve when the
+      bumper-to-bumper warranty is gone. Cars.com rows carry tax and fees but no delivery, and no history.
+      Change the mileage to see how the ranking moves; that is the question you cannot answer yet.</div>
+    <div class="controls" id="budget-controls"></div>
+    <div class="scroll"><table id="budget-table"></table></div>
+  </section>
+
+  <section role="tabpanel" id="tab-follow" hidden>
+    <div class="note warn" id="follow-note"></div>
+    <div class="scroll"><table id="follow-table"></table></div>
+  </section>
+
+  <section role="tabpanel" id="tab-about" hidden>
+    <div class="panel" id="about"></div>
+  </section>
+
+  <footer>
+    <div><b>Landed</b> = price (doc fee included) + delivery + <span id="tax"></span>% Franklin County tax + title
+      and registration. Delivery is the seller's own per-car quote where readable; Rent2Buy cars are collected in
+      person at zero delivery.</div>
+    <div><b>vs model</b> is a leave-one-out residual: the car's own row is taken out of a fit of log
+      pre-doc-fee price on mileage, model year, the make's trim ladder and a Rent2Buy indicator with model fixed
+      effects across every watched vehicle, and, where a Cars.com curve exists for the model, that prediction is
+      blended in with weight rising in the number of same-model cars we hold ourselves. It measures cheapness
+      within a model, on asking prices.</div>
+    <div><b>New cars</b> (the New &amp; CPO Mazda tab) are judged against the manufacturer's sticker rather than
+      the used-car model: "vs sticker" is the dealer's pre-doc-fee advertised price against MSRP, before any
+      manufacturer cash, which is shown separately. There is no history to read on a new car; the factory
+      warranty is the condition. Dealer rows are collected in person, so landed = price + tax + fees.</div>
+    <div><b>Dismissing</b> a car (the × at the end of its row) hides it for good in this browser only;
+      it is remembered across refreshes here but not on another device, and it never affects the
+      alerts or the price model. Each table's footer shows how many are hidden and can show them
+      again; ↺ restores one.</div>
+    <div><b>Own cost</b> is landed price minus expected resale (the model's own yearly depreciation where a
+      market curve exists, else the default, spread along a front-loaded yearly shape from the car's current age,
+      with the fitted mileage slope) plus fuel at the mileage chosen
+      above, plus a warranty reserve once bumper-to-bumper cover is gone, plus whatever you enter under
+      "assumptions" for maintenance, insurance and the cost of cash. Undiscounted; per year is the total over
+      the holding period. <b>Wait?</b> on the CX-50 tab
+      weighs the expected price cut over the next week (Hertz's markdown rate by days on sale) against the
+      chance the car sells first times what it is worth relative to the market: wait when the first is larger.</div>
+    <div><b>Following</b> a car (the ☆ at the end of its row) opens a pre-filled GitHub issue on the
+      monitor's repo; creating it is what makes the monitor watch that car. Every run then comments on the
+      issue and sends a push when its price, mileage, listing status or AutoCheck changes. Close the issue to
+      stop. The star is also remembered in this browser, so the Followed tab shows it at once.</div>
+    <div><b>Condition</b> is Experian AutoCheck, now read for every car within range that a seller publishes one for,
+      not only the cars heading for an alert. A reported accident, branded title or odometer flag blocks an alert and
+      marks the row red. "No history published" means the page was opened and the seller offers nothing; "Carfax linked,
+      not read" means there is a report the monitor cannot open, so follow the link yourself; "not checked yet" means
+      it is still in the queue. Franchise-certified cars pass on the certification and say so. A clean report is not a
+      substitute for a pre-purchase inspection.</div>
+  </footer>
+</div>
+
+<script>
+(async function () {
+  const $ = (s, el = document) => el.querySelector(s);
+  const money = v => v == null ? '—' : '$' + Math.round(v).toLocaleString();
+  const int = v => v == null ? '—' : Math.round(v).toLocaleString();
+  const pct = v => v == null ? '—' : (v > 0 ? '+' : '') + v.toFixed(1) + '%';
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  let data;
+  try {
+    const r = await fetch('data.json', {cache: 'no-store'});
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    data = await r.json();
+  } catch (e) {
+    $('#status').innerHTML = '<span class="stale">Could not load data.json (' + esc(e.message) + ')</span>';
+    return;
+  }
+
+  // ---- header ---------------------------------------------------------
+  $('#zip').textContent = data.home.zip;
+  $('#tax').textContent = (data.economics.tax_rate * 100).toFixed(1);
+  const gen = new Date(data.generated_at);
+  const ageH = (Date.now() - gen.getTime()) / 36e5;
+  const listings = data.listings;
+  const target = listings.filter(l => /cx-50 hybrid/i.test(l.model));
+  const near = l => l.distance != null && l.distance <= data.home.radius_miles;
+  $('#status').innerHTML =
+    `Data as of <b>${gen.toLocaleString(undefined, {weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'})}</b>` +
+    (ageH > 6 ? ` <span class="stale">(${Math.round(ageH)} h old — the schedule may have stalled)</span>` : '') +
+    ` · CX-50 Hybrid: <b>${target.length}</b> nationwide, <b>${target.filter(near).length}</b> within ${data.home.radius_miles} mi` +
+    ` · <b>${listings.filter(near).length}</b> watched cars in range · model n=${data.model.n}, log-RMSE ${data.model.log_rmse.toFixed(3)}` +
+    (() => { const c = data.condition_coverage; if (!c || !c.total) return '';
+      const done = c.read + c.link_only + c.no_report;
+      const cls = done < c.total ? 'stale' : 'good';
+      return ` · history: <b>${c.read}</b> of ${c.total} drivable read` +
+             (c.unchecked ? ` <span class="${cls}">(${c.unchecked} still to check)</span>` : ''); })() +
+    (data.skipped_sources.length ? ` · <span class="stale">skipped: ${esc(data.skipped_sources.join(', '))}</span>` : '');
+
+  // ---- ownership cost ---------------------------------------------------
+  // The mileage you will drive is the open question, so it is a selector,
+  // not a constant. Every table's cost column recomputes when it changes.
+  const SCEN_KEY = 'carwatch.scenario.v1';
+  const econ = data.economics || {};
+  // Every assumption behind the number is a field here. `dep` null means
+  // "the model's own market curve where one exists, else the default";
+  // `maint`, `ins` and `opp` are the costs the board cannot observe, so they
+  // start at zero and are yours to set.
+  const scen = Object.assign(
+    {miles: econ.miles_per_year || 12000, years: econ.holding_years || 5, fuel: econ.fuel_price || 3.2,
+     dep: null, reserve: econ.warranty_reserve ?? 1500, maint: 0, ins: 0, opp: 0, floor: 15, more: false, flat: false},
+    (() => { try { return JSON.parse(localStorage.getItem(SCEN_KEY) || '{}') || {}; } catch (e) { return {}; } })());
+  const saveScen = () => { try { localStorage.setItem(SCEN_KEY, JSON.stringify(scen)); } catch (e) {} };
+  const dep = data.depreciation || {per_year_default: -0.08, per_10k: -0.04, per_10k_sq: 0, per_year_by_model: {}};
+  const mpgTable = data.mpg_by_model || {};
+  const warrantyTable = data.warranty_by_make || {};
+  const modelKey = r => `${(r.make || '').toLowerCase().trim()}|${(r.model || '').toLowerCase().trim()}`;
+  // Depreciation is front-loaded: a new car loses about a fifth in its
+  // first year and the yearly loss then shrinks. The market curves were
+  // fitted on cars aged roughly one to three years, so each model's fitted
+  // rate is taken as the AVERAGE over years 1-3 and spread along this shape
+  // (the shape's mean over years 1-3 is exactly 1). The cars here are
+  // already one to two years old, so the projection starts part-way down.
+  const SHAPE = [1.36, 0.88, 0.76, 0.62, 0.55, 0.48, 0.43, 0.39, 0.36, 0.33, 0.31, 0.29];
+  const yearRate = (ref, age, flat) => flat ? ref : ref * (SHAPE[Math.min(SHAPE.length - 1, Math.max(0, Math.floor(age)))]);
+  // Cumulative log change from age a0 over `years`, integrating the yearly
+  // rate over whole and partial years of age.
+  function depreciateLog(ref, a0, years, flat) {
+    let total = 0, age = a0, left = years;
+    while (left > 1e-9) {
+      const step = Math.min(left, 1 - (age - Math.floor(age)) || 1);
+      total += yearRate(ref, age, flat) * step; age += step; left -= step;
+    }
+    return total;
+  }
+  const nowFrac = (() => { const d = new Date(); return d.getFullYear() + d.getMonth() / 12; })();
+  function warrantyOf(r) {
+    if (r.warranty) return r.warranty;
+    const terms = warrantyTable[(r.make || '').toLowerCase()]; if (!terms || !r.year || r.miles == null) return null;
+    const age = Math.max(0, nowFrac - (r.year - 0.5));
+    return {b2b: {months: Math.max(0, Math.round((terms[0][0] - age) * 12)), miles: Math.max(0, terms[0][1] - r.miles)},
+            powertrain: {months: Math.max(0, Math.round((terms[1][0] - age) * 12)), miles: Math.max(0, terms[1][1] - r.miles)}};
+  }
+  function costOf(r) {
+    if (!r.price) return null;
+    const key = modelKey(r);
+    // Yearly rate: your override if set (a percentage, e.g. -8), else the
+    // model's own curve, else the default. Mileage effect from the fit.
+    const override = scen.dep != null && scen.dep !== '';
+    const perYear = override ? Number(scen.dep) / 100 : (dep.per_year_by_model[key] ?? dep.per_year_default);
+    const depSource = override ? 'your rate' : (dep.per_year_by_model[key] != null ? "the model's market curve" : 'the default rate');
+    const b1 = dep.per_10k ?? -0.04, b2 = dep.per_10k_sq ?? 0;
+    const odo0 = (r.miles || 0) / 1e4, odo1 = odo0 + scen.miles * scen.years / 1e4;
+    const floor = Math.max(0, Math.min(90, Number(scen.floor) || 0)) / 100;
+    const age0 = r.age_years != null ? r.age_years : Math.max(0, nowFrac - ((r.year || nowFrac) - 0.5));
+    const ageLog = depreciateLog(perYear, age0, scen.years, !!scen.flat);
+    const path = Array.from({length: Math.min(scen.years, 7)}, (_, i) => (100 * yearRate(perYear, age0 + i, !!scen.flat)).toFixed(0) + '%').join(', ');
+    const resale = Math.max(floor * r.price, Math.exp(Math.log(r.price) + ageLog + b1 * (odo1 - odo0) + b2 * (odo1 * odo1 - odo0 * odo0)));
+    const mpg = r.mpg || mpgTable[key] || null;
+    const fuel = mpg ? scen.miles * scen.years / mpg * scen.fuel : null;
+    const landed = r.landed != null ? r.landed : r.price * (1 + (econ.tax_rate || 0)) + (econ.title_reg_fees || 0);
+    const w = warrantyOf(r);
+    const reserve = (!w || w.b2b.months < 12 || w.b2b.miles < scen.miles) ? (Number(scen.reserve) || 0) : 0;
+    const maint = (Number(scen.maint) || 0) * scen.years;
+    const ins = (Number(scen.ins) || 0) * scen.years;
+    // Opportunity cost of the cash: simple interest on the landed price for
+    // the holding period, at the rate the money would otherwise earn.
+    const opp = landed * ((Number(scen.opp) || 0) / 100) * scen.years;
+    const total = landed - resale + (fuel || 0) + reserve + maint + ins + opp;
+    return {total, perYear: total / scen.years, resale, fuel, reserve, maint, ins, opp, mpg, landed, warranty: w, perYearRate: perYear, depSource, path, age0};
+  }
+  const COST_SETS = [];
+  function costify(rows) {
+    if (!COST_SETS.includes(rows)) COST_SETS.push(rows);
+    for (const r of rows) {
+      const c = costOf(r);
+      r.cost = c ? Math.round(c.total) : null; r.cost_year = c ? Math.round(c.perYear) : null;
+      r.cost_detail = c; r.wait_advice = r.wait ? r.wait.advice : null;
+    }
+    return rows;
+  }
+  const costFmt = (v, r) => {
+    if (v == null) return '<span class="dim">—</span>';
+    const c = r.cost_detail || {};
+    const tip = `landed ${money(c.landed)} − resale ${money(c.resale)} (age ${c.age0.toFixed(1)} yrs now; yearly ${c.path}, from ${c.depSource} averaging ${(100 * c.perYearRate).toFixed(1)}%/yr over years 1–3) + fuel ${c.fuel == null ? 'n/a' : money(c.fuel)}${c.reserve ? ' + warranty reserve ' + money(c.reserve) : ''}${c.maint ? ' + maintenance ' + money(c.maint) : ''}${c.ins ? ' + insurance ' + money(c.ins) : ''}${c.opp ? ' + cost of cash ' + money(c.opp) : ''}${c.mpg ? ' · ' + Math.round(c.mpg) + ' mpg' : ' · no mpg'}`;
+    return `<span title="${esc(tip)}"><b>${money(v)}</b> <span class="dim">${money(r.cost_year)}/yr</span></span>`;
+  };
+  const waitFmt = (v, r) => {
+    const w = r.wait; if (!w) return '<span class="dim">—</span>';
+    const tip = `days on sale ${r.days_on_sale ?? '?'} (${w.bucket}); expected cut next week ${money(w.expected_cut)}; P(still here) ${Math.round(100 * w.p_survive)}%; worth ${money(w.surplus)} vs benchmark`;
+    const cls = w.advice === 'wait' ? 'wait' : w.advice === 'buy' ? 'buy' : 'dim';
+    return `<span class="chip ${cls}" title="${esc(tip)}">${esc(w.advice)}</span>`;
+  };
+  function renderScenario() {
+    const el = $('#scenario'); el.hidden = false;
+    const num = (k, step, min, max, w = 70, ph = '') => `<input type="number" step="${step}" min="${min}" max="${max}" data-s="${k}" value="${scen[k] == null ? '' : scen[k]}" placeholder="${ph}" style="width:${w}px">`;
+    el.innerHTML = `<span class="lead">Own cost over</span>
+      <label>years <select data-s="years">${[3, 5, 7, 10].map(y => `<option${y === scen.years ? ' selected' : ''}>${y}</option>`).join('')}</select></label>
+      <label>at <select data-s="miles">${[6000, 8000, 10000, 12000, 15000, 18000, 22000].map(m => `<option value="${m}"${m === scen.miles ? ' selected' : ''}>${m.toLocaleString()}</option>`).join('')}</select> mi/yr</label>
+      <label>fuel $${num('fuel', 0.1, 1, 8)}/gal</label>
+      <a href="#" data-more style="font-size:12.5px">${scen.more ? 'hide assumptions' : 'assumptions…'}</a>
+      ${scen.more ? `<span style="flex-basis:100%"></span>
+      <label title="The average yearly rate over years 1–3 of a car's life. Blank = the model's own market curve where one exists (XC60 −9.9%, CX-70 −7.8%), else the default. It is spread along a front-loaded shape (year 1 heaviest, flattening after) unless 'flat' is ticked. The mileage effect (about −3.5% per 10k, flattening) comes from the fit and always applies.">depreciation ${num('dep', 0.5, -40, 5, 64, 'curve')}%/yr</label>
+      <label title="Apply the same percentage every year instead of the front-loaded shape."><input type="checkbox" data-s="flat"${scen.flat ? ' checked' : ''}> flat</label>
+      <label title="Set aside when bumper-to-bumper cover has under 12 months or under a year of your mileage left.">warranty reserve $${num('reserve', 100, 0, 10000)}</label>
+      <label title="Routine service and tyres; not observed by the board, yours to set.">maintenance $${num('maint', 50, 0, 5000)}/yr</label>
+      <label title="Insurance differs little across these cars, but it is real money.">insurance $${num('ins', 50, 0, 6000)}/yr</label>
+      <label title="Simple interest on the landed price for the holding period: what the cash would earn elsewhere.">cost of cash ${num('opp', 0.5, 0, 15, 60)}%/yr</label>
+      <label title="Resale is never projected below this share of the purchase price.">resale floor ${num('floor', 5, 0, 90, 60)}%</label>
+      <span class="count">hover a cost for its breakdown</span>` : `<span class="count">resale from each model's curve; mileage is the thing you don't know yet</span>`}`;
+    el.querySelector('a[data-more]').addEventListener('click', e => { e.preventDefault(); scen.more = !scen.more; saveScen(); renderScenario(); });
+    el.addEventListener('input', e => {
+      const t = e.target; if (!t.dataset.s) return;
+      scen[t.dataset.s] = t.type === 'checkbox' ? t.checked : (t.value === '' ? null : Number(t.value)); saveScen();
+      COST_SETS.forEach(costify); rerenders.forEach(f => f());
+    });
+  }
+  costify(listings);
+  renderScenario();
+
+  // ---- following -------------------------------------------------------
+  // "Follow" needs a home both this page and the scheduled run can reach,
+  // and the page has no server. A GitHub issue on the repo is that home: the
+  // star pre-fills one, creating it is the act of following, closing it is
+  // the act of stopping. The run reads the open issues, compares each car
+  // with what it saw last time, and comments (GitHub emails that) and pushes
+  // on any change. The star is ALSO kept in this browser so the Followed tab
+  // reflects it immediately, before the next run has read the issue.
+  const FOLLOW_KEY = 'carwatch.followed.v1';
+  const loadFollowed = () => { try { return JSON.parse(localStorage.getItem(FOLLOW_KEY) || '{}') || {}; } catch (e) { return {}; } };
+  const saveFollowed = m => { try { localStorage.setItem(FOLLOW_KEY, JSON.stringify(m)); } catch (e) {} };
+  let followed = loadFollowed();          // key -> {title, url, source, price, miles, lot, at}
+  const followCfg = data.follow || {enabled: false, rows: [], reason: 'no follow data', new_issue_url: ''};
+  const serverFollow = new Map((followCfg.rows || []).map(r => [r.key, r]));
+  const isFollowed = k => !!followed[k] || serverFollow.has(k);
+  const followCount = () => new Set([...Object.keys(followed), ...serverFollow.keys()]).size;
+  const ROWS = new Map();                 // key -> the row object last rendered under it
+  const followInfo = r => ({
+    key: r.vin || r.url,
+    title: r.make ? `${r.year} ${r.make} ${r.model} ${r.trim || ''}`.replace(/\s+/g, ' ').trim() : `${r.year} ${r.title}`,
+    url: r.url || '', source: r.source || 'cars.com', price: r.price ?? null,
+    miles: r.miles ?? r.mileage ?? null,
+    lot: r.lot || [r.city, r.state].filter(Boolean).join(', '),
+  });
+  const issueUrl = info => {
+    const body = [
+      `key: ${info.key}`, `url: ${info.url}`, `title: ${info.title}`, `source: ${info.source}`,
+      `price: ${info.price ?? ''}`, `miles: ${info.miles ?? ''}`, `lot: ${info.lot}`, '',
+      'Created from the deal board. Keep this issue open to keep following; close it to stop.',
+      'The monitor comments here when the price, mileage, listing status or AutoCheck changes.',
+    ].join('\n');
+    return `${followCfg.new_issue_url}?labels=follow&title=${encodeURIComponent('Follow: ' + info.title)}&body=${encodeURIComponent(body)}`;
+  };
+  let toastTimer = null;
+  function toast(html) {
+    let el = $('#toast'); if (!el) { el = document.createElement('div'); el.id = 'toast'; document.body.appendChild(el); }
+    el.innerHTML = html; el.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => { el.hidden = true; }, 9000);
+  }
+  function followRow(k) {
+    const r = ROWS.get(k); if (!r) return;
+    const info = followInfo(r);
+    followed[k] = {...info, at: new Date().toISOString()}; saveFollowed(followed);
+    if (followCfg.enabled && followCfg.new_issue_url) {
+      window.open(issueUrl(info), '_blank', 'noopener');
+      toast(`<b>${esc(info.title)}</b> starred. Create the issue in the tab that just opened; the monitor picks it up on its next run and reports every change there and by push.`);
+    } else {
+      toast(`<b>${esc(info.title)}</b> starred in this browser only. Alerts need GitHub Issues on the repo${followCfg.repo ? ` (<a href="https://github.com/${esc(followCfg.repo)}/settings" target="_blank" rel="noopener">Settings → General → Features → Issues</a>)` : ''}: ${esc(followCfg.reason || '')}`);
+    }
+    rerenders.forEach(f => f());
+  }
+  function unfollowRow(k) {
+    delete followed[k]; saveFollowed(followed);
+    const sv = serverFollow.get(k);
+    if (sv) toast(`Un-starred here, but the monitor still follows it: <a href="${esc(sv.issue_url)}" target="_blank" rel="noopener">close issue #${sv.number}</a> to stop the alerts.`);
+    rerenders.forEach(f => f());
+  }
+
+  // ---- tabs -----------------------------------------------------------
+  // Four tabs, one per group. "group" comes from the watch entry in
+  // config.toml; the wagons come from the dream module, not from watches.
+  const byGroup = g => listings.filter(l => l.group === g);
+  const TABS = [
+    ['target', 'CX-50 Hybrid', target.filter(near).length],
+    ['watch', 'Other Hertz finds', byGroup('hertz').filter(near).length],
+    // The Cars.com rows are part of this tab, so they are part of its count.
+    ['suv', 'SUV watch', byGroup('suv').filter(near).length +
+        (data.suv_market?.rows || []).filter(r => r.distance != null && r.distance <= data.home.radius_miles).length],
+    // Counted over the Columbus area (dealer_radius_miles), which is also the
+    // tab's default "Away": the locator holds twenty dealers out to 300 mi.
+    ['mazda', 'New & CPO Mazda', byGroup('mazda').filter(l => l.distance != null && l.distance <= (data.home.dealer_radius_miles || 75)).length +
+        (data.mazda_market?.rows || []).filter(r => r.distance != null && r.distance <= (data.home.dealer_radius_miles || 75)).length],
+    ['dream', 'Station wagons', data.dream.rows.length],
+    ['budget', 'Best at budget', null],
+    ['follow', 'Followed', followCount()],
+    ['about', 'About', null],
+  ];
+  const tabs = $('#tabs');
+  const hash = (location.hash || '').slice(1);
+  let active = TABS.some(t => t[0] === hash) ? hash : 'target';
+  function showTab(id) {
+    active = id;
+    for (const [k] of TABS) {
+      $('#tab-' + k).hidden = k !== id;
+      $(`#tabs button[data-tab="${k}"]`).setAttribute('aria-selected', String(k === id));
+    }
+    history.replaceState(null, '', '#' + id);
+  }
+  tabs.innerHTML = TABS.map(([k, label, n]) =>
+    `<button role="tab" data-tab="${k}" aria-selected="false">${label}${n != null ? `<span class="n">${n}</span>` : ''}</button>`).join('');
+  tabs.addEventListener('click', e => { const b = e.target.closest('button[data-tab]'); if (b) showTab(b.dataset.tab); });
+  // A deep link like #dream must work both on load and when the hash changes
+  // in an already-open page (back button, a link from an email).
+  window.addEventListener('hashchange', () => {
+    const h = (location.hash || '').slice(1);
+    if (TABS.some(t => t[0] === h) && h !== active) showTab(h);
+  });
+  showTab(active);
+
+  // ---- dismissals ----------------------------------------------------------
+  // "Kick a listing out and it stays out." The page is static and has no
+  // server to remember anything, so the memory lives in THIS browser's
+  // localStorage: it survives refreshes and republishes, but a phone and a
+  // laptop each keep their own list. Dismissing never reaches the pipeline;
+  // every car still feeds the price model exactly as before.
+  const DISMISS_KEY = 'carwatch.dismissed.v1';
+  const loadDismissed = () => { try { return new Set(JSON.parse(localStorage.getItem(DISMISS_KEY) || '[]')); } catch (e) { return new Set(); } };
+  const saveDismissed = s => { try { localStorage.setItem(DISMISS_KEY, JSON.stringify([...s])); } catch (e) {} };
+  let dismissed = loadDismissed();
+  let showDismissed = false;
+  const dismissKey = r => r.vin || r.url;
+  const rerenders = [];   // every table re-applies its filters after a dismissal
+  function dismiss(key) { dismissed.add(key); saveDismissed(dismissed); rerenders.forEach(f => f()); }
+  function restore(key) { dismissed.delete(key); saveDismissed(dismissed); rerenders.forEach(f => f()); }
+  document.addEventListener('click', e => {
+    const f = e.target.closest('button[data-follow]'); if (f) { e.preventDefault(); followRow(f.dataset.follow); return; }
+    const uf = e.target.closest('button[data-unfollow]'); if (uf) { e.preventDefault(); unfollowRow(uf.dataset.unfollow); return; }
+    const b = e.target.closest('button[data-dismiss]'); if (b) { e.preventDefault(); dismiss(b.dataset.dismiss); return; }
+    const u = e.target.closest('button[data-restore]'); if (u) { e.preventDefault(); restore(u.dataset.restore); }
+  });
+
+  // ---- generic sortable/filterable table ---------------------------------
+  function table(el, rows, cols, opts = {}) {
+    let sortKey = opts.sortKey, sortDir = opts.sortDir || 1;
+    function render() {
+      const visible = rows.filter(r => showDismissed || !dismissed.has(dismissKey(r)));
+      const hidden = rows.length - visible.length;
+      const sorted = [...visible].sort((a, b) => {
+        const x = a[sortKey], y = b[sortKey];
+        if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1;
+        return (x < y ? -1 : x > y ? 1 : 0) * sortDir;
+      });
+      el.innerHTML =
+        '<thead><tr>' + cols.map(c =>
+          `<th data-key="${c.key}" class="${c.right ? 'r' : ''}" aria-sort="${c.key === sortKey ? (sortDir > 0 ? 'ascending' : 'descending') : 'none'}">${c.label}</th>`).join('') +
+        '<th></th></tr></thead><tbody>' +
+        (sorted.length ? sorted.map(r => {
+          const k = dismissKey(r), isOut = dismissed.has(k);
+          ROWS.set(k, r);
+          const star = isFollowed(k)
+            ? `<button class="x star on" data-unfollow="${esc(k)}" title="Following — click to un-star on this device">★</button>`
+            : `<button class="x star" data-follow="${esc(k)}" title="Follow: be told when its price or status changes">☆</button>`;
+          return `<tr class="${opts.rowClass ? opts.rowClass(r) : ''}${isOut ? ' out' : ''}">` +
+            cols.map(c => `<td class="${c.right ? 'r num' : ''} ${c.cls || ''}">${c.fmt ? c.fmt(r[c.key], r) : esc(r[c.key])}</td>`).join('') +
+            `<td class="r act">${star}${opts.noDismiss ? '' : isOut
+              ? `<button class="x" data-restore="${esc(k)}" title="Bring this car back">↺</button>`
+              : `<button class="x" data-dismiss="${esc(k)}" title="Hide this car for good (this browser)">×</button>`}</td></tr>`;
+        }).join('')
+         : `<tr><td colspan="${cols.length + 1}" class="empty">Nothing matches.</td></tr>`) +
+        '</tbody>' +
+        (hidden ? `<tfoot><tr><td colspan="${cols.length + 1}" class="dim" style="font-size:12px;padding:8px 11px">${hidden} dismissed car${hidden === 1 ? '' : 's'} hidden — <a href="#" data-toggle-dismissed>show</a></td></tr></tfoot>` : '');
+    }
+    rerenders.push(render);
+    el.onclick = e => {
+      const t = e.target.closest('a[data-toggle-dismissed]');
+      if (t) { e.preventDefault(); showDismissed = !showDismissed; rerenders.forEach(f => f()); return; }
+      const th = e.target.closest('th[data-key]'); if (!th) return;
+      if (sortKey === th.dataset.key) sortDir = -sortDir; else { sortKey = th.dataset.key; sortDir = 1; }
+      render();
+    };
+    render();
+    return { update(newRows) { rows = newRows; render(); } };
+  }
+  const cond = (v, r) => `<span class="${r.condition_kind === 'clean' || r.condition_kind === 'new' ? 'good' : r.condition_kind === 'bad' ? 'badv' : 'dim'}">${esc(v)}</span>`;
+  // Every listing link opens in a new tab: the wagon tab already did, the
+  // other three tables did not, and losing the board on each click is the
+  // wrong default for a page you scan.
+  const veh = (v, r) => `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.year)} ${esc(r.make)} ${esc(r.model)}</a>` +
+      (r.tier === 'A' ? ' <span class="chip pass">A</span>' : '') +
+      (r.type === 'new' ? ' <span class="chip pass" title="New car: factory warranty, no history to read">new</span>'
+       : r.type === 'certified' ? ' <span class="chip pass">cert</span>' : r.type === 'rent2buy' ? ' <span class="chip r2b">R2B</span>' : '') +
+      (r.source === 'avis' ? ' <span class="chip dim" title="Avis Car Sales">Avis</span>' : '') +
+      (r.source === 'enterprise' ? ' <span class="chip dim" title="Enterprise Car Sales: inspected, 12-month powertrain warranty, 7-day return">Enterprise</span>' : '') +
+      (r.history_url ? ` <a class="chip warn" href="${esc(r.history_url)}" target="_blank" rel="noopener" title="Carfax the seller links; the monitor could not read it">Carfax ↗</a>` : '') +
+      (r.fit >= 3 ? ' <span class="chip pass">fit</span>' : '') +
+      (/terracotta/i.test(r.interior || '') ? ' <span class="chip brown" title="' + esc(r.interior) + '">terracotta</span>'
+       : r.interior_tier === 'mid' ? ' <span class="chip brown" title="' + esc(r.interior) + '">brown interior</span>'
+       : r.interior_tier === 'light' ? ' <span class="chip dim" title="' + esc(r.interior) + '">light brown</span>' : '');
+  const resid = v => v == null ? '<span class="dim">—</span>' : `<span class="${v < 0 ? 'good' : 'badv'}">${pct(v)}</span>`;
+
+  const LISTING_COLS = [
+    {key:'label', label:'Vehicle', fmt: veh, cls:'veh'},
+    {key:'color', label:'Colour'},
+    {key:'lot', label:'Lot'},
+    {key:'distance', label:'Away', right:true, fmt: (v, r) => r.source === 'carmax' ? '<span class="dim" title="Shipped to you; the shipping quote is in the landed cost">ships</span>' : int(v)},
+    {key:'miles', label:'Miles', right:true, fmt: int},
+    {key:'price', label:'Price', right:true, fmt: money},
+    {key:'landed', label:'Landed', right:true, fmt: v => `<b>${money(v)}</b>`},
+    {key:'cost', label:'Own cost', right:true, fmt: costFmt},
+    {key:'residual_pct', label:'vs model', right:true, fmt: resid},
+    {key:'days_on_lot', label:'Days', right:true, fmt: v => v == null ? '<span class="dim">—</span>' : int(v)},
+    {key:'wait_advice', label:'Wait?', fmt: waitFmt},
+    {key:'condition', label:'Condition', fmt: cond},
+  ];
+  const rowClass = r => r.cleared ? 'best' : r.condition_kind === 'bad' ? 'bad' : '';
+
+  // ---- controls factory ---------------------------------------------------
+  function controls(el, rows, spec, onChange) {
+    const state = {};
+    el.innerHTML = spec.map(s => {
+      if (s.type === 'select') {
+        const opts = [...new Set(rows.map(r => r[s.key]).filter(v => v != null && v !== ''))].sort();
+        return `<label>${s.label} <select data-k="${s.key}"><option value="">any</option>${opts.map(o => `<option>${esc(o)}</option>`).join('')}</select></label>`;
+      }
+      if (s.type === 'max') {
+        // A `value` pre-fills AND applies the filter on load; clearing the
+        // box lifts it. This is how the 300-mile radius became a default
+        // rather than a wall: two brown-interior CX-50 Hybrids sat at 352 mi
+        // and the old hard filter made them invisible.
+        if (s.value != null) state[s.key] = ['max', String(s.value)];
+        return `<label>${s.label} ≤ <input type="number" data-k="${s.key}" data-op="max" placeholder="${s.placeholder || ''}"${s.value != null ? ` value="${s.value}"` : ''}></label>`;
+      }
+      if (s.type === 'check') return `<label><input type="checkbox" data-k="${s.key}" data-op="check"> ${s.label}</label>`;
+      return '';
+    }).join('') + '<span class="count"></span>';
+    function apply() {
+      const out = rows.filter(r => Object.entries(state).every(([k, [op, v]]) => {
+        if (v === '' || v == null) return true;
+        if (op === 'eq') return String(r[k]) === v;
+        if (op === 'max') return r[k] != null && r[k] <= Number(v);
+        if (op === 'check') return !v || !!r[k];
+        return true;
+      }));
+      el.querySelector('.count').textContent = `${out.length} of ${rows.length}`;
+      onChange(out);
+    }
+    el.addEventListener('input', e => {
+      const t = e.target; if (!t.dataset.k) return;
+      state[t.dataset.k] = [t.dataset.op || 'eq', t.type === 'checkbox' ? t.checked : t.value];
+      apply();
+    });
+    apply();
+  }
+
+  // ---- target tab -----------------------------------------------------------
+  const cleared = target.filter(r => r.cleared && near(r));
+  const flagged = target.filter(r => r.condition_kind === 'bad');
+  $('#target-panels').innerHTML =
+    cleared.map(r => `
+      <div class="panel pass">
+        <div class="phead"><span class="name">${esc(r.label)}</span><span class="chip pass">value &amp; condition</span>
+          ${r.type === 'rent2buy' ? '<span class="chip r2b">Rent2Buy</span>' : ''}${r.wait ? ' ' + waitFmt(null, r) : ''}</div>
+        <div class="where num">${esc(r.lot)} · ${int(r.distance)} mi · ${int(r.miles)} mi · ${esc(r.color)}</div>
+        <div class="split">
+          <div class="ledger num">
+            <div><span class="k">Price</span><span>${money(r.price)}</span></div>
+            <div><span class="k">Delivery</span><span>${r.delivery ? money(r.delivery) : 'collect'}</span></div>
+            <div><span class="k">Tax + fees</span><span>${money(r.landed - r.price - r.delivery)}</span></div>
+            <div class="total"><span>Landed</span><span>${money(r.landed)}</span></div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <ul class="why">${r.reasons.map(x => `<li>${esc(x)}</li>`).join('')}</ul>
+            ${r.type === 'rent2buy' ? '<div class="note warn">Still in the rental fleet: mileage and price are estimates, the car may be out on rent, and you collect it at the branch.</div>' : ''}
+            <a class="cta" href="${esc(r.url)}" target="_blank" rel="noopener">Open listing · ${esc(r.vin.slice(-6))}</a>
+          </div>
+        </div>
+      </div>`).join('') +
+    (flagged.length ? `<h2 style="margin-top:6px">Held back on condition</h2>` + flagged.map(r => `
+      <div class="panel flag">
+        <div class="phead"><span class="name">${esc(r.label)}</span><span class="chip flag">blocked</span></div>
+        <div class="where num">${esc(r.lot)} · ${int(r.distance)} mi · ${int(r.miles)} mi · ${money(r.price)}</div>
+        <div class="note flag">${esc(r.condition)}</div>
+      </div>`).join('') : '') +
+    (!cleared.length && !flagged.length ? '<div class="note warn">No CX-50 Hybrid within range has cleared both gates yet.</div>' : '');
+
+  const targetTable = table($('#target-table'), target, LISTING_COLS, {sortKey:'residual_pct', rowClass});
+  controls($('#target-controls'), target, [
+    {type:'select', key:'color', label:'Colour'},
+    {type:'select', key:'type', label:'Type'},
+    {type:'max', key:'miles', label:'Miles', placeholder:'35000'},
+    {type:'max', key:'distance', label:'Away', value: data.home.radius_miles},
+    {type:'check', key:'cleared', label:'cleared only'},
+  ], rows => targetTable.update(rows));
+
+  // ---- watchlist tab -------------------------------------------------------
+  const WATCH_COLS = [
+    {key:'label', label:'Vehicle', fmt: veh, cls:'veh'},
+    {key:'watch', label:'Watch'},
+    {key:'color', label:'Colour'},
+    {key:'lot', label:'Lot'},
+    {key:'distance', label:'Away', right:true, fmt: (v, r) => r.source === 'carmax' ? '<span class="dim" title="Shipped to you; the shipping quote is in the landed cost">ships</span>' : int(v)},
+    {key:'miles', label:'Miles', right:true, fmt: int},
+    {key:'price', label:'Price', right:true, fmt: money},
+    {key:'landed', label:'Landed', right:true, fmt: v => `<b>${money(v)}</b>`},
+    {key:'cost', label:'Own cost', right:true, fmt: costFmt},
+    {key:'residual_pct', label:'vs model', right:true, fmt: resid},
+    {key:'condition', label:'Condition', fmt: cond},
+  ];
+  const hertzRows = byGroup('hertz');
+  const watchTable = table($('#watch-table'), hertzRows, WATCH_COLS, {sortKey:'residual_pct', rowClass});
+  controls($('#watch-controls'), hertzRows, [
+    {type:'select', key:'model', label:'Model'},
+    {type:'select', key:'type', label:'Type'},
+    {type:'max', key:'distance', label:'Away', value: data.home.radius_miles},
+    {type:'max', key:'miles', label:'Miles', placeholder:'35000'},
+    {type:'max', key:'landed', label:'Landed', placeholder:'40000'},
+  ], rows => watchTable.update(rows));
+
+  // ---- SUV tab ---------------------------------------------------------------
+  const SUV_COLS = [
+    {key:'label', label:'Vehicle', fmt: (v, r) => veh(v, r) +
+        (r.trim_status === 'unknown' ? ' <span class="chip warn" title="Dealer abbreviation; open the listing to read the trim">trim?</span>' : '') +
+        (r.source === 'cars.com' && r.trim_status === 'ok' ? ' <span class="chip pass">Premium</span>' : ''), cls:'veh'},
+    {key:'source', label:'Source'},
+    {key:'color', label:'Colour'},
+    {key:'interior', label:'Interior', fmt: (v, r) => r.interior_tier === 'mid'
+        ? `<span class="chip brown">${esc(v)}</span>` : r.interior_tier === 'light'
+        ? `<span class="chip dim">${esc(v)}</span>` : (v ? esc(v) : '<span class="dim">—</span>')},
+    {key:'lot', label:'Lot'},
+    {key:'distance', label:'Away', right:true, fmt: (v, r) => r.source === 'carmax' ? '<span class="dim" title="Shipped to you; the shipping quote is in the landed cost">ships</span>' : int(v)},
+    {key:'miles', label:'Miles', right:true, fmt: int},
+    {key:'price', label:'Price', right:true, fmt: money},
+    {key:'landed', label:'Landed', right:true, fmt: v => `<b>${money(v)}</b>`},
+    {key:'cost', label:'Own cost', right:true, fmt: costFmt},
+    {key:'residual_pct', label:'vs model', right:true, fmt: resid},
+    {key:'condition', label:'Condition', fmt: cond},
+  ];
+  // Cars.com XC60 rows join the SUV tab in the same shape as a listing row,
+  // with source "cars.com", no interior, and a condition that says so.
+  // The model name comes from the row's own label ("Volvo XC60 (Cars.com)",
+  // "Mazda CX-70 (Cars.com)"), so adding a model to SUV_MODELS needs no page
+  // change. Title text like "Mazda CX-70 3.3 Turbo Premium Plus" is kept as
+  // the trim so the sort and filter columns still work.
+  const suvMarket = (data.suv_market?.rows || []).map(r => {
+    const m = /^(\S+)\s+(.+?)\s*\(Cars\.com\)$/.exec(r.model || '') || [null, 'Cars.com', r.model];
+    return {
+    vin: r.vin || ('CARSCOM-' + (r.url || '').split('/').filter(Boolean).pop()),
+    label: `${r.year} ${r.title}`, year: r.year, make: m[1], model: m[2],
+    // An unreadable dealer abbreviation ("PR", "PF") is shown as such, not
+    // passed off as a trim the rule verified.
+    trim: r.trim_status === 'unknown' ? `${r.title} — trim unreadable` : r.title,
+    trim_status: r.trim_status || '',
+    // Colour is Cars.com's bucket ("gray"), read from the page's vehicle
+    // array; the interior is the bucket the search demanded, shown as the
+    // brown chip because that is the only way a Cars.com row gets one.
+    source: 'cars.com', type: r.certified ? 'certified' : 'lot',
+    color: r.color ? r.color[0].toUpperCase() + r.color.slice(1) : '',
+    interior: r.interior ? `${r.interior} (Cars.com bucket)` : '',
+    interior_tier: r.interior ? 'mid' : null,
+    lot: [r.city, r.state].filter(Boolean).join(', ') || r.dealer || 'Cars.com', distance: r.distance,
+    miles: r.mileage, price: r.price, delivery: 0, landed: r.price,
+    residual_pct: r.market_pct, residual_sigma: null, benchmark: 'market', comps: 0,
+    tier: 'A', watch: r.model, group: 'suv',
+    condition: r.certified ? 'certified per Cars.com, not read' : 'not checked (Cars.com)',
+    condition_kind: r.certified ? 'cert' : 'none', fit: 0, misses: [],
+    days_on_lot: null, price_drop_30d: null, cleared: false, reasons: [], url: r.url, image: '',
+  }; });
+  const suvRows = costify(byGroup('suv').concat(suvMarket));
+  const suvTable = table($('#suv-table'), suvRows, SUV_COLS, {sortKey:'residual_pct', rowClass});
+  controls($('#suv-controls'), suvRows, [
+    {type:'select', key:'model', label:'Model'},
+    {type:'select', key:'source', label:'Source'},
+    {type:'select', key:'interior_tier', label:'Interior'},
+    {type:'max', key:'distance', label:'Away', value: data.home.radius_miles},
+    {type:'max', key:'miles', label:'Miles', placeholder:'35000'},
+  ], rows => suvTable.update(rows));
+
+  // ---- New & CPO Mazda tab ----------------------------------------------------
+  // Dealer rows (group "mazda", from the dealer's own pages) and Cars.com
+  // new/CPO rows in the same shape. "vs sticker" is the dealer's pre-doc
+  // price against MSRP; "Mfr cash" is what the dealer advertises on top.
+  const SOURCE_NAMES = {'byers-mazda-new': 'Byers Mazda (new)', 'byers-mazda': 'Byers Mazda', 'cars.com': 'Cars.com',
+                        'mazdausa': 'Mazda USA locator'};
+  const interiorCell = (v, r) => /terracotta/i.test(v || '')
+        ? `<span class="chip brown">${esc(v)}</span>` : r.interior_tier === 'mid'
+        ? `<span class="chip brown">${esc(v)}</span>` : r.interior_tier === 'light'
+        ? `<span class="chip dim">${esc(v)}</span>` : (v ? esc(v) : '<span class="dim">—</span>');
+  const MAZDA_COLS = [
+    {key:'label', label:'Vehicle', fmt: (v, r) => veh(v, r) +
+        (r.trim_status === 'unknown' ? ' <span class="chip warn" title="Dealer abbreviation; open the listing to read the trim">trim?</span>' : '') +
+        (r.available_from ? ` <span class="chip dim" title="In transit to the dealer">ETA ${esc(r.available_from)}</span>` : '') +
+        (r.benchmark === 'sticker' ? ' <span class="chip dim" title="Mazda USA\'s locator lists the sticker; the dealer\'s own price is on its site">sticker only</span>' : ''), cls:'veh'},
+    {key:'trim', label:'Trim'},
+    {key:'source', label:'Source', fmt: v => esc(SOURCE_NAMES[v] || v)},
+    {key:'color', label:'Colour'},
+    {key:'interior', label:'Interior', fmt: interiorCell},
+    {key:'wheels', label:'Rims', right:true, fmt: v => v == null ? '<span class="dim">—</span>'
+        : `<span class="${v >= 19 ? 'good' : 'dim'}">${v}"</span>`},
+    {key:'lot', label:'Dealer'},
+    {key:'distance', label:'Away', right:true, fmt: int},
+    {key:'miles', label:'Miles', right:true, fmt: int},
+    {key:'msrp', label:'Sticker', right:true, fmt: v => v ? money(v) : '<span class="dim">—</span>'},
+    {key:'price', label:'Price', right:true, fmt: money},
+    {key:'msrp_pct', label:'vs sticker', right:true, fmt: resid},
+    {key:'incentive', label:'Mfr cash', right:true, fmt: v => v ? `<span class="good">−${money(v)}</span>` : '<span class="dim">—</span>'},
+    {key:'landed', label:'Landed', right:true, fmt: v => `<b>${money(v)}</b>`},
+    {key:'cost', label:'Own cost', right:true, fmt: costFmt},
+    {key:'residual_pct', label:'vs model', right:true, fmt: (v, r) => r.type === 'new' ? '<span class="dim" title="A new car is judged against its sticker, left">sticker</span>' : resid(v)},
+    {key:'days_on_lot', label:'Days', right:true, fmt: v => v == null ? '<span class="dim">—</span>' : int(v)},
+    {key:'condition', label:'Condition', fmt: cond},
+  ];
+  const mazdaMarket = (data.mazda_market?.rows || []).map(r => {
+    const m = /^(\S+)\s+(.+?)\s*\(Cars\.com\)$/.exec(r.model || '') || [null, 'Cars.com', r.model];
+    const isNew = (r.stock_type || '') === 'new';
+    const msrpPct = (r.msrp && r.price) ? Math.round(1000 * (r.price / r.msrp - 1)) / 10 : null;
+    return {
+    vin: r.vin || ('CARSCOM-' + (r.url || '').split('/').filter(Boolean).pop()),
+    label: `${r.year} ${r.title}`, year: r.year, make: m[1], model: m[2],
+    trim: r.trim_status === 'unknown' ? `${r.title} — trim unreadable` : r.title,
+    trim_status: r.trim_status || '',
+    source: 'cars.com', type: isNew ? 'new' : (r.certified ? 'certified' : 'lot'), stock: isNew ? 'new' : 'used',
+    color: r.color ? r.color[0].toUpperCase() + r.color.slice(1) : '',
+    interior: r.interior ? `${r.interior === 'brown' ? 'brown/terracotta' : r.interior} (Cars.com bucket)` : '',
+    interior_tier: r.interior ? 'mid' : null,
+    lot: r.dealer || [r.city, r.state].filter(Boolean).join(', ') || 'Cars.com', city: r.city, state: r.state, distance: r.distance,
+    miles: r.mileage, price: r.price, msrp: r.msrp || null, msrp_pct: msrpPct, incentive: null,
+    delivery: 0, landed: Math.round(r.price * (1 + (econ.tax_rate || 0)) + (econ.title_reg_fees || 0)),
+    residual_pct: isNew ? msrpPct : r.market_pct, residual_sigma: null, benchmark: isNew ? 'msrp' : 'market', comps: 0,
+    tier: 'A', watch: r.model, group: 'mazda',
+    condition: isNew ? 'new car' : (r.certified ? 'certified per Cars.com, not read' : 'not checked (Cars.com)'),
+    condition_kind: isNew ? 'new' : (r.certified ? 'cert' : 'none'), fit: 0, misses: [],
+    days_on_lot: null, price_drop_30d: null, cleared: false, reasons: [], url: r.url, image: '',
+    mpg: null, warranty: null, wait: null,
+  }; });
+  const mazdaRows = costify(byGroup('mazda').concat(mazdaMarket));
+  // Advertised discounts first (a new car's residual is its price against
+  // sticker), then sticker-only rows, which have no residual and sort last.
+  const mazdaTable = table($('#mazda-table'), mazdaRows, MAZDA_COLS, {sortKey:'residual_pct', rowClass});
+  controls($('#mazda-controls'), mazdaRows, [
+    {type:'select', key:'model', label:'Model'},
+    {type:'select', key:'type', label:'Type'},
+    {type:'select', key:'source', label:'Source'},
+    {type:'select', key:'color', label:'Colour'},
+    {type:'select', key:'interior_tier', label:'Interior'},
+    {type:'select', key:'wheels', label:'Rims'},
+    {type:'max', key:'distance', label:'Away', value: data.home.dealer_radius_miles || 75},
+    {type:'max', key:'landed', label:'Landed', placeholder:'45000'},
+  ], rows => mazdaTable.update(rows));
+  if ((data.mazda_market?.skipped || []).length)
+    $('#tab-mazda').insertAdjacentHTML('afterbegin', `<div class="note flag">Cars.com not refreshed this run: ${esc(data.mazda_market.skipped.join(', '))}.</div>`);
+
+  // ---- dream tab ---------------------------------------------------------------
+  const DREAM_COLS = [
+    {key:'title', label:'Vehicle', cls:'veh', fmt: (v, r) => r.url
+        ? `<a href="${esc(r.url)}" target="_blank" rel="noopener"><b>${esc(r.year)}</b> ${esc(v)}</a>`
+        : `<b>${esc(r.year)}</b> ${esc(v)} <span class="dim">(no link)</span>`},
+    {key:'model', label:'Model'},
+    {key:'color', label:'Colour', fmt: v => v ? esc(v[0].toUpperCase() + v.slice(1)) : '<span class="dim">—</span>'},
+    {key:'mileage', label:'Miles', right:true, fmt: int},
+    {key:'price', label:'Price', right:true, fmt: money},
+    {key:'market_pct', label:'vs curve', right:true, fmt: resid},
+    {key:'rating', label:'Cars.com', fmt: v => v ? `<span class="${/great/i.test(v) ? 'good' : 'dim'}">${esc(v)}</span>` : '<span class="dim">—</span>'},
+    {key:'distance', label:'Away', right:true, fmt: (v, r) => r.source === 'carmax' ? '<span class="dim" title="Shipped to you; the shipping quote is in the landed cost">ships</span>' : int(v)},
+    {key:'city', label:'Where', fmt: (v, r) => esc([v, r.state].filter(Boolean).join(', '))},
+  ];
+  // The cap is enforced at fetch time too; this is belt-and-braces for a
+  // stale seed produced before the cap existed.
+  const dreamRows = data.dream.rows.filter(r => r.price == null || r.price <= 47000);
+  const dreamTable = table($('#dream-table'), dreamRows, DREAM_COLS, {sortKey:'market_pct'});
+  controls($('#dream-controls'), dreamRows, [
+    {type:'select', key:'model', label:'Model'},
+    {type:'max', key:'mileage', label:'Miles', placeholder:'40000'},
+    {type:'max', key:'price', label:'Price', placeholder:'50000'},
+    {type:'max', key:'distance', label:'Away', placeholder:'300'},
+  ], rows => dreamTable.update(rows));
+  if (data.dream.skipped.length)
+    $('#tab-dream').insertAdjacentHTML('afterbegin', `<div class="note flag">Not refreshed this run: ${esc(data.dream.skipped.join(', '))}.</div>`);
+
+  // ---- followed tab ---------------------------------------------------------
+  // The run's view (from the issues) first, then stars kept only in this
+  // browser, with the board's own current price when the car is still on it.
+  function followRows() {
+    const out = [], seen = new Set();
+    for (const r of (followCfg.rows || [])) {
+      seen.add(r.key);
+      out.push({...r, vin: r.key, synced: true,
+        status: r.found ? (r.listed ? 'listed' : 'gone') : 'not seen',
+        delta: (r.price_now != null && r.price_at_follow != null) ? r.price_now - r.price_at_follow : null,
+        last_text: r.log && r.log.length ? r.log[r.log.length - 1].text : ''});
+    }
+    for (const [k, v] of Object.entries(followed)) {
+      if (seen.has(k)) continue;
+      const cur = ROWS.get(k);
+      const priceNow = cur ? cur.price : null;
+      out.push({key: k, vin: k, title: v.title, url: v.url, source: v.source, since: (v.at || '').slice(0, 10),
+        price_at_follow: v.price, price_now: priceNow, miles_now: cur ? (cur.miles ?? cur.mileage) : v.miles,
+        listed: !!cur, found: !!cur, status: cur ? 'listed' : 'not on board', synced: false,
+        delta: (cur && v.price != null && priceNow != null) ? priceNow - v.price : null,
+        last_text: '', issue_url: '', number: null, lot: v.lot, log: [], _info: v});
+    }
+    return out;
+  }
+  const FOLLOW_COLS = [
+    {key:'title', label:'Vehicle', cls:'veh', fmt: (v, r) => (r.url
+        ? `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(v)}</a>` : esc(v)) +
+        (r.status === 'gone' ? ' <span class="chip flag">gone</span>'
+         : r.status === 'not seen' || r.status === 'not on board' ? ` <span class="chip dim">${esc(r.status)}</span>` : '') +
+        (r.synced ? '' : ' <span class="chip warn" title="Starred in this browser; the monitor does not know yet">device only</span>')},
+    {key:'source', label:'Source'},
+    {key:'since', label:'Since', fmt: v => v ? `<span class="num">${esc(v)}</span>` : '<span class="dim">—</span>'},
+    {key:'price_at_follow', label:'Then', right:true, fmt: money},
+    {key:'price_now', label:'Now', right:true, fmt: v => `<b>${money(v)}</b>`},
+    {key:'delta', label:'Δ', right:true, fmt: v => v == null ? '<span class="dim">—</span>'
+        : `<span class="${v < 0 ? 'good' : v > 0 ? 'badv' : 'dim'}">${v > 0 ? '+' : v < 0 ? '−' : ''}${money(Math.abs(v))}</span>`},
+    {key:'miles_now', label:'Miles', right:true, fmt: int},
+    {key:'lot', label:'Lot'},
+    {key:'last_text', label:'Last change', fmt: (v, r) => v ? `<span title="${esc(r.last_change || '')}">${esc(v)}</span>` : '<span class="dim">—</span>'},
+    {key:'number', label:'Issue', fmt: (v, r) => r.issue_url
+        ? `<a href="${esc(r.issue_url)}" target="_blank" rel="noopener">#${esc(v)}</a>`
+        : (followCfg.enabled && followCfg.new_issue_url && r._info
+           ? `<a href="${issueUrl(r._info)}" target="_blank" rel="noopener">create</a>` : '<span class="dim">—</span>')},
+  ];
+  const followTable = table($('#follow-table'), followRows(), FOLLOW_COLS, {sortKey:'delta', noDismiss:true});
+  rerenders.push(() => {
+    followTable.update(followRows());
+    const n = $('#tabs button[data-tab="follow"] .n'); if (n) n.textContent = followCount();
+  });
+  $('#follow-note').innerHTML = followCfg.enabled
+    ? `Cars you starred. Each is an open <a href="https://github.com/${esc(followCfg.repo)}/issues?q=is%3Aissue+is%3Aopen+label%3Afollow" target="_blank" rel="noopener">follow issue</a> on the repo; the monitor comments there and pushes when the price, mileage, listing status or AutoCheck changes. Close an issue to stop following. "Then" is the price when you starred it.`
+    : `Stars are kept in this browser for now. <b>Alerts on followed cars are off</b>: ${esc(followCfg.reason || 'the monitor could not reach GitHub')}. ${followCfg.repo ? `Enable Issues under <a href="https://github.com/${esc(followCfg.repo)}/settings" target="_blank" rel="noopener">the repo's settings</a> (General → Features → Issues), then star the cars again to create their issues.` : ''}`;
+
+  // ---- best at budget -----------------------------------------------------------
+  // Every row the board knows, in one shape, ranked by ownership cost.
+  const dreamAsRows = (data.dream.rows || []).filter(r => r.price && r.price <= 47000).map(r => {
+    const m = /^(\S+)\s+(.+)$/.exec(r.model || '') || [null, '', r.model];
+    return {vin: r.vin || r.url, label: `${r.year} ${r.title}`, year: r.year, make: m[1], model: m[2], trim: r.title,
+      source: 'cars.com', type: r.certified ? 'certified' : 'lot', color: r.color || '', interior: '', interior_tier: null,
+      lot: [r.city, r.state].filter(Boolean).join(', ') || r.dealer || 'Cars.com', distance: r.distance,
+      miles: r.mileage, price: r.price, delivery: 0,
+      landed: Math.round(r.price * (1 + (econ.tax_rate || 0)) + (econ.title_reg_fees || 0)),
+      residual_pct: r.market_pct, residual_sigma: null, benchmark: 'market', comps: 0, tier: '', watch: r.model, group: 'dream',
+      condition: 'not checked (Cars.com)', condition_kind: 'none', fit: 0, misses: [], days_on_lot: null, price_drop_30d: null,
+      cleared: false, reasons: [], url: r.url, image: '', mpg: null, warranty: null, wait: null};
+  });
+  const budgetRows = costify(listings.concat(suvMarket.map(r => ({...r, landed: Math.round(r.price * (1 + (econ.tax_rate || 0)) + (econ.title_reg_fees || 0))})), mazdaMarket, dreamAsRows));
+  const BUDGET_COLS = [
+    {key:'label', label:'Vehicle', fmt: veh, cls:'veh'},
+    {key:'source', label:'Source'},
+    {key:'distance', label:'Away', right:true, fmt: (v, r) => r.source === 'carmax' ? '<span class="dim">ships</span>' : int(v)},
+    {key:'miles', label:'Miles', right:true, fmt: int},
+    {key:'price', label:'Price', right:true, fmt: money},
+    {key:'landed', label:'Landed', right:true, fmt: v => `<b>${money(v)}</b>`},
+    {key:'cost', label:'Own cost', right:true, fmt: costFmt},
+    {key:'residual_pct', label:'vs model', right:true, fmt: resid},
+    {key:'condition', label:'Condition', fmt: cond},
+  ];
+  const budgetTable = table($('#budget-table'), budgetRows, BUDGET_COLS, {sortKey:'cost', rowClass});
+  controls($('#budget-controls'), budgetRows, [
+    {type:'max', key:'landed', label:'Landed budget', value: 36000},
+    {type:'select', key:'make', label:'Make'},
+    {type:'select', key:'source', label:'Source'},
+    {type:'max', key:'miles', label:'Miles', placeholder:'25000'},
+    {type:'max', key:'distance', label:'Away', value: data.home.radius_miles},
+  ], rows => budgetTable.update(rows));
+
+  // ---- about tab ---------------------------------------------------------------
+  const lr = data.last_run;
+  $('#about').innerHTML =
+    `<div><b>Last successful run</b> ${lr ? `${esc(lr.finished_at)} · ${lr.fetched} fetched, ${lr.new_vins} new, ${lr.price_drops} price drops, ${lr.alerts_sent} alerts` : 'none recorded'}</div>
+     <div><b>Preferences</b> colours ${esc(data.preferences.colors.join(', '))}; ${esc(data.preferences.trims.join(', '))}; ideally under ${int(data.preferences.odometer_ideal)} mi.</div>
+     <h2 style="margin-top:8px">Watches</h2>
+     <div class="scroll"><table><thead><tr><th>Watch</th><th>Tier</th><th>Source</th><th>Models</th><th>Years</th><th class="r">Max mi</th><th class="r">Every</th><th class="r">Now</th></tr></thead><tbody>` +
+    data.watches.map(w => `<tr><td>${esc(w.label)}</td><td>${esc(w.tier)}</td><td>${esc(w.source)}</td><td>${esc(w.models.join(', '))}</td>
+      <td>${w.year_min ? esc(w.year_min) + (w.year_max ? '–' + esc(w.year_max) : '+') : 'any'}</td>
+      <td class="r num">${w.odometer_max ? int(w.odometer_max) : '—'}</td><td class="r num">${w.poll_hours} h</td><td class="r num">${w.count}</td></tr>`).join('') +
+    `</tbody></table></div>` +
+    marketTiming();
+  function marketTiming() {
+    const mk = data.market || {}; const idx = mk.index || []; const hz = mk.hazard || {};
+    const idxRows = idx.map(w => `<tr><td class="num">${esc(w.week_end)}</td><td class="r num">${int(w.n)}</td><td class="r num">${w.index.toFixed(3)}</td>
+      <td class="r num">${w.index_primary == null ? '—' : w.index_primary.toFixed(3)}</td><td class="r num">${int(w.inventory_primary)}</td><td class="r num">${money(w.median_price_primary)}</td></tr>`).join('');
+    const hzRows = name => Object.entries(hz[name] || {}).map(([b, r]) => `<tr><td class="num">${esc(b)}</td>
+      <td class="r num">${r.weekly_price_change_pct == null ? '—' : pct(r.weekly_price_change_pct)}</td>
+      <td class="r num">${r.p_cut_week == null ? '—' : Math.round(100 * r.p_cut_week) + '%'}</td>
+      <td class="r num">${r.p_survive_week == null ? '—' : Math.round(100 * r.p_survive_week) + '%'}</td>
+      <td class="r num">${int(r.car_days)}</td><td class="r num">${int(r.cuts)}</td><td class="r num">${int(r.left)}</td></tr>`).join('');
+    return `<h2 style="margin-top:14px">Market timing</h2>
+      <div class="dim" style="font-size:12.5px">Price level by week relative to today's fit (1.030 = 3% dearer for the same mileage, year, trim and model), with the CX-50 Hybrid alone and its count on the site. Accumulates from 9 September 2026.</div>
+      <div class="scroll"><table class="mini"><thead><tr><th>Week ending</th><th class="r">Cars</th><th class="r">Index</th><th class="r">CX-50 Hybrid</th><th class="r">On site</th><th class="r">Median price</th></tr></thead><tbody>${idxRows || '<tr><td colspan="6" class="empty">No history yet.</td></tr>'}</tbody></table></div>
+      <div class="dim" style="font-size:12.5px;margin-top:8px">Hertz markdown and leaving rates by days on sale. Leaving rates count only models swept in full, since a car dropping out of a capped sweep looks like a sale.</div>
+      <div class="scroll"><table class="mini"><thead><tr><th>CX-50 Hybrid · days</th><th class="r">Price / week</th><th class="r">P(cut)</th><th class="r">P(still here)</th><th class="r">Car-days</th><th class="r">Cuts</th><th class="r">Left</th></tr></thead><tbody>${hzRows('primary') || '<tr><td colspan="7" class="empty">No history yet.</td></tr>'}</tbody></table></div>
+      <div class="scroll" style="margin-top:6px"><table class="mini"><thead><tr><th>All Hertz · days</th><th class="r">Price / week</th><th class="r">P(cut)</th><th class="r">P(still here)</th><th class="r">Car-days</th><th class="r">Cuts</th><th class="r">Left</th></tr></thead><tbody>${hzRows('all') || '<tr><td colspan="7" class="empty">No history yet.</td></tr>'}</tbody></table></div>`;
+  }
+})();
+</script>
+</body>
+</html>
